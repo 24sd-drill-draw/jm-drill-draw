@@ -1267,6 +1267,50 @@ cv.addEventListener('wheel',e=>{ e.preventDefault();
   const [wx,wy]=S2W(mx,my); cam.s*=f; cam.tx=mx-wx*cam.s; cam.ty=my-wy*cam.s; render();
 },{passive:false});
 
+// ---- touch: pinch-to-zoom + long-press to finish drawing ----
+let _touches={}, _pinchDist=null, _longPressTimer=null;
+
+function _touchDist(a,b){ return Math.hypot(b.clientX-a.clientX, b.clientY-a.clientY); }
+function _touchMid(a,b){ return {x:(a.clientX+b.clientX)/2, y:(a.clientY+b.clientY)/2}; }
+function _cancelLong(){ if(_longPressTimer){clearTimeout(_longPressTimer);_longPressTimer=null;} }
+
+cv.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  _cancelLong();
+  const ts=[...e.touches];
+  ts.forEach(t=>{ _touches[t.identifier]=t; });
+  if(ts.length===2){
+    _pinchDist=_touchDist(ts[0],ts[1]);
+  } else if(ts.length===1){
+    // long press (600ms) = right-click / finish drawing
+    _longPressTimer=setTimeout(()=>{
+      _longPressTimer=null;
+      cv.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:ts[0].clientX,clientY:ts[0].clientY}));
+    },600);
+  }
+},{passive:false});
+
+cv.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  _cancelLong();
+  const ts=[...e.touches];
+  if(ts.length===2 && _pinchDist!==null){
+    const newDist=_touchDist(ts[0],ts[1]);
+    const f=newDist/_pinchDist; _pinchDist=newDist;
+    const mid=_touchMid(ts[0],ts[1]);
+    const rect=cv.getBoundingClientRect();
+    const mx=mid.x-rect.left, my=mid.y-rect.top;
+    const [wx,wy]=S2W(mx,my); cam.s*=f; cam.tx=mx-wx*cam.s; cam.ty=my-wy*cam.s; render();
+  }
+},{passive:false});
+
+cv.addEventListener('touchend',e=>{
+  e.preventDefault();
+  _cancelLong();
+  [...e.changedTouches].forEach(t=>delete _touches[t.identifier]);
+  if([...e.touches].length<2) _pinchDist=null;
+},{passive:false});
+
 // =========================================================
 //  INSPECTOR
 // =========================================================
