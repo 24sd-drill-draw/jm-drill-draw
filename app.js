@@ -81,7 +81,7 @@ function buildViewSeg(){
 // =========================================================
 //  SCENES (multi-drill practice)
 // =========================================================
-function makeScene(name){ return {name, pieces:[], paths:[], rinkType:'full', undoStack:[], redoStack:[]}; }
+function makeScene(name){ return {name, pieces:[], paths:[], rinkType:'full', undoStack:[], redoStack:[], notes:''}; }
 let scenes=[makeScene('Drill 1')];
 let currentScene=0;
 
@@ -99,6 +99,7 @@ function syncScene(){
   scenes[currentScene].rinkType=rinkConfig;
   scenes[currentScene].undoStack=undoStack;
   scenes[currentScene].redoStack=redoStack;
+  const nt=document.getElementById('drillNotes'); if(nt) scenes[currentScene].notes=nt.value;
 }
 function loadScene(idx){
   syncScene();
@@ -108,6 +109,7 @@ function loadScene(idx){
   undoStack=s.undoStack; redoStack=s.redoStack;
   rinkConfig=s.rinkType||'full';
   document.getElementById('rinkSel').value=rinkConfig;
+  const nt=document.getElementById('drillNotes'); if(nt) nt.value=s.notes||'';
   selOne(null); building=null; passBuilding=null; shotBuilding=null; skateBuilding=null; skateBackBuilding=null; skateBackCursor=null;
   tNow=0; playing=false;
   try{setPlayUI();}catch(e){}
@@ -139,6 +141,17 @@ function deleteScene(idx){
 function renameScene(idx){
   const s=prompt('Drill name:',scenes[idx].name); if(s&&s.trim()) scenes[idx].name=s.trim(); updateSceneTabs();
 }
+function duplicateScene(idx){
+  syncScene();
+  const s=scenes[idx];
+  const ns=makeScene(s.name+' copy');
+  ns.pieces=JSON.parse(JSON.stringify(s.pieces));
+  ns.paths=JSON.parse(JSON.stringify(s.paths));
+  ns.rinkType=s.rinkType;
+  ns.notes=s.notes||'';
+  scenes.splice(idx+1,0,ns);
+  loadScene(idx+1);
+}
 function updateSceneTabs(){
   const bar=document.getElementById('scenebar'); if(!bar)return; bar.innerHTML='';
   scenes.forEach((s,i)=>{
@@ -146,9 +159,11 @@ function updateSceneTabs(){
     t.textContent=s.name;
     t.onclick=()=>loadScene(i);
     t.ondblclick=(e)=>{ e.stopPropagation(); renameScene(i); };
+    const dup=document.createElement('span'); dup.textContent='⧉'; dup.className='scenetab-x';
+    dup.title='Duplicate drill'; dup.onclick=(e)=>{ e.stopPropagation(); duplicateScene(i); };
     const x=document.createElement('span'); x.textContent='×'; x.className='scenetab-x';
     x.title='Delete drill'; x.onclick=(e)=>{ e.stopPropagation(); deleteScene(i); };
-    t.appendChild(x); bar.appendChild(t);
+    t.appendChild(dup); t.appendChild(x); bar.appendChild(t);
   });
   const add=document.createElement('button'); add.className='scenetab scenetab-add'; add.textContent='+ Drill';
   add.onclick=addScene; bar.appendChild(add);
@@ -194,6 +209,8 @@ function restore(s){ const o=JSON.parse(s); pieces=o.pieces; paths=o.paths; rink
   buildLayoutSeg(); buildViewSeg(); render(); }
 function undo(){ if(!undoStack.length)return; redoStack.push(snapshot()); restore(undoStack.pop()); selOne(null); updateInspector(); }
 function redo(){ if(!redoStack.length)return; undoStack.push(snapshot()); restore(redoStack.pop()); selOne(null); updateInspector(); }
+document.getElementById('undoBtn').onclick=()=>undo();
+document.getElementById('redoBtn').onclick=()=>redo();
 
 // =========================================================
 //  TRAY
@@ -408,7 +425,7 @@ function drawRinkBg(p){
       ctx.arcTo(X(0),Y(RH),X(0),Y(RH)-r,r); ctx.lineTo(X(0),Y(0)+r); ctx.arcTo(X(0),Y(0),X(0)+r,Y(0),r); ctx.closePath();
     } }
 
-  boardPath(); ctx.fillStyle='#FFFFFF'; ctx.fill();
+  boardPath(); ctx.fillStyle=document.body.classList.contains('dark-ice')?'#1a2835':'#FFFFFF'; ctx.fill();
   ctx.save(); boardPath(); ctx.clip();
 
   const V=(gx,col,w)=>{ ctx.strokeStyle=col; ctx.lineWidth=w; ctx.beginPath(); ctx.moveTo(X(gx),Y(0)); ctx.lineTo(X(gx),Y(RH)); ctx.stroke(); };
@@ -1684,6 +1701,9 @@ function loadDemo(){
   toast('2v1 breakout loaded — press Play');
 }
 document.getElementById('demoBtn').onclick=loadDemo;
+document.getElementById('darkIceBtn').onclick=()=>{ document.body.classList.toggle('dark-ice'); render(); };
+document.getElementById('printBtn').onclick=()=>{ syncScene(); window.print(); };
+document.getElementById('drillNotes').addEventListener('input',()=>{ scenes[currentScene].notes=document.getElementById('drillNotes').value; });
 
 // =========================================================
 //  BOOT

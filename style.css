@@ -147,3 +147,22 @@
     .inspect{width:200px}
     .seg button{padding:7px 8px}
   }
+
+  /* dark ice mode */
+  body.dark-ice{--ice:#1a2a3a;--ice2:#152233}
+
+  /* drill notes */
+  .drill-notes{padding:3px 12px 4px;background:var(--navy2);border-bottom:1px solid var(--line);flex:0 0 auto}
+  .drill-notes textarea{width:100%;background:transparent;border:none;border-radius:0;color:var(--muted);
+    font:12px/1.4 inherit;resize:none;outline:none;padding:2px 0}
+  .drill-notes textarea::placeholder{color:var(--line)}
+  .drill-notes textarea:focus{color:var(--ink)}
+
+  /* print */
+  @media print{
+    .top,.tray,.transport,.scenebar,.drill-notes,.zoomctl,.inspect,.toast{display:none!important}
+    .app{display:block}
+    .body{display:block}
+    .stage{position:fixed;inset:0;background:#fff}
+    #cv{width:100%!important;height:100%!important}
+  }

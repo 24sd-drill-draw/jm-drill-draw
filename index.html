@@ -35,6 +35,10 @@
     </select>
 
     <div class="spacer"></div>
+    <button class="tbtn ghost" id="undoBtn" title="Undo (Ctrl+Z)">↩ Undo</button>
+    <button class="tbtn ghost" id="redoBtn" title="Redo (Ctrl+Y)">↪ Redo</button>
+    <button class="tbtn ghost" id="darkIceBtn" title="Toggle dark ice">🌙 Dark</button>
+    <button class="tbtn ghost" id="printBtn" title="Print drill">🖨 Print</button>
     <select id="refSel" class="tbtn" style="padding:6px 8px;-webkit-appearance:menulist" title="Drop a drill diagram on the ice to trace and animate over">
       <option value="">Reference…</option>
       <option value="stations">10U Stealth (stations)</option>
@@ -58,6 +62,7 @@
   </div>
 
   <div class="scenebar" id="scenebar"></div>
+  <div class="drill-notes"><textarea id="drillNotes" rows="1" placeholder="Drill notes…"></textarea></div>
   <div class="body">
     <!-- TRAY -->
     <div class="tray">
