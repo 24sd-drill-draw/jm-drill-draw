@@ -767,31 +767,38 @@ function shotDouble(scr,col){
   const n=scr.length;
   const a=scr[n-2]||scr[0], b=scr[n-1];
   const ang=Math.atan2(b[1]-a[1],b[0]-a[0]);
-  const L=Math.max(10,3.0*cam.s);  // triangle length
-  const gap=Math.max(3,0.9*cam.s);
-  const lw=Math.max(1.5,0.45*cam.s);
-  // stop lines short of the tip so triangle caps them cleanly
-  const tipX=b[0]-L*Math.cos(ang), tipY=b[1]-L*Math.sin(ang);
-  const trimmed=[...scr.slice(0,-1),[tipX,tipY]];
-  ctx.strokeStyle=col; ctx.lineWidth=lw;
-  for(let side=-1;side<=1;side+=2){
-    const offset=gap*side;
+  const L=Math.max(9,2.8*cam.s);          // triangle size
+  const spread=Math.max(3,0.85*cam.s);    // half-gap between the two lines
+  const lw=Math.max(1.5,0.4*cam.s);
+  const lineGap=Math.max(4,1.4*cam.s);    // gap between line end and triangle base
+
+  // lines stop short — leave room for gap + triangle
+  const stopDist=L+lineGap;
+  const stopX=b[0]-stopDist*Math.cos(ang), stopY=b[1]-stopDist*Math.sin(ang);
+  const trimmed=[...scr.slice(0,-1),[stopX,stopY]];
+
+  // perpendicular direction
+  const nx=-Math.sin(ang), ny=Math.cos(ang);
+
+  ctx.strokeStyle=col; ctx.lineWidth=lw; ctx.lineCap='round';
+  for(const side of [-1,1]){
     ctx.beginPath();
     for(let i=0;i<trimmed.length;i++){
-      const prev=i>0?trimmed[i-1]:trimmed[i], cur=trimmed[i];
-      const a2=Math.atan2(cur[1]-prev[1],cur[0]-prev[0]);
-      const nx=-Math.sin(a2)*offset, ny=Math.cos(a2)*offset;
-      if(i===0) ctx.moveTo(cur[0]+nx,cur[1]+ny);
-      else ctx.lineTo(cur[0]+nx,cur[1]+ny);
+      const pt=trimmed[i];
+      if(i===0) ctx.moveTo(pt[0]+nx*spread*side, pt[1]+ny*spread*side);
+      else       ctx.lineTo(pt[0]+nx*spread*side, pt[1]+ny*spread*side);
     }
     ctx.stroke();
   }
-  // filled triangle at the tip
+
+  // disconnected filled triangle tip
+  const tipX=b[0], tipY=b[1];
+  const baseX=tipX-L*Math.cos(ang), baseY=tipY-L*Math.sin(ang);
   ctx.fillStyle=col;
   ctx.beginPath();
-  ctx.moveTo(b[0],b[1]);
-  ctx.lineTo(b[0]-L*Math.cos(ang-0.38),b[1]-L*Math.sin(ang-0.38));
-  ctx.lineTo(b[0]-L*Math.cos(ang+0.38),b[1]-L*Math.sin(ang+0.38));
+  ctx.moveTo(tipX, tipY);
+  ctx.lineTo(baseX+nx*L*0.42, baseY+ny*L*0.42);
+  ctx.lineTo(baseX-nx*L*0.42, baseY-ny*L*0.42);
   ctx.closePath(); ctx.fill();
 }
 function shotHashes(scr,col){
