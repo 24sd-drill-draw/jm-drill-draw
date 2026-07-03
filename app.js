@@ -1701,8 +1701,31 @@ function loadDemo(){
   toast('2v1 breakout loaded — press Play');
 }
 document.getElementById('demoBtn').onclick=loadDemo;
-document.getElementById('darkIceBtn').onclick=()=>{ document.body.classList.toggle('dark-ice'); render(); };
-document.getElementById('printBtn').onclick=()=>{ syncScene(); window.print(); };
+// combined site theme + dark ice toggle
+const _themeBtn=document.getElementById('darkIceBtn');
+function applyTheme(light){
+  document.body.classList.toggle('light-theme',light);
+  document.body.classList.remove('dark-ice');
+  _themeBtn.textContent=light?'🌙 Dark':'☀️ Light';
+  render();
+}
+_themeBtn.onclick=()=>applyTheme(!document.body.classList.contains('light-theme'));
+
+// print: snapshot canvas → stable print window
+document.getElementById('printBtn').onclick=()=>{
+  render();
+  const url=cv.toDataURL('image/png');
+  const drill=(scenes[currentScene]&&scenes[currentScene].name)||'Drill';
+  const w=window.open('','_blank','width=1000,height=750');
+  w.document.write('<!doctype html><html><head><title>'+drill+'</title><style>'+
+    '*{margin:0;padding:0;box-sizing:border-box}'+
+    'body{background:#fff;display:flex;flex-direction:column;align-items:center;padding:16px;font:700 14px system-ui}'+
+    'h2{margin-bottom:10px;color:#111}'+
+    'img{max-width:100%;height:auto;border:1px solid #ddd}'+
+    '@media print{@page{margin:10mm}body{padding:0}h2{margin-bottom:6px}img{max-width:100%;max-height:93vh;border:none}}'+
+    '<\/style><\/head><body><h2>'+drill+'<\/h2><img src="'+url+'"><script>window.onload=function(){window.print();}<\/script><\/body><\/html>');
+  w.document.close();
+};
 document.getElementById('drillNotes').addEventListener('input',()=>{ scenes[currentScene].notes=document.getElementById('drillNotes').value; });
 
 // =========================================================

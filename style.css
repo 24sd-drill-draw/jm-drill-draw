@@ -5,6 +5,11 @@
     --shadow:0 8px 24px rgba(0,0,0,.35);
     --r:10px;
   }
+  body.light-theme{
+    --navy:#F0F4F8; --navy2:#FFFFFF; --panel:#E2EAF0; --panel2:#D0DCE8;
+    --line:#B0C4D4; --ink:#0A1622; --muted:#4A6A82; --ice:#EAF6FB; --ice2:#D6ECF4;
+    --shadow:0 4px 16px rgba(0,0,0,.12);
+  }
   *{box-sizing:border-box}
   html,body{height:100%}
   body{margin:0;background:var(--navy);color:var(--ink);
@@ -158,11 +163,7 @@
   .drill-notes textarea::placeholder{color:var(--line)}
   .drill-notes textarea:focus{color:var(--ink)}
 
-  /* print */
-  @media print{
-    .top,.tray,.transport,.scenebar,.drill-notes,.zoomctl,.inspect,.toast{display:none!important}
-    .app{display:block}
-    .body{display:block}
-    .stage{position:fixed;inset:0;background:#fff}
-    #cv{width:100%!important;height:100%!important}
-  }
+  body.light-theme .stage{background:#E8F0F8}
+  body.light-theme .scenetab-add{border-color:var(--line)}
+
+  /* print — handled via JS printDrill(), no @media print needed */
