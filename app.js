@@ -497,7 +497,7 @@ function drawRinkBg(p){
     ctx.save(); ctx.globalAlpha=0.95; ctx.drawImage(img, X(100)-ww/2, Y(42.5)-hh/2, ww, hh); ctx.restore();
   }
 }
-function roundRectPath(x,y,w,h,r){ r=Math.min(r,w/2,h/2);
+function roundRectPath(x,y,w,h,r){ r=Math.max(0,Math.min(r,Math.abs(w)/2,Math.abs(h)/2));
   ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
   ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
 
@@ -1731,14 +1731,22 @@ document.getElementById('drillNotes').addEventListener('input',()=>{ scenes[curr
 // =========================================================
 //  BOOT
 // =========================================================
-function resize(){ DPR=Math.min(window.devicePixelRatio||1,2);
+function resize(){ if(cv.clientWidth<1||cv.clientHeight<1) return; DPR=Math.min(window.devicePixelRatio||1,2);
   cv.width=cv.clientWidth*DPR; cv.height=cv.clientHeight*DPR; render(); }
 window.addEventListener('resize',resize);
 
 buildTools(); buildSwatches(); buildObjColors(); buildPieceTray(); buildLayoutSeg(); buildViewSeg(); updateSceneTabs();
 setTool('select');
-fitRect({x:0,y:0,w:RW,h:RH});
-resize();
+// Initial fit must wait until the canvas actually has a size — on iPad/Safari the
+// layout can finalize after first paint, and fitting a 0-size canvas gives a negative
+// scale (cropped in the top-left until you tap Fit). Re-run until it lands once.
+let didBoot=false;
+function bootFit(){ if(didBoot||cv.clientWidth<1||cv.clientHeight<1) return; fitRect({x:0,y:0,w:RW,h:RH}); resize(); didBoot=true; }
+bootFit();
+requestAnimationFrame(bootFit);
+window.addEventListener('load', bootFit);
+setTimeout(bootFit,200); setTimeout(bootFit,600); setTimeout(bootFit,1500);
+if(window.ResizeObserver){ new ResizeObserver(()=>{ if(!didBoot) bootFit(); else resize(); }).observe(cv); }
 syncScrub();
 requestAnimationFrame(tick);
 
