@@ -1651,7 +1651,7 @@ window.addEventListener('keydown',e=>{
 
 // hint text
 function updateHint(){
-  const h=document.getElementById('hint');
+  const h=document.getElementById('hint'); if(!h) return;  // hint bar was removed from the HTML
   if(pendingPick){ h.textContent = pendingPick.kind==='carrier'?'Click the player who starts with the puck':'Click the receiver, or a spot, for the pass'; h.style.display='block'; return; }
   if(pendingType){ h.textContent=(pendingStamp?'Click to stamp ':'Click to place ')+prettyType(pendingType)+(pendingStamp?'  (Esc to stop)':'  (Esc to cancel)'); h.style.display='block'; return; }
   if(pieces.length===0){ h.textContent='Click a skater on the left to drop it on the ice — then draw a path from it and press Play.'; h.style.display='block'; return; }

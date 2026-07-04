@@ -1,2 +1,5 @@
 .DS_Store
 Thumbs.db
+
+# camp board is deployed privately via Cloudflare; must NOT be on this public Pages repo
+camp-staff-board.html
