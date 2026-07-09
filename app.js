@@ -50,9 +50,9 @@ function defaultView(){ return rinkConfig==='full'?'full': rinkConfig==='half'?'
 function viewPresets(){
   const b=worldBounds();
   if(rinkConfig==='field') return [
-    {k:'full', t:'Full',   r:{x:-30,y:-20,w:FW+60,h:FH+100}},
+    {k:'full', t:'Full',   r:{x:-20,y:-12,w:FW+40,h:FH+44}},
     {k:'field',t:'Field',  r:{x:-5, y:-5, w:FW+10,h:FH+10}},
-    {k:'pp',   t:'Rec Area',r:{x:-28,y:FH+20,w:FW*0.5,h:55}},
+    {k:'pp',   t:'Rec Area',r:{x:-22,y:FH+6,w:60,h:28}},
   ];
   if(rinkConfig==='full') return [
     {k:'full',t:'Full',   r:{x:0,y:0,w:RW,h:RH}},
@@ -536,7 +536,7 @@ function drawFieldBg(p){
 
   // Wide pavement canvas behind everything
   ctx.fillStyle=pavement;
-  ctx.fillRect(X(-30),Y(-20),(FW+60)*s,(FH+100)*s);
+  ctx.fillRect(X(-20),Y(-12),(FW+40)*s,(FH+44)*s);
 
   // Grass
   fieldPath(); ctx.fillStyle=grass; ctx.fill();
@@ -588,7 +588,7 @@ function drawFieldBg(p){
 
   // --- Ping pong tables: lower-left pavement area, well below & left of field ---
   const tw=9,th=5,tgap=4;
-  const ptx=-18, pty=FH+38; // left of and below the field
+  const ptx=-18, pty=FH+10; // left of and just below the field
   ctx.lineWidth=Math.max(0.8,0.5*s);
   for(let col=0;col<2;col++){
     const tx=ptx+col*(tw+tgap), ty=pty;
