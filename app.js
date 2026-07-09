@@ -589,7 +589,7 @@ function drawFieldBg(p){
   // --- Ping pong tables: vertical orientation, lower-left pavement ---
   // tw=length(9), th=width(5) — rotated: placed as th wide, tw tall
   const tw=5,th=9,tgap=4;
-  const ptx=FW/2-7, pty=FH+10;
+  const ptx=FW/2-28, pty=FH+10;
   ctx.lineWidth=Math.max(0.8,0.5*s);
   for(let col=0;col<2;col++){
     const tx=ptx+col*(tw+tgap), ty=pty;
