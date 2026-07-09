@@ -589,7 +589,7 @@ function drawFieldBg(p){
   // --- Ping pong tables: vertical orientation, lower-left pavement ---
   // tw=length(9), th=width(5) — rotated: placed as th wide, tw tall
   const tw=5,th=9,tgap=4;
-  const ptx=-16, pty=FH+10;
+  const ptx=FW/2-7, pty=FH+10;
   ctx.lineWidth=Math.max(0.8,0.5*s);
   for(let col=0;col<2;col++){
     const tx=ptx+col*(tw+tgap), ty=pty;
@@ -603,7 +603,7 @@ function drawFieldBg(p){
   ctx.fillStyle='rgba(50,90,200,0.75)';
   ctx.font=`bold ${Math.max(6,2.2*s)}px Inter,sans-serif`;
   ctx.textAlign='center';
-  ctx.fillText('Ping Pong', X(ptx+tw+tgap/2), Y(pty+th+3));
+  ctx.fillText('Ping Pong', X(ptx+tw+tgap/2-0.5), Y(pty+th+3));
 }
 
 function roundRectPath(x,y,w,h,r){ r=Math.max(0,Math.min(r,Math.abs(w)/2,Math.abs(h)/2));
