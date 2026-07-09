@@ -20,7 +20,7 @@ let DPR = Math.min(window.devicePixelRatio||1, 2);
 
 // ---- world / rink geometry (feet) ----
 const RW=200, RH=85, GAP=24;           // full-sheet size + gap between sheets
-const FW=250, FH=145;                  // grass field (dryland) dimensions in feet
+const FW=290, FH=168;                  // grass field (dryland) dimensions in feet
 let rinkConfig='full';
 let showTrap=true;
 const CONFIGS={
@@ -50,10 +50,10 @@ function defaultView(){ return rinkConfig==='full'?'full': rinkConfig==='half'?'
 function viewPresets(){
   const b=worldBounds();
   if(rinkConfig==='field') return [
-    {k:'full', t:'Full',    r:{x:-10,y:-38,w:FW+50,h:FH+90}},
-    {k:'field',t:'Field',   r:{x:-5, y:-5, w:FW+10,h:FH+10}},
-    {k:'pp',   t:'Ping Pong',r:{x:FW+2,y:-36,w:38,h:28}},
-    {k:'kci',  t:'KCI',     r:{x:-5, y:FH+8,w:FW+10,h:45}},
+    {k:'full', t:'Full',     r:{x:-15,y:-40,w:FW+55,h:FH+110}},
+    {k:'field',t:'Field',    r:{x:-5, y:-5, w:FW+10,h:FH+10}},
+    {k:'pp',   t:'Ping Pong',r:{x:FW-30,y:-40,w:45,h:30}},
+    {k:'kci',  t:'KCI',      r:{x:-5, y:FH+20,w:FW+10,h:40}},
   ];
   if(rinkConfig==='full') return [
     {k:'full',t:'Full',   r:{x:0,y:0,w:RW,h:RH}},
@@ -537,7 +537,7 @@ function drawFieldBg(p){
 
   // Wide pavement canvas behind everything
   ctx.fillStyle=pavement;
-  ctx.fillRect(X(-10),Y(-38),(FW+50)*s,(FH+90)*s);
+  ctx.fillRect(X(-15),Y(-40),(FW+55)*s,(FH+110)*s);
 
   // Grass
   fieldPath(); ctx.fillStyle=grass; ctx.fill();
@@ -589,7 +589,7 @@ function drawFieldBg(p){
 
   // --- Ping pong tables: top-right corner of pavement ---
   const tw=5,th=9,tgap=4;
-  const ptx=FW-12, pty=-28;
+  const ptx=FW-22, pty=-28;
   ctx.lineWidth=Math.max(0.8,0.5*s);
   for(let col=0;col<2;col++){
     const tx=ptx+col*(tw+tgap), ty=pty;
@@ -604,7 +604,7 @@ function drawFieldBg(p){
   ctx.fillText('Ping Pong', X(ptx+tw+tgap/2), Y(pty+th+3));
 
   // --- KCI building below the field ---
-  const kx=10, ky=FH+10, kw=FW-20, kh=14;
+  const kx=10, ky=FH+28, kw=FW-20, kh=14;
   ctx.fillStyle='rgba(80,60,40,0.25)';
   ctx.fillRect(X(kx),Y(ky),kw*s,kh*s);
   ctx.strokeStyle='rgba(80,60,40,0.7)';
