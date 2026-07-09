@@ -50,9 +50,10 @@ function defaultView(){ return rinkConfig==='full'?'full': rinkConfig==='half'?'
 function viewPresets(){
   const b=worldBounds();
   if(rinkConfig==='field') return [
-    {k:'full', t:'Full',   r:{x:-20,y:-12,w:FW+40,h:FH+44}},
-    {k:'field',t:'Field',  r:{x:-5, y:-5, w:FW+10,h:FH+10}},
-    {k:'pp',   t:'Rec Area',r:{x:-22,y:FH+6,w:60,h:28}},
+    {k:'full', t:'Full',    r:{x:-10,y:-38,w:FW+50,h:FH+90}},
+    {k:'field',t:'Field',   r:{x:-5, y:-5, w:FW+10,h:FH+10}},
+    {k:'pp',   t:'Ping Pong',r:{x:FW+2,y:-36,w:38,h:28}},
+    {k:'kci',  t:'KCI',     r:{x:-5, y:FH+8,w:FW+10,h:45}},
   ];
   if(rinkConfig==='full') return [
     {k:'full',t:'Full',   r:{x:0,y:0,w:RW,h:RH}},
@@ -536,7 +537,7 @@ function drawFieldBg(p){
 
   // Wide pavement canvas behind everything
   ctx.fillStyle=pavement;
-  ctx.fillRect(X(-20),Y(-12),(FW+40)*s,(FH+44)*s);
+  ctx.fillRect(X(-10),Y(-38),(FW+50)*s,(FH+90)*s);
 
   // Grass
   fieldPath(); ctx.fillStyle=grass; ctx.fill();
@@ -586,24 +587,39 @@ function drawFieldBg(p){
   ctx.lineWidth=Math.max(2,1.4*s); ctx.lineJoin='round';
   fieldPath(); ctx.stroke();
 
-  // --- Ping pong tables: vertical orientation, lower-left pavement ---
-  // tw=length(9), th=width(5) — rotated: placed as th wide, tw tall
+  // --- Ping pong tables: top-right corner of pavement ---
   const tw=5,th=9,tgap=4;
-  const ptx=FW/2-28, pty=FH+10;
+  const ptx=FW+4, pty=-33;
   ctx.lineWidth=Math.max(0.8,0.5*s);
   for(let col=0;col<2;col++){
     const tx=ptx+col*(tw+tgap), ty=pty;
     ctx.fillStyle='rgba(50,90,200,0.18)'; ctx.fillRect(X(tx),Y(ty),tw*s,th*s);
     ctx.strokeStyle='rgba(50,90,200,0.85)'; ctx.strokeRect(X(tx),Y(ty),tw*s,th*s);
-    // net: horizontal line across middle
     ctx.beginPath(); ctx.moveTo(X(tx),Y(ty+th/2)); ctx.lineTo(X(tx+tw),Y(ty+th/2)); ctx.stroke();
-    // center line: vertical
     ctx.beginPath(); ctx.moveTo(X(tx+tw/2),Y(ty)); ctx.lineTo(X(tx+tw/2),Y(ty+th)); ctx.stroke();
   }
   ctx.fillStyle='rgba(50,90,200,0.75)';
   ctx.font=`bold ${Math.max(6,2.2*s)}px Inter,sans-serif`;
   ctx.textAlign='center';
-  ctx.fillText('Ping Pong', X(ptx+tw+tgap/2-0.5), Y(pty+th+3));
+  ctx.fillText('Ping Pong', X(ptx+tw+tgap/2), Y(pty+th+3));
+
+  // --- KCI building below the field ---
+  const kx=10, ky=FH+12, kw=FW-20, kh=28;
+  ctx.fillStyle='rgba(80,60,40,0.25)';
+  ctx.fillRect(X(kx),Y(ky),kw*s,kh*s);
+  ctx.strokeStyle='rgba(80,60,40,0.7)';
+  ctx.lineWidth=Math.max(1,0.6*s);
+  ctx.strokeRect(X(kx),Y(ky),kw*s,kh*s);
+  // windows/detail lines
+  ctx.strokeStyle='rgba(80,60,40,0.35)'; ctx.lineWidth=Math.max(0.5,0.3*s);
+  for(let i=1;i<5;i++){
+    const wx=kx+i*(kw/5);
+    ctx.beginPath(); ctx.moveTo(X(wx),Y(ky)); ctx.lineTo(X(wx),Y(ky+kh)); ctx.stroke();
+  }
+  ctx.fillStyle='rgba(60,40,20,0.8)';
+  ctx.font=`bold ${Math.max(8,3.5*s)}px Inter,sans-serif`;
+  ctx.textAlign='center';
+  ctx.fillText('KCI', X(FW/2), Y(ky+kh/2+1.5));
 }
 
 function roundRectPath(x,y,w,h,r){ r=Math.max(0,Math.min(r,Math.abs(w)/2,Math.abs(h)/2));
