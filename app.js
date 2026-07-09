@@ -512,51 +512,79 @@ function drawFieldBg(p){
   const dark=document.body.classList.contains('dark-ice');
   const grass=dark?'#1a3320':'#3a7d44';
   const grassAlt=dark?'#1e3d26':'#4a8f54';
-  const white='rgba(255,255,255,0.85)';
-  const lw=Math.max(1,0.6*s);
-  const corner=8*s;
+  const pavement=dark?'#2a2a2a':'#b0a898';
+  const white='rgba(255,255,255,0.88)';
+  const lw=Math.max(1,0.55*s);
+  // Very rounded corners to match KCI park oval shape
+  const corner=Math.min(H*0.38, W*0.22);
 
-  // rounded field boundary fill
-  roundRectPath(X(0),Y(0),W,H,corner);
-  ctx.fillStyle=grass; ctx.fill();
-  ctx.save(); roundRectPath(X(0),Y(0),W,H,corner); ctx.clip();
+  function fieldPath(){
+    roundRectPath(X(0),Y(0),W,H,corner);
+  }
 
-  // alternating mow stripes (vertical bands)
-  const stripes=14;
-  const sw=FW/stripes;
+  // outer pavement surround (slightly larger rect, square corners, behind the field)
+  ctx.fillStyle=pavement;
+  ctx.fillRect(X(-4),Y(-4),(FW+8)*s,(FH+8)*s);
+
+  // grass fill
+  fieldPath(); ctx.fillStyle=grass; ctx.fill();
+  ctx.save(); fieldPath(); ctx.clip();
+
+  // alternating mow stripes
+  const stripes=12, sw=FW/stripes;
   for(let i=0;i<stripes;i++){
     if(i%2===0){ ctx.fillStyle=grassAlt; ctx.fillRect(X(i*sw),Y(0),sw*s,H); }
   }
 
   ctx.strokeStyle=white; ctx.lineWidth=lw; ctx.lineJoin='round'; ctx.lineCap='round';
 
-  // outer boundary (inset 3ft from edge)
-  const m=3;
-  ctx.strokeRect(X(m),Y(m),(FW-m*2)*s,(FH-m*2)*s);
+  // outer boundary line (inset 4ft)
+  const m=4;
+  roundRectPath(X(m),Y(m),(FW-m*2)*s,(FH-m*2)*s, Math.max(0,(corner-m*s)));
+  ctx.stroke();
 
   // halfway line
   ctx.beginPath(); ctx.moveTo(X(FW/2),Y(m)); ctx.lineTo(X(FW/2),Y(FH-m)); ctx.stroke();
 
-  // center circle (r=10ft)
-  ctx.beginPath(); ctx.arc(X(FW/2),Y(FH/2),10*s,0,7); ctx.stroke();
-  ctx.fillStyle=white; ctx.beginPath(); ctx.arc(X(FW/2),Y(FH/2),0.9*s,0,7); ctx.fill();
+  // center circle (r=9ft)
+  ctx.beginPath(); ctx.arc(X(FW/2),Y(FH/2),9*s,0,7); ctx.stroke();
+  ctx.fillStyle=white; ctx.beginPath(); ctx.arc(X(FW/2),Y(FH/2),0.85*s,0,7); ctx.fill();
 
-  // penalty areas (18ft wide x 12ft deep each end)
-  const pa=18, pd=12;
-  ctx.strokeRect(X(m),Y(FH/2-pa/2),pd*s,pa*s);
-  ctx.strokeRect(X(FW-m-pd),Y(FH/2-pa/2),pd*s,pa*s);
+  // penalty areas each end (20ft tall x 14ft deep)
+  const pa=20, pd=14;
+  roundRectPath(X(m),Y(FH/2-pa/2),pd*s,pa*s,1.5*s); ctx.stroke();
+  roundRectPath(X(FW-m-pd),Y(FH/2-pa/2),pd*s,pa*s,1.5*s); ctx.stroke();
 
-  // goal boxes (6ft wide x 6ft deep each end)
-  const gb=6;
-  ctx.strokeRect(X(m),Y(FH/2-gb/2),gb*s,gb*s);
-  ctx.strokeRect(X(FW-m-gb),Y(FH/2-gb/2),gb*s,gb*s);
+  // goal boxes (8ft tall x 5ft deep)
+  const gb=8, gd=5;
+  ctx.strokeRect(X(m),Y(FH/2-gb/2),gd*s,gb*s);
+  ctx.strokeRect(X(FW-m-gd),Y(FH/2-gb/2),gd*s,gb*s);
+
+  // --- ping pong table area (lower-left quadrant) ---
+  // 4 tables, each ~9x5ft, arranged in a 2x2 grid, ~10ft from bottom-left
+  const ptx=12, pty=FH*0.62;
+  const tw=9, th=5, tgap=4;
+  ctx.strokeStyle='rgba(255,220,100,0.9)'; ctx.lineWidth=Math.max(0.8,0.45*s);
+  for(let row=0;row<2;row++){
+    for(let col=0;col<2;col++){
+      const tx=ptx+col*(tw+tgap), ty=pty+row*(th+tgap);
+      // table outline
+      ctx.strokeRect(X(tx),Y(ty),tw*s,th*s);
+      // center net line
+      ctx.beginPath(); ctx.moveTo(X(tx+tw/2),Y(ty)); ctx.lineTo(X(tx+tw/2),Y(ty+th)); ctx.stroke();
+    }
+  }
+  // label
+  ctx.fillStyle='rgba(255,220,100,0.7)'; ctx.font=`bold ${Math.max(7,2.8*s)}px Inter,sans-serif`;
+  ctx.textAlign='center';
+  ctx.fillText('Ping Pong', X(ptx+(tw+tgap/2)), Y(pty-2));
 
   ctx.restore();
 
-  // board/border outline on top
-  ctx.strokeStyle=dark?'#2a5a30':'#1a4a22';
-  ctx.lineWidth=Math.max(2,1.2*s); ctx.lineJoin='round';
-  roundRectPath(X(0),Y(0),W,H,corner); ctx.stroke();
+  // field border on top
+  ctx.strokeStyle=dark?'#1a3a20':'#14421e';
+  ctx.lineWidth=Math.max(2,1.4*s); ctx.lineJoin='round';
+  fieldPath(); ctx.stroke();
 }
 
 function roundRectPath(x,y,w,h,r){ r=Math.max(0,Math.min(r,Math.abs(w)/2,Math.abs(h)/2));
