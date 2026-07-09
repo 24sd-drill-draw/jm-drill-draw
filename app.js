@@ -20,7 +20,7 @@ let DPR = Math.min(window.devicePixelRatio||1, 2);
 
 // ---- world / rink geometry (feet) ----
 const RW=200, RH=85, GAP=24;           // full-sheet size + gap between sheets
-const FW=290, FH=168;                  // grass field (dryland) dimensions in feet
+const FW=380, FH=220;                  // grass field (dryland) dimensions in feet
 let rinkConfig='full';
 let showTrap=true;
 const CONFIGS={
