@@ -586,16 +586,19 @@ function drawFieldBg(p){
   ctx.lineWidth=Math.max(2,1.4*s); ctx.lineJoin='round';
   fieldPath(); ctx.stroke();
 
-  // --- Ping pong tables: lower-left pavement area, well below & left of field ---
-  const tw=9,th=5,tgap=4;
-  const ptx=-18, pty=FH+10; // left of and just below the field
+  // --- Ping pong tables: vertical orientation, lower-left pavement ---
+  // tw=length(9), th=width(5) — rotated: placed as th wide, tw tall
+  const tw=5,th=9,tgap=4;
+  const ptx=-16, pty=FH+10;
   ctx.lineWidth=Math.max(0.8,0.5*s);
   for(let col=0;col<2;col++){
     const tx=ptx+col*(tw+tgap), ty=pty;
     ctx.fillStyle='rgba(50,90,200,0.18)'; ctx.fillRect(X(tx),Y(ty),tw*s,th*s);
     ctx.strokeStyle='rgba(50,90,200,0.85)'; ctx.strokeRect(X(tx),Y(ty),tw*s,th*s);
-    ctx.beginPath(); ctx.moveTo(X(tx+tw/2),Y(ty)); ctx.lineTo(X(tx+tw/2),Y(ty+th)); ctx.stroke();
+    // net: horizontal line across middle
     ctx.beginPath(); ctx.moveTo(X(tx),Y(ty+th/2)); ctx.lineTo(X(tx+tw),Y(ty+th/2)); ctx.stroke();
+    // center line: vertical
+    ctx.beginPath(); ctx.moveTo(X(tx+tw/2),Y(ty)); ctx.lineTo(X(tx+tw/2),Y(ty+th)); ctx.stroke();
   }
   ctx.fillStyle='rgba(50,90,200,0.75)';
   ctx.font=`bold ${Math.max(6,2.2*s)}px Inter,sans-serif`;
