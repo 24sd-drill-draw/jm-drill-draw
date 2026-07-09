@@ -20,6 +20,7 @@ let DPR = Math.min(window.devicePixelRatio||1, 2);
 
 // ---- world / rink geometry (feet) ----
 const RW=200, RH=85, GAP=24;           // full-sheet size + gap between sheets
+const FW=210, FH=120;                  // grass field (dryland) dimensions in feet
 let rinkConfig='full';
 let showTrap=true;
 const CONFIGS={
@@ -27,10 +28,12 @@ const CONFIGS={
   half:    {label:'Half sheet',      panels:[{ox:0,oy:0,kind:'halfL'}]},
   halves:  {label:'Two half sheets', panels:[{ox:0,oy:0,kind:'halfL'},{ox:100+GAP,oy:0,kind:'halfL'}]},
   twofull: {label:'Two full sheets', panels:[{ox:0,oy:0,kind:'full'},{ox:0,oy:RH+GAP,kind:'full'}]},
+  field:   {label:'Grass Field',     panels:[{ox:0,oy:0,kind:'field'}]},
 };
 function panels(){ return CONFIGS[rinkConfig].panels; }
-function panelW(k){ return k==='full'?RW:100; }
-function worldBounds(){ let mx=0,my=0; panels().forEach(p=>{mx=Math.max(mx,p.ox+panelW(p.kind)); my=Math.max(my,p.oy+RH);}); return {x:0,y:0,w:mx,h:my}; }
+function panelW(k){ return k==='field'?FW:k==='full'?RW:100; }
+function panelH(k){ return k==='field'?FH:RH; }
+function worldBounds(){ let mx=0,my=0; panels().forEach(p=>{mx=Math.max(mx,p.ox+panelW(p.kind)); my=Math.max(my,p.oy+panelH(p.kind));}); return {x:0,y:0,w:mx,h:my}; }
 
 // ---- camera ----
 let cam={s:4,tx:60,ty:40};
@@ -43,9 +46,14 @@ function fitRect(r,pad=24){
 }
 
 // view presets depend on the rink configuration
-function defaultView(){ return rinkConfig==='full'?'full': rinkConfig==='half'?'zone':'both'; }
+function defaultView(){ return rinkConfig==='full'?'full': rinkConfig==='half'?'zone': rinkConfig==='field'?'full':'both'; }
 function viewPresets(){
   const b=worldBounds();
+  if(rinkConfig==='field') return [
+    {k:'full',t:'Full',  r:{x:0,y:0,w:FW,h:FH}},
+    {k:'half1',t:'Half 1',r:{x:0,y:0,w:FW/2,h:FH}},
+    {k:'half2',t:'Half 2',r:{x:FW/2,y:0,w:FW/2,h:FH}},
+  ];
   if(rinkConfig==='full') return [
     {k:'full',t:'Full',   r:{x:0,y:0,w:RW,h:RH}},
     {k:'dz',  t:'D-Zone', r:{x:0,y:0,w:92,h:RH}},
@@ -497,6 +505,60 @@ function drawRinkBg(p){
     ctx.save(); ctx.globalAlpha=0.95; ctx.drawImage(img, X(100)-ww/2, Y(42.5)-hh/2, ww, hh); ctx.restore();
   }
 }
+function drawFieldBg(p){
+  const s=cam.s;
+  const X=x=>(x+p.ox)*s+cam.tx, Y=y=>(y+p.oy)*s+cam.ty;
+  const W=FW*s, H=FH*s;
+  const dark=document.body.classList.contains('dark-ice');
+  const grass=dark?'#1a3320':'#3a7d44';
+  const grassAlt=dark?'#1e3d26':'#4a8f54';
+  const white='rgba(255,255,255,0.85)';
+  const lw=Math.max(1,0.6*s);
+  const corner=8*s;
+
+  // rounded field boundary fill
+  roundRectPath(X(0),Y(0),W,H,corner);
+  ctx.fillStyle=grass; ctx.fill();
+  ctx.save(); roundRectPath(X(0),Y(0),W,H,corner); ctx.clip();
+
+  // alternating mow stripes (vertical bands)
+  const stripes=14;
+  const sw=FW/stripes;
+  for(let i=0;i<stripes;i++){
+    if(i%2===0){ ctx.fillStyle=grassAlt; ctx.fillRect(X(i*sw),Y(0),sw*s,H); }
+  }
+
+  ctx.strokeStyle=white; ctx.lineWidth=lw; ctx.lineJoin='round'; ctx.lineCap='round';
+
+  // outer boundary (inset 3ft from edge)
+  const m=3;
+  ctx.strokeRect(X(m),Y(m),(FW-m*2)*s,(FH-m*2)*s);
+
+  // halfway line
+  ctx.beginPath(); ctx.moveTo(X(FW/2),Y(m)); ctx.lineTo(X(FW/2),Y(FH-m)); ctx.stroke();
+
+  // center circle (r=10ft)
+  ctx.beginPath(); ctx.arc(X(FW/2),Y(FH/2),10*s,0,7); ctx.stroke();
+  ctx.fillStyle=white; ctx.beginPath(); ctx.arc(X(FW/2),Y(FH/2),0.9*s,0,7); ctx.fill();
+
+  // penalty areas (18ft wide x 12ft deep each end)
+  const pa=18, pd=12;
+  ctx.strokeRect(X(m),Y(FH/2-pa/2),pd*s,pa*s);
+  ctx.strokeRect(X(FW-m-pd),Y(FH/2-pa/2),pd*s,pa*s);
+
+  // goal boxes (6ft wide x 6ft deep each end)
+  const gb=6;
+  ctx.strokeRect(X(m),Y(FH/2-gb/2),gb*s,gb*s);
+  ctx.strokeRect(X(FW-m-gb),Y(FH/2-gb/2),gb*s,gb*s);
+
+  ctx.restore();
+
+  // board/border outline on top
+  ctx.strokeStyle=dark?'#2a5a30':'#1a4a22';
+  ctx.lineWidth=Math.max(2,1.2*s); ctx.lineJoin='round';
+  roundRectPath(X(0),Y(0),W,H,corner); ctx.stroke();
+}
+
 function roundRectPath(x,y,w,h,r){ r=Math.max(0,Math.min(r,Math.abs(w)/2,Math.abs(h)/2));
   ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
   ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
@@ -954,7 +1016,7 @@ function stagger(){
 // =========================================================
 function render(){
   clear();
-  panels().forEach(p=>drawRinkBg(p));
+  panels().forEach(p=>p.kind==='field'?drawFieldBg(p):drawRinkBg(p));
   // zones under everything
   pieces.filter(p=>p.type==='zone').forEach(p=>drawPiece(p,null));
   // paths under pieces
