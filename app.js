@@ -20,7 +20,7 @@ let DPR = Math.min(window.devicePixelRatio||1, 2);
 
 // ---- world / rink geometry (feet) ----
 const RW=200, RH=85, GAP=24;           // full-sheet size + gap between sheets
-const FW=210, FH=120;                  // grass field (dryland) dimensions in feet
+const FW=250, FH=145;                  // grass field (dryland) dimensions in feet
 let rinkConfig='full';
 let showTrap=true;
 const CONFIGS={
@@ -589,7 +589,7 @@ function drawFieldBg(p){
 
   // --- Ping pong tables: top-right corner of pavement ---
   const tw=5,th=9,tgap=4;
-  const ptx=FW+4, pty=-33;
+  const ptx=FW-12, pty=-28;
   ctx.lineWidth=Math.max(0.8,0.5*s);
   for(let col=0;col<2;col++){
     const tx=ptx+col*(tw+tgap), ty=pty;
@@ -604,7 +604,7 @@ function drawFieldBg(p){
   ctx.fillText('Ping Pong', X(ptx+tw+tgap/2), Y(pty+th+3));
 
   // --- KCI building below the field ---
-  const kx=10, ky=FH+12, kw=FW-20, kh=28;
+  const kx=10, ky=FH+10, kw=FW-20, kh=14;
   ctx.fillStyle='rgba(80,60,40,0.25)';
   ctx.fillRect(X(kx),Y(ky),kw*s,kh*s);
   ctx.strokeStyle='rgba(80,60,40,0.7)';
