@@ -50,9 +50,9 @@ function defaultView(){ return rinkConfig==='full'?'full': rinkConfig==='half'?'
 function viewPresets(){
   const b=worldBounds();
   if(rinkConfig==='field') return [
-    {k:'full',t:'Full',  r:{x:0,y:0,w:FW,h:FH}},
-    {k:'half1',t:'Half 1',r:{x:0,y:0,w:FW/2,h:FH}},
-    {k:'half2',t:'Half 2',r:{x:FW/2,y:0,w:FW/2,h:FH}},
+    {k:'full',t:'Full',  r:{x:-22,y:-22,w:FW+44,h:FH+60}},
+    {k:'half1',t:'Half 1',r:{x:-10,y:-10,w:FW/2+20,h:FH+50}},
+    {k:'half2',t:'Half 2',r:{x:FW/2-10,y:-10,w:FW/2+20,h:FH+50}},
   ];
   if(rinkConfig==='full') return [
     {k:'full',t:'Full',   r:{x:0,y:0,w:RW,h:RH}},
@@ -512,19 +512,26 @@ function drawFieldBg(p){
   const dark=document.body.classList.contains('dark-ice');
   const grass=dark?'#1a3320':'#3a7d44';
   const grassAlt=dark?'#1e3d26':'#4a8f54';
-  const pavement=dark?'#2a2a2a':'#b0a898';
+  const pavement=dark?'#383530':'#b8b0a0';
+  const pavementDark=dark?'#2e2b28':'#a8a090';
   const white='rgba(255,255,255,0.88)';
   const lw=Math.max(1,0.55*s);
-  // Very rounded corners to match KCI park oval shape
-  const corner=Math.min(H*0.38, W*0.22);
+  // Moderate rounded corners — rectangular like KCI, not pill-shaped
+  const corner=Math.min(H*0.14, W*0.09)*s;
 
-  function fieldPath(){
-    roundRectPath(X(0),Y(0),W,H,corner);
+  // Pavement surround below and around field
+  const pad=22; // ft of pavement around field
+  ctx.fillStyle=pavement;
+  ctx.fillRect(X(-pad),Y(-pad),(FW+pad*2)*s,(FH+pad*2)*s);
+
+  // subtle pavement texture lines
+  ctx.strokeStyle=pavementDark; ctx.lineWidth=Math.max(0.5,0.25*s);
+  for(let i=0;i<6;i++){
+    const gy=-pad+i*((FH+pad*2)/5);
+    ctx.beginPath(); ctx.moveTo(X(-pad),Y(gy)); ctx.lineTo(X(FW+pad),Y(gy)); ctx.stroke();
   }
 
-  // outer pavement surround (slightly larger rect, square corners, behind the field)
-  ctx.fillStyle=pavement;
-  ctx.fillRect(X(-4),Y(-4),(FW+8)*s,(FH+8)*s);
+  function fieldPath(){ roundRectPath(X(0),Y(0),W,H,corner); }
 
   // grass fill
   fieldPath(); ctx.fillStyle=grass; ctx.fill();
@@ -540,51 +547,52 @@ function drawFieldBg(p){
 
   // outer boundary line (inset 4ft)
   const m=4;
-  roundRectPath(X(m),Y(m),(FW-m*2)*s,(FH-m*2)*s, Math.max(0,(corner-m*s)));
+  roundRectPath(X(m),Y(m),(FW-m*2)*s,(FH-m*2)*s, Math.max(0,corner-m*s));
   ctx.stroke();
 
   // halfway line
   ctx.beginPath(); ctx.moveTo(X(FW/2),Y(m)); ctx.lineTo(X(FW/2),Y(FH-m)); ctx.stroke();
 
-  // center circle (r=9ft)
+  // center circle
   ctx.beginPath(); ctx.arc(X(FW/2),Y(FH/2),9*s,0,7); ctx.stroke();
   ctx.fillStyle=white; ctx.beginPath(); ctx.arc(X(FW/2),Y(FH/2),0.85*s,0,7); ctx.fill();
 
-  // penalty areas each end (20ft tall x 14ft deep)
+  // penalty areas each end
   const pa=20, pd=14;
-  roundRectPath(X(m),Y(FH/2-pa/2),pd*s,pa*s,1.5*s); ctx.stroke();
-  roundRectPath(X(FW-m-pd),Y(FH/2-pa/2),pd*s,pa*s,1.5*s); ctx.stroke();
+  ctx.strokeRect(X(m),Y(FH/2-pa/2),pd*s,pa*s);
+  ctx.strokeRect(X(FW-m-pd),Y(FH/2-pa/2),pd*s,pa*s);
 
-  // goal boxes (8ft tall x 5ft deep)
+  // goal boxes
   const gb=8, gd=5;
   ctx.strokeRect(X(m),Y(FH/2-gb/2),gd*s,gb*s);
   ctx.strokeRect(X(FW-m-gd),Y(FH/2-gb/2),gd*s,gb*s);
 
-  // --- ping pong table area (lower-left quadrant) ---
-  // 4 tables, each ~9x5ft, arranged in a 2x2 grid, ~10ft from bottom-left
-  const ptx=12, pty=FH*0.62;
-  const tw=9, th=5, tgap=4;
-  ctx.strokeStyle='rgba(255,220,100,0.9)'; ctx.lineWidth=Math.max(0.8,0.45*s);
-  for(let row=0;row<2;row++){
-    for(let col=0;col<2;col++){
-      const tx=ptx+col*(tw+tgap), ty=pty+row*(th+tgap);
-      // table outline
-      ctx.strokeRect(X(tx),Y(ty),tw*s,th*s);
-      // center net line
-      ctx.beginPath(); ctx.moveTo(X(tx+tw/2),Y(ty)); ctx.lineTo(X(tx+tw/2),Y(ty+th)); ctx.stroke();
-    }
-  }
-  // label
-  ctx.fillStyle='rgba(255,220,100,0.7)'; ctx.font=`bold ${Math.max(7,2.8*s)}px Inter,sans-serif`;
-  ctx.textAlign='center';
-  ctx.fillText('Ping Pong', X(ptx+(tw+tgap/2)), Y(pty-2));
-
   ctx.restore();
 
-  // field border on top
+  // field border
   ctx.strokeStyle=dark?'#1a3a20':'#14421e';
   ctx.lineWidth=Math.max(2,1.4*s); ctx.lineJoin='round';
   fieldPath(); ctx.stroke();
+
+  // --- ping pong tables in pavement area (below the field) ---
+  const tw=9, th=5, tgap=5;
+  const totalW=(tw*2+tgap), startX=FW/2-totalW/2;
+  const tableY=FH+8; // below the field in pavement
+  ctx.strokeStyle='rgba(60,100,200,0.85)'; ctx.fillStyle='rgba(60,100,200,0.15)';
+  ctx.lineWidth=Math.max(0.8,0.5*s);
+  for(let col=0;col<2;col++){
+    const tx=startX+col*(tw+tgap), ty=tableY;
+    ctx.fillRect(X(tx),Y(ty),tw*s,th*s);
+    ctx.strokeRect(X(tx),Y(ty),tw*s,th*s);
+    // net line
+    ctx.beginPath(); ctx.moveTo(X(tx+tw/2),Y(ty)); ctx.lineTo(X(tx+tw/2),Y(ty+th)); ctx.stroke();
+    // end lines
+    ctx.beginPath(); ctx.moveTo(X(tx),Y(ty+th/2)); ctx.lineTo(X(tx+tw),Y(ty+th/2)); ctx.stroke();
+  }
+  ctx.fillStyle='rgba(60,100,200,0.7)';
+  ctx.font=`bold ${Math.max(6,2.4*s)}px Inter,sans-serif`;
+  ctx.textAlign='center';
+  ctx.fillText('Ping Pong', X(FW/2), Y(tableY+th+3.5));
 }
 
 function roundRectPath(x,y,w,h,r){ r=Math.max(0,Math.min(r,Math.abs(w)/2,Math.abs(h)/2));
