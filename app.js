@@ -865,27 +865,40 @@ function drawBackSkate(ctx, pts, col, camScale){
   function normAt(s){ const a=getAt(Math.max(0,s-1)), b=getAt(Math.min(total,s+1));
     const dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy)||1; return [-dy/len,dx/len]; }
 
-  // Round consistent S's: each half-S is one quadratic bezier
-  // Long wavelength + moderate amp = smooth round curves
-  const amp=Math.max(1.5,0.7*camScale);
-  const halfS=amp*3.5;   // length of each half-S — longer = rounder
+  // Disconnected S's — each S is a separate stroke with a gap between
+  const amp=Math.max(1.4,0.65*camScale);
+  const sLen=amp*3.2;    // length of each S mark
+  const gap=amp*1.2;     // gap between S marks
 
-  ctx.save(); ctx.strokeStyle=col; ctx.globalAlpha=0.72; ctx.lineWidth=Math.max(1,0.32*camScale);
+  ctx.save(); ctx.strokeStyle=col; ctx.globalAlpha=0.75; ctx.lineWidth=Math.max(1,0.32*camScale);
   ctx.lineJoin='round'; ctx.lineCap='round';
-  ctx.beginPath();
-  const [sx,sy]=getAt(0); ctx.moveTo(sx,sy);
-  let s=0, side=1;
-  while(s<total){
-    const sEnd=Math.min(s+halfS,total);
-    const sMid=s+halfS*0.5;
-    const [ex,ey]=getAt(sEnd);
-    const [mx,my]=getAt(Math.min(sMid,total));
-    const [nx,ny]=normAt(Math.min(sMid,total));
-    ctx.quadraticCurveTo(mx+nx*amp*2.5*side, my+ny*amp*2.5*side, ex, ey);
-    s=sEnd; side=-side;
+
+  let s=gap*0.5, side=1;
+  while(s+sLen<=total+sLen*0.5){
+    const sEnd=Math.min(s+sLen,total);
+    // Each S = two quadratic beziers (two half-S curves back to back)
+    const halfLen=(sEnd-s)/2;
+    const sMid=s+halfLen;
+    const [startX,startY]=getAt(s);
+    const [midX,midY]=getAt(Math.min(sMid,total));
+    const [endX,endY]=getAt(sEnd);
+    const [n1x,n1y]=normAt(s+halfLen*0.5);
+    const [n2x,n2y]=normAt(s+halfLen*1.5);
+    ctx.beginPath();
+    ctx.moveTo(startX,startY);
+    ctx.quadraticCurveTo(
+      midX+n1x*amp*2.6*side, midY+n1y*amp*2.6*side,
+      midX, midY
+    );
+    ctx.quadraticCurveTo(
+      midX+n2x*amp*2.6*(-side), midY+n2y*amp*2.6*(-side),
+      endX, endY
+    );
+    ctx.stroke();
+    s=sEnd+gap; side=-side;
     if(s>=total) break;
   }
-  ctx.stroke(); ctx.restore();
+  ctx.restore();
 }
 
 function drawAnnotation(p){
