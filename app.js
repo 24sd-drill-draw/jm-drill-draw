@@ -865,33 +865,31 @@ function drawBackSkate(ctx, pts, col, camScale){
   function normAt(s){ const a=getAt(Math.max(0,s-1)), b=getAt(Math.min(total,s+1));
     const dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy)||1; return [-dy/len,dx/len]; }
 
-  // Disconnected S's — each S is a separate stroke with a gap between
-  const amp=Math.max(1.4,0.65*camScale);
-  const sLen=amp*3.2;    // length of each S mark
-  const gap=amp*1.2;     // gap between S marks
+  // Disconnected S's — large, smooth, with small gaps between each
+  const amp=Math.max(2.0,0.9*camScale);
+  const sLen=amp*7.0;   // long S = round graceful curve
+  const gap=amp*1.0;    // small gap between S marks
 
-  ctx.save(); ctx.strokeStyle=col; ctx.globalAlpha=0.75; ctx.lineWidth=Math.max(1,0.32*camScale);
+  ctx.save(); ctx.strokeStyle=col; ctx.globalAlpha=0.72; ctx.lineWidth=Math.max(1,0.32*camScale);
   ctx.lineJoin='round'; ctx.lineCap='round';
 
-  let s=gap*0.5, side=1;
-  while(s+sLen<=total+sLen*0.5){
+  let s=0, side=1;
+  while(s<total){
     const sEnd=Math.min(s+sLen,total);
-    // Each S = two quadratic beziers (two half-S curves back to back)
-    const halfLen=(sEnd-s)/2;
-    const sMid=s+halfLen;
+    const q1=s+sLen*0.25, q3=s+sLen*0.75;
     const [startX,startY]=getAt(s);
-    const [midX,midY]=getAt(Math.min(sMid,total));
     const [endX,endY]=getAt(sEnd);
-    const [n1x,n1y]=normAt(s+halfLen*0.5);
-    const [n2x,n2y]=normAt(s+halfLen*1.5);
+    const [midX,midY]=getAt(Math.min(s+sLen*0.5,total));
+    const [c1x,c1y]=getAt(Math.min(q1,total));
+    const [n1x,n1y]=normAt(Math.min(q1,total));
+    const [c2x,c2y]=getAt(Math.min(q3,total));
+    const [n2x,n2y]=normAt(Math.min(q3,total));
     ctx.beginPath();
     ctx.moveTo(startX,startY);
-    ctx.quadraticCurveTo(
-      midX+n1x*amp*2.6*side, midY+n1y*amp*2.6*side,
-      midX, midY
-    );
-    ctx.quadraticCurveTo(
-      midX+n2x*amp*2.6*(-side), midY+n2y*amp*2.6*(-side),
+    // smooth S via cubic bezier: first half curves one way, second half the other
+    ctx.bezierCurveTo(
+      c1x+n1x*amp*3.0*side,  c1y+n1y*amp*3.0*side,
+      c2x+n2x*amp*3.0*(-side), c2y+n2y*amp*3.0*(-side),
       endX, endY
     );
     ctx.stroke();
