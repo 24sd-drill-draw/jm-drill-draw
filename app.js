@@ -853,8 +853,6 @@ function drawScallops(ctx, pts, col, camScale){
   ctx.stroke(); ctx.restore();
 }
 function drawBackSkate(ctx, pts, col, camScale){
-  // Offsetting S's: each S is a full sine-like curve shifted off-center
-  // The S crosses the path but its midpoint is displaced to one side
   if(pts.length<2) return;
   const lens=[0];
   for(let i=1;i<pts.length;i++) lens.push(lens[i-1]+Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]));
@@ -865,33 +863,29 @@ function drawBackSkate(ctx, pts, col, camScale){
   function normAt(s){ const a=getAt(Math.max(0,s-1)), b=getAt(Math.min(total,s+1));
     const dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy)||1; return [-dy/len,dx/len]; }
 
-  const amp=Math.max(2.5,1.1*camScale);  // perpendicular bulge of each S
-  const sLen=amp*3.5;                     // along-path length of one S
-  const gap=Math.max(1.5,0.6*camScale);  // gap between S marks
+  const amp=Math.max(2.5,1.1*camScale);
+  const cLen=amp*3.5;  // length of ONE C arc
+  const gap=Math.max(1.5,0.6*camScale);
 
   ctx.save(); ctx.strokeStyle=col; ctx.globalAlpha=0.75;
   ctx.lineWidth=Math.max(1,0.34*camScale);
   ctx.lineJoin='round'; ctx.lineCap='round';
 
-  let s=gap;
+  // Each mark = ONE quadratic bezier (one C). Alternating sides gives the offset-S look.
+  let s=gap, side=1;
   while(s<total){
-    const sEnd=Math.min(s+sLen,total);
-    if(sEnd-s < sLen*0.3) break;
+    const sEnd=Math.min(s+cLen,total);
+    if(sEnd-s < cLen*0.3) break;
     const [ax,ay]=getAt(s);
     const [bx,by]=getAt(sEnd);
-    const [c1x,c1y]=getAt(Math.min(s+sLen*0.30,total));
-    const [n1x,n1y]=normAt(Math.min(s+sLen*0.30,total));
-    const [c2x,c2y]=getAt(Math.min(s+sLen*0.70,total));
-    const [n2x,n2y]=normAt(Math.min(s+sLen*0.70,total));
+    const mid=s+cLen*0.5;
+    const [mx,my]=getAt(mid);
+    const [nx,ny]=normAt(mid);
     ctx.beginPath();
     ctx.moveTo(ax, ay);
-    ctx.bezierCurveTo(
-      c1x+n1x*amp,  c1y+n1y*amp,
-      c2x-n2x*amp,  c2y-n2y*amp,
-      bx, by
-    );
+    ctx.quadraticCurveTo(mx+nx*amp*side, my+ny*amp*side, bx, by);
     ctx.stroke();
-    s=sEnd+gap;
+    s=sEnd+gap; side=-side;
   }
   ctx.restore();
 }
