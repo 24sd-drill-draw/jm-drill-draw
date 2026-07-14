@@ -865,24 +865,36 @@ function drawBackSkate(ctx, pts, col, camScale){
   function normAt(s){ const a=getAt(Math.max(0,s-1)), b=getAt(Math.min(total,s+1));
     const dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy)||1; return [-dy/len,dx/len]; }
 
-  const amp=Math.max(1.8,0.8*camScale);
-  const wl=amp*4.0;   // long half-cycle = round smooth curves, not sharp peaks
-  ctx.save(); ctx.strokeStyle=col; ctx.globalAlpha=0.65; ctx.lineWidth=Math.max(1,0.32*camScale);
+  const amp=Math.max(2.5,1.1*camScale);  // perpendicular bulge of each S
+  const sLen=amp*3.5;                     // along-path length of one S
+  const gap=Math.max(1.5,0.6*camScale);  // gap between S marks
+
+  ctx.save(); ctx.strokeStyle=col; ctx.globalAlpha=0.75;
+  ctx.lineWidth=Math.max(1,0.34*camScale);
   ctx.lineJoin='round'; ctx.lineCap='round';
-  ctx.beginPath();
-  const [sx,sy]=getAt(0); ctx.moveTo(sx,sy);
-  let s=0, side=1;
+
+  let s=gap, side=1;
   while(s<total){
-    const sEnd=Math.min(s+wl,total);
-    const sMid=(s+sEnd)/2;
-    const [ex,ey]=getAt(sEnd);
-    const [mx,my]=getAt(sMid);
-    const [nx,ny]=normAt(sMid);
-    ctx.quadraticCurveTo(mx+nx*amp*2.2*side, my+ny*amp*2.2*side, ex, ey);
-    s=sEnd; side=-side;
-    if(s>=total) break;
+    const sEnd=Math.min(s+sLen,total);
+    if(sEnd-s < sLen*0.3){ break; }
+    const [ax,ay]=getAt(s);
+    const [bx,by]=getAt(sEnd);
+    // control points at 30% and 70% along the S, pushed opposite directions
+    const [c1x,c1y]=getAt(Math.min(s+sLen*0.30,total));
+    const [n1x,n1y]=normAt(Math.min(s+sLen*0.30,total));
+    const [c2x,c2y]=getAt(Math.min(s+sLen*0.70,total));
+    const [n2x,n2y]=normAt(Math.min(s+sLen*0.70,total));
+    ctx.beginPath();
+    ctx.moveTo(ax,ay);
+    ctx.bezierCurveTo(
+      c1x+n1x*amp*side,  c1y+n1y*amp*side,
+      c2x-n2x*amp*side,  c2y-n2y*amp*side,
+      bx, by
+    );
+    ctx.stroke();
+    s=sEnd+gap; side=-side;
   }
-  ctx.stroke(); ctx.restore();
+  ctx.restore();
 }
 
 function drawAnnotation(p){
