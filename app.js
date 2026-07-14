@@ -121,7 +121,7 @@ function loadScene(idx){
   document.getElementById('rinkSel').value=rinkConfig;
   const nt=document.getElementById('drillNotes'); if(nt) nt.value=s.notes||'';
   const eq=document.getElementById('equipNotes'); if(eq) eq.value=s.equip||'';
-  selOne(null); building=null; passBuilding=null; shotBuilding=null; skateBuilding=null; skateBackBuilding=null; skateBackCursor=null;
+  selOne(null); building=null; passBuilding=null; shotBuilding=null; skateBuilding=null; skateBackBuilding=null; skateBackCursor=null; skateRevBuilding=null; skateRevCursor=null;
   tNow=0; playing=false;
   try{setPlayUI();}catch(e){}
   currentView=defaultView(); buildLayoutSeg(); buildViewSeg();
@@ -195,6 +195,8 @@ let skateBuilding=null;     // {anchors, path} click-based annotation skate bein
 let skateCursor=null;       // current mouse pos for live skate preview
 let skateBackBuilding=null; // same for backwards skate
 let skateBackCursor=null;
+let skateRevBuilding=null;  // true backwards skating
+let skateRevCursor=null;
 let sel=null;            // primary {kind:'piece'|'path', id}
 let selSet=[];           // full selection (one or many)
 let marquee=null;        // rubber-band box
@@ -229,8 +231,9 @@ document.getElementById('redoBtn').onclick=()=>redo();
 const TOOLS=[
   {k:'select', n:'Select', svg:'<path d="M5 3l14 7-6 2-2 6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>'},
   {k:'motion', n:'Move',   svg:'<circle cx="5" cy="18" r="2.5" fill="var(--accent)"/><path d="M6 16q3-9 9-9" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="2 2"/><path d="M12 4l5 3-5 3" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'},
-  {k:'skate',  n:'Skate',  svg:'<path d="M3 16q3-6 5 0t5 0 5 0" fill="none" stroke="var(--accent)" stroke-width="2"/><path d="M19 13l3 3-3 3" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'},
-  {k:'skateback', n:'Back',  svg:'<path d="M3 16q1.5-3 2.5 0t2.5 0 2.5 0 2.5 0 2.5 0" fill="none" stroke="var(--accent)" stroke-width="2"/><path d="M19 13l3 3-3 3" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'},
+  {k:'skate',    n:'Skate', svg:'<path d="M3 16q3-6 5 0t5 0 5 0" fill="none" stroke="var(--accent)" stroke-width="2"/><path d="M19 13l3 3-3 3" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'},
+  {k:'skateback',n:'Puck',  svg:'<path d="M3 16q1.5-3 2.5 0t2.5 0 2.5 0 2.5 0 2.5 0" fill="none" stroke="var(--accent)" stroke-width="2"/><circle cx="21" cy="16" r="2.5" fill="var(--accent)"/>'},
+  {k:'skaterev', n:'Back',  svg:'<path d="M3 16q1-4 2.5 0t2 2 2.5-2 2 2 2.5-2" fill="none" stroke="var(--accent)" stroke-width="2"/><path d="M19 13l3 3-3 3" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'},
   {k:'pass',   n:'Pass',   svg:'<path d="M3 12h14" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="3 3"/><path d="M16 8l5 4-5 4" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'},
   {k:'shot',   n:'Shot',   svg:'<path d="M3 12h14M7 8v8M10 8v8" fill="none" stroke="var(--accent)" stroke-width="2"/><path d="M16 8l5 4-5 4" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'},
   {k:'arrow',  n:'Arrow',  svg:'<path d="M3 12h14" fill="none" stroke="var(--accent)" stroke-width="2"/><path d="M16 8l5 4-5 4" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'},
@@ -849,6 +852,41 @@ function drawScallops(ctx, pts, col, camScale){
   }
   ctx.stroke(); ctx.restore();
 }
+function drawBackSkate(ctx, pts, col, camScale){
+  // Off-centered alternating C's for backwards skating
+  // Each C scoops asymmetrically — control point biased toward the end of the arc
+  if(pts.length<2) return;
+  const lens=[0];
+  for(let i=1;i<pts.length;i++) lens.push(lens[i-1]+Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]));
+  const total=lens[lens.length-1];
+  function getAt(s){ s=Math.max(0,Math.min(s,total)); let i=0; while(i<lens.length-2&&lens[i+1]<=s)i++;
+    const f=lens[i+1]>lens[i]?(s-lens[i])/(lens[i+1]-lens[i]):0;
+    return [pts[i][0]+f*(pts[i+1][0]-pts[i][0]), pts[i][1]+f*(pts[i+1][1]-pts[i][1])]; }
+  function normAt(s){ const a=getAt(Math.max(0,s-1)), b=getAt(Math.min(total,s+1));
+    const dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy)||1; return [-dy/len,dx/len]; }
+
+  const amp=Math.max(1.2,0.58*camScale);
+  const wl=amp*1.25;
+
+  ctx.save(); ctx.strokeStyle=col; ctx.globalAlpha=0.7; ctx.lineWidth=Math.max(1,0.3*camScale);
+  ctx.lineJoin='round'; ctx.lineCap='round';
+  ctx.beginPath();
+  const [sx,sy]=getAt(0); ctx.moveTo(sx,sy);
+  let s=0, side=1;
+  while(s<total){
+    const sEnd=Math.min(s+wl,total);
+    // bias control point toward 70% of arc instead of 50% — creates off-centered C
+    const sBias=s+wl*0.70;
+    const [ex,ey]=getAt(sEnd);
+    const [bx,by]=getAt(Math.min(sBias,total));
+    const [nx,ny]=normAt(Math.min(sBias,total));
+    ctx.quadraticCurveTo(bx+nx*amp*2.6*side, by+ny*amp*2.6*side, ex, ey);
+    s=sEnd; side=-side;
+    if(s>=total) break;
+  }
+  ctx.stroke(); ctx.restore();
+}
+
 function drawAnnotation(p){
   if(p.pts.length<2) return;
   const scr=p.pts.map(pt=>W2S(pt.x,pt.y));
@@ -865,6 +903,16 @@ function drawAnnotation(p){
     const smooth=anc.length>=2?catmull(anc,48).map(q=>W2S(q.x,q.y)):scr;
     drawScallops(ctx, smooth, col, cam.s);
     // place arrowhead beyond the last scallop
+    ctx.globalAlpha=1;
+    const _n=smooth.length, _a=smooth[_n-2]||smooth[0], _b=smooth[_n-1];
+    const _ang=Math.atan2(_b[1]-_a[1],_b[0]-_a[0]), _L=Math.max(8,2.4*cam.s);
+    const _tip=[_b[0]+_L*Math.cos(_ang), _b[1]+_L*Math.sin(_ang)];
+    arrowHead([_a, _tip], col);
+  }
+  else if(p.type==='skaterev'){
+    const anc=p.anchors&&p.anchors.length>=2?p.anchors:p.pts;
+    const smooth=anc.length>=2?catmull(anc,48).map(q=>W2S(q.x,q.y)):scr;
+    drawBackSkate(ctx, smooth, col, cam.s);
     ctx.globalAlpha=1;
     const _n=smooth.length, _a=smooth[_n-2]||smooth[0], _b=smooth[_n-1];
     const _ang=Math.atan2(_b[1]-_a[1],_b[0]-_a[0]), _L=Math.max(8,2.4*cam.s);
@@ -1128,12 +1176,20 @@ function render(){
     ctx.lineWidth=Math.max(2,0.55*cam.s); ctx.lineJoin='round'; ctx.lineCap='round';
     strokePoly(scr2); ctx.restore();
   }
-  // live preview of backwards skate being built
+  // live preview of skateback (puck carry) being built
   if(skateBackBuilding && skateBackCursor){
     const anc=[...skateBackBuilding.path.anchors, skateBackCursor];
     const smooth=anc.length>=2?catmull(anc,48).map(q=>W2S(q.x,q.y)):anc.map(q=>W2S(q.x,q.y));
     ctx.save(); ctx.globalAlpha=0.5;
     drawScallops(ctx, smooth, activeColor||'#0C2233', cam.s);
+    ctx.restore();
+  }
+  // live preview of skaterev (backwards skating) being built
+  if(skateRevBuilding && skateRevCursor){
+    const anc=[...skateRevBuilding.path.anchors, skateRevCursor];
+    const smooth=anc.length>=2?catmull(anc,48).map(q=>W2S(q.x,q.y)):anc.map(q=>W2S(q.x,q.y));
+    ctx.save(); ctx.globalAlpha=0.5;
+    drawBackSkate(ctx, smooth, activeColor||'#0C2233', cam.s);
     ctx.restore();
   }
   // live preview of pass being built
@@ -1284,6 +1340,18 @@ cv.addEventListener('pointerdown',e=>{
     }
     skateBackCursor={x:wx,y:wy}; updateInspector(); render(); return;
   }
+  if(tool==='skaterev' && !building){
+    if(!skateRevBuilding){
+      pushUndo();
+      const np={id:id(),type:'skaterev',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],anchors:[{x:wx,y:wy}],owner:null,delay:0,dur:T,_lut:null};
+      paths.push(np); skateRevBuilding={path:np}; selOne('path',np.id);
+      toast('Click waypoints for backwards skating — right-click to finish');
+    } else {
+      skateRevBuilding.path.anchors.push({x:wx,y:wy});
+      skateRevBuilding.path.pts=catmull(skateRevBuilding.path.anchors,16);
+    }
+    skateRevCursor={x:wx,y:wy}; updateInspector(); render(); return;
+  }
   if(tool==='pass'){
     if(!passBuilding){
       pushUndo();
@@ -1330,6 +1398,7 @@ cv.addEventListener('pointermove',e=>{
     p.rot=Math.atan2(e.offsetX-sx,sy-e.offsetY)*180/Math.PI; render(); return; }
   if(skateBuilding){ skateCursor={x:wx,y:wy}; render(); return; }
   if(skateBackBuilding){ skateBackCursor={x:wx,y:wy}; render(); return; }
+  if(skateRevBuilding){ skateRevCursor={x:wx,y:wy}; render(); return; }
   if(passBuilding){ passCursor={x:wx,y:wy}; render(); return; }
   if(shotBuilding){ shotCursor={x:wx,y:wy}; render(); return; }
   if(panStart){ cam.tx=panStart.tx+(e.offsetX-panStart.x); cam.ty=panStart.ty+(e.offsetY-panStart.y); render(); return; }
@@ -1401,6 +1470,7 @@ cv.addEventListener('contextmenu',e=>{
   e.preventDefault();
   if(pendingType){ pendingType=null; pendingOpts=null; pendingStamp=false; cv.style.cursor=''; updateHint(); render(); return; }
   if(skateBackBuilding){ skateBackBuilding=null; skateBackCursor=null; selOne(null); updateInspector(); render(); return; }
+  if(skateRevBuilding){ skateRevBuilding=null; skateRevCursor=null; selOne(null); updateInspector(); render(); return; }
   if(skateBuilding){ skateBuilding=null; skateCursor=null; selOne(null); updateInspector(); render(); return; }
   if(passBuilding){ passBuilding=null; passCursor=null; selOne(null); updateInspector(); render(); return; }
   if(shotBuilding){ shotBuilding=null; shotCursor=null; selOne(null); updateInspector(); render(); return; }
@@ -1760,6 +1830,7 @@ window.addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT')return;
   if(building && (e.key==='Enter'||e.key==='Escape')){ e.preventDefault(); finishBuilding(); return; }
   if(skateBackBuilding && (e.key==='Enter'||e.key==='Escape')){ e.preventDefault(); skateBackBuilding=null; skateBackCursor=null; selOne(null); updateInspector(); render(); return; }
+  if(skateRevBuilding && (e.key==='Enter'||e.key==='Escape')){ e.preventDefault(); skateRevBuilding=null; skateRevCursor=null; selOne(null); updateInspector(); render(); return; }
   if(skateBuilding && (e.key==='Enter'||e.key==='Escape')){ e.preventDefault(); skateBuilding=null; skateCursor=null; selOne(null); updateInspector(); render(); return; }
   if(passBuilding && (e.key==='Enter'||e.key==='Escape')){ e.preventDefault(); passBuilding=null; passCursor=null; selOne(null); updateInspector(); render(); return; }
   if(shotBuilding && (e.key==='Enter'||e.key==='Escape')){ e.preventDefault(); shotBuilding=null; shotCursor=null; selOne(null); updateInspector(); render(); return; }
