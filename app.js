@@ -865,38 +865,24 @@ function drawBackSkate(ctx, pts, col, camScale){
   function normAt(s){ const a=getAt(Math.max(0,s-1)), b=getAt(Math.min(total,s+1));
     const dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy)||1; return [-dy/len,dx/len]; }
 
-  // Disconnected S's — large, smooth, with small gaps between each
-  const amp=Math.max(1.6,0.75*camScale);
-  const sLen=amp*4.0;   // one S unit
-  const gap=amp*0.5;    // tight gap between S's
-
-  ctx.save(); ctx.strokeStyle=col; ctx.globalAlpha=0.72; ctx.lineWidth=Math.max(1,0.32*camScale);
+  const amp=Math.max(1.2,0.6*camScale);
+  const wl=amp*1.3;
+  ctx.save(); ctx.strokeStyle=col; ctx.globalAlpha=0.65; ctx.lineWidth=Math.max(1,0.32*camScale);
   ctx.lineJoin='round'; ctx.lineCap='round';
-
+  ctx.beginPath();
+  const [sx,sy]=getAt(0); ctx.moveTo(sx,sy);
   let s=0, side=1;
   while(s<total){
-    const sEnd=Math.min(s+sLen,total);
-    const q1=s+sLen*0.25, q3=s+sLen*0.75;
-    const [startX,startY]=getAt(s);
-    const [endX,endY]=getAt(sEnd);
-    const [midX,midY]=getAt(Math.min(s+sLen*0.5,total));
-    const [c1x,c1y]=getAt(Math.min(q1,total));
-    const [n1x,n1y]=normAt(Math.min(q1,total));
-    const [c2x,c2y]=getAt(Math.min(q3,total));
-    const [n2x,n2y]=normAt(Math.min(q3,total));
-    ctx.beginPath();
-    ctx.moveTo(startX,startY);
-    // smooth S via cubic bezier: first half curves one way, second half the other
-    ctx.bezierCurveTo(
-      c1x+n1x*amp*3.2*side,  c1y+n1y*amp*3.2*side,
-      c2x+n2x*amp*3.2*(-side), c2y+n2y*amp*3.2*(-side),
-      endX, endY
-    );
-    ctx.stroke();
-    s=sEnd+gap; side=-side;
+    const sEnd=Math.min(s+wl,total);
+    const sMid=(s+sEnd)/2;
+    const [ex,ey]=getAt(sEnd);
+    const [mx,my]=getAt(sMid);
+    const [nx,ny]=normAt(sMid);
+    ctx.quadraticCurveTo(mx+nx*amp*2.8*side, my+ny*amp*2.8*side, ex, ey);
+    s=sEnd; side=-side;
     if(s>=total) break;
   }
-  ctx.restore();
+  ctx.stroke(); ctx.restore();
 }
 
 function drawAnnotation(p){
