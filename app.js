@@ -90,7 +90,7 @@ function buildViewSeg(){
 // =========================================================
 //  SCENES (multi-drill practice)
 // =========================================================
-function makeScene(name){ return {name, pieces:[], paths:[], rinkType:'full', undoStack:[], redoStack:[], notes:''}; }
+function makeScene(name){ return {name, pieces:[], paths:[], rinkType:'full', undoStack:[], redoStack:[], notes:'', equip:''}; }
 let scenes=[makeScene('Drill 1')];
 let currentScene=0;
 
@@ -109,6 +109,7 @@ function syncScene(){
   scenes[currentScene].undoStack=undoStack;
   scenes[currentScene].redoStack=redoStack;
   const nt=document.getElementById('drillNotes'); if(nt) scenes[currentScene].notes=nt.value;
+  const eq=document.getElementById('equipNotes'); if(eq) scenes[currentScene].equip=eq.value;
 }
 function loadScene(idx){
   syncScene();
@@ -119,6 +120,7 @@ function loadScene(idx){
   rinkConfig=s.rinkType||'full';
   document.getElementById('rinkSel').value=rinkConfig;
   const nt=document.getElementById('drillNotes'); if(nt) nt.value=s.notes||'';
+  const eq=document.getElementById('equipNotes'); if(eq) eq.value=s.equip||'';
   selOne(null); building=null; passBuilding=null; shotBuilding=null; skateBuilding=null; skateBackBuilding=null; skateBackCursor=null;
   tNow=0; playing=false;
   try{setPlayUI();}catch(e){}
@@ -1838,20 +1840,31 @@ _themeBtn.onclick=()=>applyTheme(!document.body.classList.contains('light-theme'
 
 // print: snapshot canvas → stable print window
 document.getElementById('printBtn').onclick=()=>{
+  syncScene();
   render();
   const url=cv.toDataURL('image/png');
-  const drill=(scenes[currentScene]&&scenes[currentScene].name)||'Drill';
-  const w=window.open('','_blank','width=1000,height=750');
+  const sc=scenes[currentScene]||{};
+  const drill=sc.name||'Drill';
+  const notes=sc.notes||'';
+  const equip=sc.equip||'';
+  const w=window.open('','_blank','width=1000,height=820');
+  const equipHtml=equip?'<div class="equip"><span class="elbl">Equipment:</span> '+equip+'<\/div>':'';
+  const notesHtml=notes?'<div class="notes">'+notes+'<\/div>':'';
   w.document.write('<!doctype html><html><head><title>'+drill+'</title><style>'+
     '*{margin:0;padding:0;box-sizing:border-box}'+
-    'body{background:#fff;display:flex;flex-direction:column;align-items:center;padding:16px;font:700 14px system-ui}'+
-    'h2{margin-bottom:10px;color:#111}'+
-    'img{max-width:100%;height:auto;border:1px solid #ddd}'+
-    '@media print{@page{margin:10mm}body{padding:0}h2{margin-bottom:6px}img{max-width:100%;max-height:93vh;border:none}}'+
-    '<\/style><\/head><body><h2>'+drill+'<\/h2><img src="'+url+'"><script>window.onload=function(){window.print();}<\/script><\/body><\/html>');
+    'body{background:#fff;display:flex;flex-direction:column;align-items:center;padding:16px;font:14px system-ui;color:#111}'+
+    'h2{font-size:17px;font-weight:800;margin-bottom:6px}'+
+    'img{max-width:100%;height:auto;border:1px solid #ddd;margin-bottom:8px}'+
+    '.notes{font-size:13px;color:#444;margin-bottom:6px;max-width:900px;width:100%}'+
+    '.equip{font-size:13px;color:#1a5276;max-width:900px;width:100%;padding:6px 10px;background:#eaf4fb;border-radius:6px;border:1px solid #aed6f1}'+
+    '.elbl{font-weight:700;margin-right:6px}'+
+    '@media print{@page{margin:10mm}body{padding:0}img{max-width:100%;max-height:85vh;border:none}}'+
+    '<\/style><\/head><body><h2>'+drill+'<\/h2><img src="'+url+'">'+notesHtml+equipHtml+
+    '<script>window.onload=function(){window.print();}<\/script><\/body><\/html>');
   w.document.close();
 };
 document.getElementById('drillNotes').addEventListener('input',()=>{ scenes[currentScene].notes=document.getElementById('drillNotes').value; });
+document.getElementById('equipNotes').addEventListener('input',()=>{ scenes[currentScene].equip=document.getElementById('equipNotes').value; });
 
 // =========================================================
 //  BOOT
