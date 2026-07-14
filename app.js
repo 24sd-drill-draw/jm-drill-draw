@@ -873,23 +873,25 @@ function drawBackSkate(ctx, pts, col, camScale){
   ctx.lineWidth=Math.max(1,0.34*camScale);
   ctx.lineJoin='round'; ctx.lineCap='round';
 
+  const off=amp*0.55; // each S is displaced this far above/below centerline
+
   let s=gap, side=1;
   while(s<total){
     const sEnd=Math.min(s+sLen,total);
-    if(sEnd-s < sLen*0.3){ break; }
-    const [ax,ay]=getAt(s);
-    const [bx,by]=getAt(sEnd);
-    // control points at 30% and 70% along the S, pushed opposite directions
+    if(sEnd-s < sLen*0.3) break;
+    const [ax,ay]=getAt(s);     const [nax,nay]=normAt(s);
+    const [bx,by]=getAt(sEnd);  const [nbx,nby]=normAt(sEnd);
     const [c1x,c1y]=getAt(Math.min(s+sLen*0.30,total));
     const [n1x,n1y]=normAt(Math.min(s+sLen*0.30,total));
     const [c2x,c2y]=getAt(Math.min(s+sLen*0.70,total));
     const [n2x,n2y]=normAt(Math.min(s+sLen*0.70,total));
     ctx.beginPath();
-    ctx.moveTo(ax,ay);
+    // endpoints displaced off-center (alternates +/-), S curvature constant → same shape repeating
+    ctx.moveTo(ax+nax*off*side, ay+nay*off*side);
     ctx.bezierCurveTo(
-      c1x+n1x*amp*side,  c1y+n1y*amp*side,
-      c2x-n2x*amp*side,  c2y-n2y*amp*side,
-      bx, by
+      c1x+n1x*amp,  c1y+n1y*amp,
+      c2x-n2x*amp,  c2y-n2y*amp,
+      bx+nbx*off*side, by+nby*off*side
     );
     ctx.stroke();
     s=sEnd+gap; side=-side;
