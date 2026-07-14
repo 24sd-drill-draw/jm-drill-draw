@@ -866,9 +866,9 @@ function drawBackSkate(ctx, pts, col, camScale){
     const dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy)||1; return [-dy/len,dx/len]; }
 
   // Disconnected S's — large, smooth, with small gaps between each
-  const amp=Math.max(2.0,0.9*camScale);
-  const sLen=amp*7.0;   // long S = round graceful curve
-  const gap=amp*1.0;    // small gap between S marks
+  const amp=Math.max(2.2,1.1*camScale);
+  const sLen=amp*3.2;   // shorter wavelength = more S's
+  const gap=amp*0.7;    // small gap
 
   ctx.save(); ctx.strokeStyle=col; ctx.globalAlpha=0.72; ctx.lineWidth=Math.max(1,0.32*camScale);
   ctx.lineJoin='round'; ctx.lineCap='round';
@@ -888,8 +888,8 @@ function drawBackSkate(ctx, pts, col, camScale){
     ctx.moveTo(startX,startY);
     // smooth S via cubic bezier: first half curves one way, second half the other
     ctx.bezierCurveTo(
-      c1x+n1x*amp*3.0*side,  c1y+n1y*amp*3.0*side,
-      c2x+n2x*amp*3.0*(-side), c2y+n2y*amp*3.0*(-side),
+      c1x+n1x*amp*3.8*side,  c1y+n1y*amp*3.8*side,
+      c2x+n2x*amp*3.8*(-side), c2y+n2y*amp*3.8*(-side),
       endX, endY
     );
     ctx.stroke();
