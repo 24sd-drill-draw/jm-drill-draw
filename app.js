@@ -904,7 +904,7 @@ function drawAnnotation(p){
   else if(p.type==='skateback'){
     const anc=p.anchors&&p.anchors.length>=2?p.anchors:p.pts;
     const smooth=anc.length>=2?catmull(anc,48).map(q=>W2S(q.x,q.y)):scr;
-    drawBackSkate(ctx, smooth, col, cam.s);
+    drawScallops(ctx, smooth, col, cam.s);
     // place arrowhead beyond the last scallop
     ctx.globalAlpha=1;
     const _n=smooth.length, _a=smooth[_n-2]||smooth[0], _b=smooth[_n-1];
@@ -1184,7 +1184,7 @@ function render(){
     const anc=[...skateBackBuilding.path.anchors, skateBackCursor];
     const smooth=anc.length>=2?catmull(anc,48).map(q=>W2S(q.x,q.y)):anc.map(q=>W2S(q.x,q.y));
     ctx.save(); ctx.globalAlpha=0.5;
-    drawBackSkate(ctx, smooth, activeColor||'#0C2233', cam.s);
+    drawScallops(ctx, smooth, activeColor||'#0C2233', cam.s);
     ctx.restore();
   }
   // live preview of skaterev (backwards skating) being built
