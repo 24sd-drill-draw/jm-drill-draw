@@ -865,30 +865,23 @@ function drawBackSkate(ctx, pts, col, camScale){
   function normAt(s){ const a=getAt(Math.max(0,s-1)), b=getAt(Math.min(total,s+1));
     const dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy)||1; return [-dy/len,dx/len]; }
 
-  const amp=Math.max(1.3,0.62*camScale);  // perpendicular amplitude
-  const wl=amp*2.6;                        // length of each full S
-  const offset=amp*0.9;                    // how far each S is displaced off-center
+  // Round consistent S's: each half-S is one quadratic bezier
+  // Long wavelength + moderate amp = smooth round curves
+  const amp=Math.max(1.5,0.7*camScale);
+  const halfS=amp*3.5;   // length of each half-S — longer = rounder
 
-  ctx.save(); ctx.strokeStyle=col; ctx.globalAlpha=0.72; ctx.lineWidth=Math.max(1,0.3*camScale);
+  ctx.save(); ctx.strokeStyle=col; ctx.globalAlpha=0.72; ctx.lineWidth=Math.max(1,0.32*camScale);
   ctx.lineJoin='round'; ctx.lineCap='round';
   ctx.beginPath();
   const [sx,sy]=getAt(0); ctx.moveTo(sx,sy);
   let s=0, side=1;
   while(s<total){
-    const sEnd=Math.min(s+wl,total);
-    const s1=s+wl*0.25, s2=s+wl*0.75;
+    const sEnd=Math.min(s+halfS,total);
+    const sMid=s+halfS*0.5;
     const [ex,ey]=getAt(sEnd);
-    const [c1x,c1y]=getAt(Math.min(s1,total));
-    const [n1x,n1y]=normAt(Math.min(s1,total));
-    const [c2x,c2y]=getAt(Math.min(s2,total));
-    const [n2x,n2y]=normAt(Math.min(s2,total));
-    // cubic bezier: first control point pushed one way, second the other — makes an S
-    // offset shifts the whole S off center
-    ctx.bezierCurveTo(
-      c1x + n1x*(amp*2.4 + offset)*side,  c1y + n1y*(amp*2.4 + offset)*side,
-      c2x + n2x*(-amp*2.4 + offset)*side, c2y + n2y*(-amp*2.4 + offset)*side,
-      ex, ey
-    );
+    const [mx,my]=getAt(Math.min(sMid,total));
+    const [nx,ny]=normAt(Math.min(sMid,total));
+    ctx.quadraticCurveTo(mx+nx*amp*2.5*side, my+ny*amp*2.5*side, ex, ey);
     s=sEnd; side=-side;
     if(s>=total) break;
   }
