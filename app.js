@@ -865,8 +865,8 @@ function drawBackSkate(ctx, pts, col, camScale){
   function normAt(s){ const a=getAt(Math.max(0,s-1)), b=getAt(Math.min(total,s+1));
     const dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy)||1; return [-dy/len,dx/len]; }
 
-  const amp=Math.max(1.2,0.6*camScale);
-  const wl=amp*1.3;
+  const amp=Math.max(1.8,0.8*camScale);
+  const wl=amp*4.0;   // long half-cycle = round smooth curves, not sharp peaks
   ctx.save(); ctx.strokeStyle=col; ctx.globalAlpha=0.65; ctx.lineWidth=Math.max(1,0.32*camScale);
   ctx.lineJoin='round'; ctx.lineCap='round';
   ctx.beginPath();
@@ -878,7 +878,7 @@ function drawBackSkate(ctx, pts, col, camScale){
     const [ex,ey]=getAt(sEnd);
     const [mx,my]=getAt(sMid);
     const [nx,ny]=normAt(sMid);
-    ctx.quadraticCurveTo(mx+nx*amp*2.8*side, my+ny*amp*2.8*side, ex, ey);
+    ctx.quadraticCurveTo(mx+nx*amp*2.2*side, my+ny*amp*2.2*side, ex, ey);
     s=sEnd; side=-side;
     if(s>=total) break;
   }
