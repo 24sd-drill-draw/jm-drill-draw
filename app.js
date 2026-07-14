@@ -853,8 +853,8 @@ function drawScallops(ctx, pts, col, camScale){
   ctx.stroke(); ctx.restore();
 }
 function drawBackSkate(ctx, pts, col, camScale){
-  // Off-centered alternating C's for backwards skating
-  // Each C scoops asymmetrically — control point biased toward the end of the arc
+  // Backwards skating: alternating C's, big on one side then small on the other
+  // Big C (deep scoop) followed by small C (shallow recovery) — asymmetric pair
   if(pts.length<2) return;
   const lens=[0];
   for(let i=1;i<pts.length;i++) lens.push(lens[i-1]+Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]));
@@ -865,23 +865,25 @@ function drawBackSkate(ctx, pts, col, camScale){
   function normAt(s){ const a=getAt(Math.max(0,s-1)), b=getAt(Math.min(total,s+1));
     const dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy)||1; return [-dy/len,dx/len]; }
 
-  const amp=Math.max(1.2,0.58*camScale);
-  const wl=amp*1.25;
+  const base=Math.max(1.4,0.65*camScale);
+  const bigWl=base*1.6;   // long C
+  const smlWl=base*0.9;   // short recovery C
 
-  ctx.save(); ctx.strokeStyle=col; ctx.globalAlpha=0.7; ctx.lineWidth=Math.max(1,0.3*camScale);
+  ctx.save(); ctx.strokeStyle=col; ctx.globalAlpha=0.72; ctx.lineWidth=Math.max(1,0.3*camScale);
   ctx.lineJoin='round'; ctx.lineCap='round';
   ctx.beginPath();
   const [sx,sy]=getAt(0); ctx.moveTo(sx,sy);
-  let s=0, side=1;
+  let s=0, side=1, big=true;
   while(s<total){
+    const wl=big?bigWl:smlWl;
+    const amp=big?base*3.2:base*1.4;  // big C is deep, small C is shallow
     const sEnd=Math.min(s+wl,total);
-    // bias control point toward 70% of arc instead of 50% — creates off-centered C
-    const sBias=s+wl*0.70;
+    const sMid=(s+sEnd)/2;
     const [ex,ey]=getAt(sEnd);
-    const [bx,by]=getAt(Math.min(sBias,total));
-    const [nx,ny]=normAt(Math.min(sBias,total));
-    ctx.quadraticCurveTo(bx+nx*amp*2.6*side, by+ny*amp*2.6*side, ex, ey);
-    s=sEnd; side=-side;
+    const [mx,my]=getAt(sMid);
+    const [nx,ny]=normAt(sMid);
+    ctx.quadraticCurveTo(mx+nx*amp*side, my+ny*amp*side, ex, ey);
+    s=sEnd; side=-side; big=!big;
     if(s>=total) break;
   }
   ctx.stroke(); ctx.restore();
