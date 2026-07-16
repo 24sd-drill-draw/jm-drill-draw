@@ -22,7 +22,7 @@ let DPR = Math.min(window.devicePixelRatio||1, 2);
 const RW=200, RH=85, GAP=24;           // full-sheet size + gap between sheets
 const FW=210, FH=120;                  // grass field (dryland) dimensions in feet
 // KCI Iceplex floor plan (feet, scaled to match piece scale)
-const IW=500, IH=260;                  // total facility footprint
+const IW=520, IH=290;                  // total facility footprint
 let rinkConfig='full';
 let showTrap=true;
 const CONFIGS={
@@ -53,12 +53,12 @@ function defaultView(){ return rinkConfig==='full'?'full': rinkConfig==='half'?'
 function viewPresets(){
   const b=worldBounds();
   if(rinkConfig==='iceplex') return [
-    {k:'full',  t:'Full',        r:{x:-10,y:-20,w:IW+60,h:IH+40}},
-    {k:'sb',    t:'Starbucks',   r:{x:38, y:28, w:95,   h:196}},
-    {k:'gap',   t:'SB↔SS Gap',  r:{x:128,y:28, w:36,   h:196}},
-    {k:'ss',    t:'Smartsheet',  r:{x:162,y:28, w:95,   h:196}},
-    {k:'mpr',   t:'MPR',        r:{x:256,y:0,  w:56,   h:48}},
-    {k:'vm',    t:'Virginia Mason',r:{x:310,y:28,w:95,  h:196}},
+    {k:'full', t:'Full',      r:{x:-8, y:-22,w:480,h:310}},
+    {k:'sb',   t:'Starbucks', r:{x:36, y:32, w:104,h:210}},
+    {k:'gap',  t:'Floor Gap', r:{x:128,y:32, w:44, h:210}},
+    {k:'ss',   t:'Smartsheet',r:{x:160,y:32, w:104,h:210}},
+    {k:'lock', t:'Lockers',   r:{x:254,y:-20,w:62, h:280}},
+    {k:'vm',   t:'VM Rink',   r:{x:304,y:32, w:104,h:210}},
   ];
   if(rinkConfig==='field') return [
     {k:'full', t:'Full',     r:{x:-15,y:-40,w:FW+55,h:FH+110}},
@@ -528,122 +528,156 @@ function drawIceplexBg(p){
   const X=x=>(x+p.ox)*s+cam.tx, Y=y=>(y+p.oy)*s+cam.ty;
   const dark=document.body.classList.contains('dark-ice');
 
-  const floor   = dark?'#1c1c24':'#ccc8c0';
+  const floor   = dark?'#1c1c24':'#d0ccc4';
   const iceCol  = dark?'#182838':'#ddeef8';
-  const wallCol = dark?'#2c2c38':'#9a9488';
-  const lobbyCol= dark?'#22222e':'#b8b0a4';
-  const tealCol = dark?'#163838':'#a0d8d8';
-  const greenCol= dark?'#163020':'#78b878';
-  const ink     = dark?'rgba(220,235,255,0.9)':'rgba(15,15,35,0.9)';
-  const lw      = Math.max(1,0.5*s);
+  const wallCol = dark?'#2c2c3a':'#8a8478';
+  const lobbyCol= dark?'#20202c':'#b4aca0';
+  const tealCol = dark?'#0e3030':'#7ecece';
+  const tealDark= dark?'#0a2424':'#52aaaa';
+  const greenCol= dark?'#142a18':'#7ab87a';
+  const entrCol = dark?'#1a2a3a':'#98b8cc';
+  const ink     = dark?'rgba(220,235,255,0.92)':'rgba(12,12,32,0.92)';
+  const inkFade = dark?'rgba(180,200,230,0.6)':'rgba(30,30,60,0.5)';
+  const wall    = Math.max(2,1.2*s);
+  const lw      = Math.max(1,0.45*s);
 
+  // helpers
   function fillBox(x,y,w,h,col){ ctx.fillStyle=col; ctx.fillRect(X(x),Y(y),w*s,h*s); }
-  function strokeBox(x,y,w,h,col,lwd=lw){ ctx.strokeStyle=col; ctx.lineWidth=lwd; ctx.strokeRect(X(x),Y(y),w*s,h*s); }
+  function box(x,y,w,h,fill,stroke,lwd=lw){ fillBox(x,y,w,h,fill); ctx.strokeStyle=stroke; ctx.lineWidth=lwd; ctx.strokeRect(X(x),Y(y),w*s,h*s); }
   function hline(x1,x2,y,col,lwd=lw){ ctx.strokeStyle=col; ctx.lineWidth=lwd; ctx.beginPath(); ctx.moveTo(X(x1),Y(y)); ctx.lineTo(X(x2),Y(y)); ctx.stroke(); }
   function vline(x,y1,y2,col,lwd=lw){ ctx.strokeStyle=col; ctx.lineWidth=lwd; ctx.beginPath(); ctx.moveTo(X(x),Y(y1)); ctx.lineTo(X(x),Y(y2)); ctx.stroke(); }
-  function txt(cx,cy,str,size,bold,col,align='center'){
+  function txt(cx,cy,str,sz,bold,col,align='center'){
     ctx.fillStyle=col||ink; ctx.textAlign=align; ctx.textBaseline='middle';
-    ctx.font=`${bold?'bold ':''}${Math.max(5,size*s)}px Inter,sans-serif`;
+    ctx.font=`${bold?'bold ':''}${Math.max(5,sz*s)}px Inter,sans-serif`;
     ctx.fillText(str,X(cx),Y(cy));
   }
-  function rotTxt(cx,cy,str,size,bold,col){
+  function rotTxt(cx,cy,str,sz,bold,col){
     ctx.save(); ctx.fillStyle=col||ink; ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.font=`${bold?'bold ':''}${Math.max(5,size*s)}px Inter,sans-serif`;
+    ctx.font=`${bold?'bold ':''}${Math.max(5,sz*s)}px Inter,sans-serif`;
     ctx.translate(X(cx),Y(cy)); ctx.rotate(-Math.PI/2); ctx.fillText(str,0,0); ctx.restore();
   }
+  function marker(cx,cy,letter,bgCol){
+    const r=Math.max(4,2.8*s);
+    ctx.fillStyle=bgCol||'#1a3a6a'; ctx.beginPath(); ctx.arc(X(cx),Y(cy),r,0,7); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.font=`bold ${Math.max(5,2.2*s)}px Inter,sans-serif`;
+    ctx.fillText(letter,X(cx),Y(cy));
+  }
 
-  // ── Layout constants (feet) ───────────────────────────────
-  // Horizontal zones:
-  const hopsW=22;           // Hockey Ops wall
-  const corL=18;            // left corridor between hockey ops and SB rink
-  const rinkW=90;           // each rink width
-  const gap12=30;           // gap between SB and SS rinks (significant space)
-  const lockW=52;           // locker rooms + MPR section width
-  const gap23=0;            // locker section IS the separator
-  const rightW=18;          // right wall
-  const parkW=38;           // public park (external)
-  // x positions
-  const xHops=0, xCorL=hopsW, xSB=xCorL+corL, xGap=xSB+rinkW;
-  const xSS=xGap+gap12, xLock=xSS+rinkW, xVM=xLock+lockW, xRwall=xVM+rinkW, xPark=xRwall+rightW;
-  // IW should = xPark + parkW
-  // Vertical zones:
-  const lobbyH=32;          // top lobby/concessions
-  const rinkH=188;          // rink length
-  const botH=IH-lobbyH-rinkH; // bottom corridor
-  const yLobby=0, yRink=lobbyH, yBot=yLobby+lobbyH+rinkH;
-  // Locker sub-layout (inside lock section)
-  const mprH=42;            // MPR height within locker section
-  const yMPR=yLobby, yLockers=yLobby+mprH;
-  const lockersH=rinkH+lobbyH-mprH;
+  // ── LAYOUT (all in "feet" units) ─────────────────────────
+  // Horizontal — left to right:
+  const xHops=0,  wHops=20;          // Hockey Ops solid wall
+  const xCorL=20, wCorL=22;          // open corridor L of SB
+  const xSB=42,   wRink=92;          // Starbucks rink
+  const xGap=134, wGap=34;           // floor gap SB↔SS
+  const xSS=168,  _wSS=wRink;        // Smartsheet rink (same width)
+  const xLock=260,wLock=50;          // MPR + locker section
+  const xVM=310,  wVM=wRink;         // Virginia Mason rink
+  const xRwall=402,wRwall=12;        // thin right wall
+  const xPark=414, wPark=44;         // external park
 
-  // ── Building floor ────────────────────────────────────────
-  fillBox(0,0,xPark,IH, floor);
-  // outer wall
-  ctx.strokeStyle='#444'; ctx.lineWidth=Math.max(2,1.4*s);
-  ctx.strokeRect(X(0),Y(0),(xPark)*s,IH*s);
+  // Vertical — top to bottom:
+  const yEntrance=-18, hEntrance=18; // East entrance above main box
+  const yLobby=0,  hLobby=36;       // lobby/concessions band
+  const yRink=36,  hRink=200;        // rink length
+  const yBot=236,  hBot=22;          // bottom corridor
+  // (IH = 258 ≈ 260 set above)
 
-  // ── Public park (outside, right) ─────────────────────────
-  fillBox(xPark,0,parkW,IH, greenCol);
-  strokeBox(xPark,0,parkW,IH,'#4a884a');
-  rotTxt(xPark+parkW/2, IH/2,'PUBLIC PARK',2.6,true,dark?'#2a6a2a':'#1a4a1a');
+  // MPR + locker sub-layout (within xLock column):
+  const yMPR=yEntrance, hMPR=hEntrance+hLobby+14; // MPR spans entrance+lobby+into rink zone
+  const yLockers=yMPR+hMPR, hLockers=yBot+hBot-yLockers;
 
-  // ── Hockey Operations (left solid wall) ──────────────────
-  fillBox(xHops,0,hopsW,IH, wallCol);
-  strokeBox(xHops,0,hopsW,IH,'#666');
-  rotTxt(xHops+hopsW/2, IH/2,'HOCKEY OPERATIONS',2.1,true);
+  // ── Building floor (main rectangle) ──────────────────────
+  fillBox(0,yLobby,xPark,IH-yLobby-0, floor);
 
-  // ── Left corridor (between Ops wall and SB rink) ─────────
-  // open floor — usable dryland space
-  fillBox(xCorL,yRink,corL,rinkH, dark?'#202028':'#c0bab0');
-  strokeBox(xCorL,yRink,corL,rinkH,'#888');
-  rotTxt(xCorL+corL/2, yRink+rinkH/2,'CORRIDOR',1.8,false,dark?'#888':'#666');
+  // ── Public park (outside right) ──────────────────────────
+  fillBox(xPark,yLobby,wPark,IH-yLobby, greenCol);
+  ctx.strokeStyle='#4a7a4a'; ctx.lineWidth=lw;
+  ctx.strokeRect(X(xPark),Y(yLobby),wPark*s,(IH-yLobby)*s);
+  rotTxt(xPark+wPark/2, yLobby+(IH-yLobby)/2,'PUBLIC PARK',2.4,true,dark?'#2a5a2a':'#1a4a1a');
 
-  // ── Gap between SB and SS (usable floor space) ───────────
-  fillBox(xGap,yRink,gap12,rinkH, dark?'#202028':'#c0bab0');
-  strokeBox(xGap,yRink,gap12,rinkH,'#888');
-  rotTxt(xGap+gap12/2, yRink+rinkH/2,'DRYLAND\nSPACE',1.8,false,dark?'#888':'#666');
+  // ── Hockey Operations wall (left) ────────────────────────
+  box(xHops,yLobby,wHops,IH-yLobby, wallCol,'#555',wall);
+  rotTxt(xHops+wHops/2, yLobby+(IH-yLobby)/2,'HOCKEY OPERATIONS',2.0,true,inkFade);
 
-  // ── Top lobby / concessions ───────────────────────────────
-  fillBox(xCorL,yLobby,xRwall-xCorL,lobbyH, lobbyCol);
-  strokeBox(xCorL,yLobby,xRwall-xCorL,lobbyH,'#888');
-  txt((xCorL+xRwall)/2, yLobby+lobbyH/2,'GUEST SERVICES  ·  SKATE RENTALS  ·  CONCESSIONS',2.0,true);
+  // ── Left corridor (SB left side — usable floor) ──────────
+  box(xCorL,yRink,wCorL,hRink+hBot, dark?'#1a1a22':'#bab4aa','#666');
+  // dashed center line to suggest usable space
+  ctx.setLineDash([Math.max(3,1.2*s),Math.max(3,1.2*s)]);
+  vline(xCorL+wCorL/2,yRink+4,yRink+hRink-4,dark?'#444':'#999',Math.max(0.5,0.3*s));
+  ctx.setLineDash([]);
+  rotTxt(xCorL+wCorL/2, yRink+hRink*0.5,'CORRIDOR',1.7,false,inkFade);
 
-  // East entrance bump (top right)
-  fillBox(xLock+lockW*0.3,yLobby-12,lockW*0.7+rightW,12,dark?'#2a3a4a':'#a8bcc8');
-  strokeBox(xLock+lockW*0.3,yLobby-12,lockW*0.7+rightW,12,'#6688aa');
-  txt(xLock+lockW*0.3+(lockW*0.7+rightW)/2, yLobby-6,'EAST PUBLIC ENTRANCE',1.9,true,dark?'#aaccee':'#224466');
+  // ── Floor gap SB ↔ SS (substantial dryland/circulation) ──
+  box(xGap,yRink,wGap,hRink+hBot, dark?'#1a1a22':'#bab4aa','#666');
+  ctx.setLineDash([Math.max(3,1.2*s),Math.max(3,1.2*s)]);
+  vline(xGap+wGap/2,yRink+4,yRink+hRink-4,dark?'#444':'#999',Math.max(0.5,0.3*s));
+  ctx.setLineDash([]);
+  rotTxt(xGap+wGap/2, yRink+hRink*0.5,'FLOOR SPACE',1.7,false,inkFade);
+
+  // ── Bottom corridor (below rinks) ────────────────────────
+  box(xCorL,yBot,xRwall-xCorL,hBot, lobbyCol,'#777');
+
+  // ── East Public Entrance (angled notch top-right) ─────────
+  // The entrance juts above the main building line
+  fillBox(xLock+wLock*0.35,yEntrance,wVM+wRwall+wLock*0.65,hEntrance,entrCol);
+  ctx.strokeStyle='#5588aa'; ctx.lineWidth=Math.max(1.5,0.7*s);
+  ctx.strokeRect(X(xLock+wLock*0.35),Y(yEntrance),(wVM+wRwall+wLock*0.65)*s,hEntrance*s);
+  txt(xLock+wLock*0.35+(wVM+wRwall+wLock*0.65)/2, yEntrance+hEntrance/2,'EAST PUBLIC ENTRANCE',2.0,true,dark?'#aaccee':'#1a3a5a');
+  // stairs label
+  txt(xVM+wVM*0.65, yEntrance+hEntrance*0.5,'STAIRS\nTO LEVEL 2',1.5,false,dark?'#88aacc':'#2a4a6a');
+  // "C" entrance marker
+  marker(xVM+wVM*0.7, yLobby-4,'C','#1a5a9a');
 
   // ── MPR room ─────────────────────────────────────────────
-  fillBox(xLock,yMPR,lockW,mprH, tealCol);
-  strokeBox(xLock,yMPR,lockW,mprH,'#4a9a9a', Math.max(1.5,0.7*s));
-  txt(xLock+lockW/2, yMPR+mprH/2,'MPR  815 sq ft',2.3,true,dark?'#004040':'#003030');
+  box(xLock,yMPR,wLock,hMPR, tealCol,'#2a8888',Math.max(1.5,0.7*s));
+  txt(xLock+wLock/2, yMPR+hMPR*0.38,'MPR',2.6,true,dark?'#003838':'#002828');
+  txt(xLock+wLock/2, yMPR+hMPR*0.65,'815 sq ft',1.8,false,dark?'#003838':'#002828');
 
-  // ── Locker rooms (numbered 1-14, 2 cols × 7 rows) ────────
-  fillBox(xLock,yLockers,lockW,lockersH, tealCol);
-  strokeBox(xLock,yLockers,lockW,lockersH,'#4a9a9a', Math.max(1.5,0.7*s));
-  const lcols=2, lrows=7, cellW=lockW/lcols, cellH=lockersH/lrows;
+  // ── Locker rooms 1-14 (2×7 grid, teal) ──────────────────
+  box(xLock,yLockers,wLock,hLockers, tealCol,'#2a8888',Math.max(1.5,0.7*s));
+  const lcols=2, lrows=7;
+  const cellW=wLock/lcols, cellH=hLockers/lrows;
   for(let r=0;r<lrows;r++) for(let c=0;c<lcols;c++){
     const n=r*lcols+c+1;
     const cx=xLock+c*cellW, cy=yLockers+r*cellH;
-    strokeBox(cx,cy,cellW,cellH,'#4a9a9a', Math.max(0.5,0.25*s));
-    txt(cx+cellW/2, cy+cellH/2, String(n), 1.8,true,dark?'#004040':'#003030');
+    ctx.strokeStyle=tealDark; ctx.lineWidth=Math.max(0.5,0.3*s);
+    ctx.strokeRect(X(cx),Y(cy),cellW*s,cellH*s);
+    txt(cx+cellW/2, cy+cellH/2, String(n),1.9,true,dark?'#003838':'#002828');
   }
-  // "LOCKER ROOMS" vertical label on right edge of section
-  rotTxt(xLock+lockW-3.5, yLockers+lockersH/2,'LOCKER ROOMS',2.0,true,dark?'#004040':'#003030');
+  // "LOCKER ROOMS" vertical label in right half of section
+  rotTxt(xLock+wLock*0.78, yLockers+hLockers/2,'LOCKER ROOMS',1.9,true,dark?'#003838':'#002828');
 
-  // ── Bottom corridor ───────────────────────────────────────
-  if(botH>2){
-    fillBox(xCorL,yBot,xRwall-xCorL,botH, lobbyCol);
-    strokeBox(xCorL,yBot,xRwall-xCorL,botH,'#888');
-  }
+  // ── Top lobby / concessions ───────────────────────────────
+  // Spans above SB and SS rinks; NOT above locker/VM section
+  box(xCorL,yLobby,xLock-xCorL,hLobby, lobbyCol,'#777');
+  // "B" entrance marker (between SB and SS, at lobby top)
+  marker(xGap+wGap/2, yLobby+6,'B','#1a5a9a');
+  // Guest services label (dark banner, centered above SS)
+  const gsX=xSS-8, gsW=wRink+16;
+  ctx.fillStyle='rgba(10,20,35,0.72)';
+  ctx.fillRect(X(gsX),Y(yLobby+3),(gsW)*s,Math.max(10,6.5*s));
+  ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.font=`bold ${Math.max(5,1.8*s)}px Inter,sans-serif`;
+  ctx.fillText('GUEST SERVICES, SKATE RENTALS & CONCESSIONS',X(gsX+gsW/2),Y(yLobby+3)+Math.max(10,6.5*s)/2);
 
-  // ── Right wall ────────────────────────────────────────────
-  fillBox(xRwall,0,rightW,IH, wallCol);
-  strokeBox(xRwall,0,rightW,IH,'#666');
+  // Lobby also extends above VM rink
+  box(xVM,yLobby,wVM+wRwall,hLobby, lobbyCol,'#777');
 
-  // ── Ice rink drawing ─────────────────────────────────────
-  function drawRink(rx,ry,rw,rh,name1,name2){
-    const cr=Math.min(rw*0.5,rh*0.12)*s;
+  // ── "A" Kraken Office entrance (top of left corridor) ────
+  marker(xCorL+wCorL/2, yLobby+6,'A','#1a5a9a');
+
+  // ── "D" West entrance (bottom left) ──────────────────────
+  marker(xCorL+4, yBot+hBot/2,'D','#1a5a9a');
+
+  // ── Outer building wall (on top of everything) ────────────
+  ctx.strokeStyle='#333'; ctx.lineWidth=wall;
+  ctx.strokeRect(X(0),Y(yLobby),xPark*s,(IH-yLobby)*s);
+
+  // ── Ice rink ─────────────────────────────────────────────
+  function drawRink(rx,ry,rw,rh,name1,name2,cap){
+    // rounded end caps (portrait rink, ends at top/bottom)
+    const cr=Math.min(rw*0.52,rh*0.12)*s;
     ctx.fillStyle=iceCol;
     ctx.beginPath();
     ctx.moveTo(X(rx)+cr,Y(ry));
@@ -652,55 +686,79 @@ function drawIceplexBg(p){
     ctx.arcTo(X(rx),Y(ry+rh),X(rx),Y(ry),cr);
     ctx.arcTo(X(rx),Y(ry),X(rx+rw),Y(ry),cr);
     ctx.closePath(); ctx.fill();
-    // boards
-    ctx.strokeStyle='#cc2233'; ctx.lineWidth=Math.max(1.5,0.65*s); ctx.stroke();
+    // boards — red
+    ctx.strokeStyle='#cc2233'; ctx.lineWidth=Math.max(2,0.8*s); ctx.stroke();
     const cy=ry+rh/2;
     // red center line
-    ctx.strokeStyle='#cc2233'; ctx.lineWidth=Math.max(1,0.5*s);
-    hline(rx+rw*0.07,rx+rw*0.93,cy,'#cc2233',Math.max(1.5,0.55*s));
-    // blue lines at 30% and 70%
-    [ry+rh*0.29, ry+rh*0.71].forEach(by=>{
-      hline(rx+rw*0.07,rx+rw*0.93,by,'#2255cc',Math.max(1,0.5*s));
+    hline(rx+rw*0.06,rx+rw*0.94,cy,'#cc2233',Math.max(1.5,0.6*s));
+    // blue lines at ~30% and ~70% of rink length
+    [ry+rh*0.295, ry+rh*0.705].forEach(by=>{
+      hline(rx+rw*0.06,rx+rw*0.94,by,'#2244bb',Math.max(1.2,0.5*s));
     });
-    // center circle
-    ctx.strokeStyle='#2255cc'; ctx.lineWidth=Math.max(1,0.4*s);
-    ctx.beginPath(); ctx.arc(X(rx+rw/2),Y(cy),rw*0.22*s,0,7); ctx.stroke();
-    ctx.fillStyle='#cc2233'; ctx.beginPath(); ctx.arc(X(rx+rw/2),Y(cy),Math.max(2,0.9*s),0,7); ctx.fill();
-    // faceoff dots + circles in end zones
-    [[ry+rh*0.18,ry+rh*0.82],[rx+rw*0.25,rx+rw*0.75]].forEach(()=>{});
-    [ry+rh*0.18, ry+rh*0.82].forEach(fy=>{
-      [rx+rw*0.26,rx+rw*0.74].forEach(fx=>{
+    // center circle (large)
+    ctx.strokeStyle='#2244bb'; ctx.lineWidth=Math.max(1,0.45*s);
+    ctx.beginPath(); ctx.arc(X(rx+rw/2),Y(cy),rw*0.23*s,0,7); ctx.stroke();
+    ctx.fillStyle='#cc2233'; ctx.beginPath(); ctx.arc(X(rx+rw/2),Y(cy),Math.max(2.5,1.0*s),0,7); ctx.fill();
+    // faceoff circles + dots — end zones
+    [ry+rh*0.175, ry+rh*0.825].forEach(fy=>{
+      [rx+rw*0.27,rx+rw*0.73].forEach(fx=>{
         ctx.strokeStyle='#cc2233'; ctx.lineWidth=Math.max(1,0.4*s);
-        ctx.beginPath(); ctx.arc(X(fx),Y(fy),rw*0.15*s,0,7); ctx.stroke();
-        ctx.fillStyle='#cc2233'; ctx.beginPath(); ctx.arc(X(fx),Y(fy),Math.max(2,0.8*s),0,7); ctx.fill();
+        ctx.beginPath(); ctx.arc(X(fx),Y(fy),rw*0.145*s,0,7); ctx.stroke();
+        ctx.fillStyle='#cc2233'; ctx.beginPath(); ctx.arc(X(fx),Y(fy),Math.max(2,0.9*s),0,7); ctx.fill();
       });
     });
-    // neutral zone faceoff dots
-    [ry+rh*0.29,ry+rh*0.71].forEach(fy=>{
-      [rx+rw*0.26,rx+rw*0.74].forEach(fx=>{
-        ctx.fillStyle='#cc2233'; ctx.beginPath(); ctx.arc(X(fx),Y(fy),Math.max(2,0.8*s),0,7); ctx.fill();
+    // neutral zone faceoff dots (at blue lines)
+    [ry+rh*0.295,ry+rh*0.705].forEach(fy=>{
+      [rx+rw*0.27,rx+rw*0.73].forEach(fx=>{
+        ctx.fillStyle='#cc2233'; ctx.beginPath(); ctx.arc(X(fx),Y(fy),Math.max(2,0.9*s),0,7); ctx.fill();
       });
     });
-    // bleacher seating indicators (small blue rects at corners)
-    [[rx+rw*0.2,ry+0.5],[rx+rw*0.6,ry+0.5],[rx+rw*0.2,ry+rh-2.5],[rx+rw*0.6,ry+rh-2.5]].forEach(([bx,by])=>{
-      ctx.fillStyle='#3366aa'; ctx.fillRect(X(bx),Y(by),rw*0.18*s,2*s);
+    // goal lines (10% from each end)
+    hline(rx+rw*0.08,rx+rw*0.92,ry+rh*0.107,'#cc2233',Math.max(1,0.4*s));
+    hline(rx+rw*0.08,rx+rw*0.92,ry+rh*0.893,'#cc2233',Math.max(1,0.4*s));
+    // goal creases (semicircle at each end)
+    [ry+rh*0.107, ry+rh*0.893].forEach((gy,i)=>{
+      ctx.strokeStyle='#cc2233'; ctx.lineWidth=Math.max(1,0.4*s);
+      ctx.beginPath();
+      const dir=i===0?1:-1;
+      ctx.arc(X(rx+rw/2),Y(gy),rw*0.13*s, dir>0?0:Math.PI, dir>0?Math.PI:0, i===0);
+      ctx.stroke();
     });
-    // name banner
-    const banH=Math.max(8,5.5*s), banY=Y(cy+2);
-    ctx.fillStyle='rgba(10,18,28,0.62)';
-    ctx.fillRect(X(rx+rw*0.08),banY-banH/2,rw*0.84*s,banH);
+    // player benches — long sides, middle third
+    const bW=rw*0.34*s, bH=Math.max(3,1.4*s);
+    const bY=Y(cy)-bH/2;
+    ctx.fillStyle='#3a6ab8';
+    ctx.fillRect(X(rx)-bH, bY, bH, bW);           // left bench
+    ctx.fillRect(X(rx+rw), bY, bH, bW);            // right bench
+    // penalty boxes (shorter, beside benches)
+    ctx.fillStyle='#5a4a8a';
+    ctx.fillRect(X(rx)-bH, Y(cy-rh*0.07)-bH/2, bH, Math.max(3,1.0*s));
+    ctx.fillRect(X(rx+rw), Y(cy-rh*0.07)-bH/2, bH, Math.max(3,1.0*s));
+    // rink name dark banner
+    const banH=Math.max(9,6*s);
+    ctx.fillStyle='rgba(8,14,24,0.65)';
+    ctx.fillRect(X(rx+rw*0.06),Y(cy+3)-banH/2,(rw*0.88)*s,banH);
     ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.font=`bold ${Math.max(5,2.0*s)}px Inter,sans-serif`;
-    ctx.fillText(name1, X(rx+rw/2), banY);
+    ctx.font=`bold ${Math.max(5,2.1*s)}px Inter,sans-serif`;
+    ctx.fillText(name1,X(rx+rw/2),Y(cy+3));
     if(name2){
+      ctx.font=`${Math.max(4,1.5*s)}px Inter,sans-serif`;
+      ctx.fillText(name2,X(rx+rw/2),Y(cy+3)+Math.max(6,3.2*s));
+    }
+    // capacity label
+    if(cap){
+      ctx.fillStyle='rgba(8,14,24,0.55)';
+      const capH=Math.max(7,4.5*s);
+      ctx.fillRect(X(rx+rw*0.28),Y(cy+3+8)-capH/2,rw*0.44*s,capH);
+      ctx.fillStyle='#cce'; ctx.textAlign='center'; ctx.textBaseline='middle';
       ctx.font=`${Math.max(4,1.6*s)}px Inter,sans-serif`;
-      ctx.fillText(name2, X(rx+rw/2), banY+Math.max(5,3*s));
+      ctx.fillText(cap,X(rx+rw/2),Y(cy+3+8));
     }
   }
 
-  drawRink(xSB, yRink, rinkW, rinkH, 'STARBUCKS RINK');
-  drawRink(xSS, yRink, rinkW, rinkH, 'SMARTSHEET RINK');
-  drawRink(xVM, yRink, rinkW, rinkH, 'VIRGINIA MASON', 'FRANCISCAN HEALTH RINK');
+  drawRink(xSB, yRink, wRink, hRink, 'STARBUCKS RINK', null,'👥 500');
+  drawRink(xSS, yRink, wRink, hRink, 'SMARTSHEET RINK');
+  drawRink(xVM, yRink, wVM,   hRink, 'VIRGINIA MASON','FRANCISCAN HEALTH RINK');
 }
 
 function drawFieldBg(p){
