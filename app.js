@@ -819,13 +819,13 @@ function drawIceplexBg(p){
       ctx.stroke();
     });
 
-    // goal creases (filled D-shape)
+    // goal creases (filled D-shape — top opens DOWN toward center, bottom opens UP)
     [gLine1,gLine2].forEach((gy,i)=>{
       ctx.strokeStyle=red; ctx.lineWidth=Math.max(1,0.4*s);
       ctx.fillStyle='rgba(200,34,51,0.12)';
       ctx.beginPath();
-      if(i===0) ctx.arc(X(rx+rw/2),Y(gy),rw*0.13*s,0,Math.PI,false);
-      else       ctx.arc(X(rx+rw/2),Y(gy),rw*0.13*s,Math.PI,0,false);
+      if(i===0) ctx.arc(X(rx+rw/2),Y(gy),rw*0.11*s,0,Math.PI,false);   // lower semi (opens down = into rink)
+      else       ctx.arc(X(rx+rw/2),Y(gy),rw*0.11*s,0,Math.PI,true);    // upper semi (opens up = into rink)
       ctx.closePath(); ctx.fill(); ctx.stroke();
     });
 
@@ -837,28 +837,24 @@ function drawIceplexBg(p){
 
     // center circle + dot
     ctx.strokeStyle=blue; ctx.lineWidth=Math.max(1,0.45*s);
-    ctx.beginPath(); ctx.arc(X(rx+rw/2),Y(cy),rw*0.23*s,0,7); ctx.stroke();
+    ctx.beginPath(); ctx.arc(X(rx+rw/2),Y(cy),rw*0.19*s,0,7); ctx.stroke();
     ctx.fillStyle=red; ctx.beginPath(); ctx.arc(X(rx+rw/2),Y(cy),Math.max(2.5,1.0*s),0,7); ctx.fill();
 
-    // referee crease (semicircle at left board, center ice)
-    ctx.strokeStyle=blue; ctx.lineWidth=Math.max(0.8,0.35*s);
-    ctx.beginPath(); ctx.arc(X(rx+rw*0.04),Y(cy),rw*0.08*s,Math.PI*1.5,Math.PI*0.5,false); ctx.stroke();
-
-    // end-zone faceoff circles + dots + hash marks
+    // end-zone faceoff circles + dots (smaller so they don't look like eyes)
     [ry+rh*0.175,ry+rh*0.825].forEach(fy=>{
       [rx+rw*0.27,rx+rw*0.73].forEach(fx=>{
-        ctx.strokeStyle=red; ctx.lineWidth=Math.max(1,0.4*s);
-        ctx.beginPath(); ctx.arc(X(fx),Y(fy),rw*0.145*s,0,7); ctx.stroke();
-        ctx.fillStyle=red; ctx.beginPath(); ctx.arc(X(fx),Y(fy),Math.max(2,0.9*s),0,7); ctx.fill();
-        // L-shaped hash marks at 9 and 3 o'clock
-        const hr=rw*0.145, hLen=rw*0.05, hOff=rw*0.022;
         ctx.strokeStyle=red; ctx.lineWidth=Math.max(0.8,0.35*s);
+        ctx.beginPath(); ctx.arc(X(fx),Y(fy),rw*0.095*s,0,7); ctx.stroke();
+        ctx.fillStyle=red; ctx.beginPath(); ctx.arc(X(fx),Y(fy),Math.max(2,0.9*s),0,7); ctx.fill();
+        // hash marks at 9 and 3 o'clock (outside the circle)
+        const hr=rw*0.095, hLen=rw*0.04, hOff=rw*0.018;
+        ctx.strokeStyle=red; ctx.lineWidth=Math.max(0.7,0.3*s);
         [-1,1].forEach(side=>{
           const bx=fx+side*(hr+hOff);
           ctx.beginPath();
           ctx.moveTo(X(bx),Y(fy-hLen)); ctx.lineTo(X(bx),Y(fy+hLen));
-          ctx.moveTo(X(bx),Y(fy-hLen)); ctx.lineTo(X(bx-side*hOff*0.8),Y(fy-hLen));
-          ctx.moveTo(X(bx),Y(fy+hLen)); ctx.lineTo(X(bx-side*hOff*0.8),Y(fy+hLen));
+          ctx.moveTo(X(bx),Y(fy-hLen)); ctx.lineTo(X(bx-side*hOff),Y(fy-hLen));
+          ctx.moveTo(X(bx),Y(fy+hLen)); ctx.lineTo(X(bx-side*hOff),Y(fy+hLen));
           ctx.stroke();
         });
       });
