@@ -297,6 +297,7 @@ const SKATERS=[
 const EQUIP=[
   {type:'puck',     n:'Puck'},
   {type:'puckstack',n:'Pucks'},
+  {type:'ball',     n:'Ball'},
   {type:'net',      n:'Net'},
   {type:'cone',     n:'Cone'},
   {type:'tire',     n:'Tire'},
@@ -411,8 +412,8 @@ function addPiece(type, at, opts){
   selOne('piece',piece.id); updateInspector(); render(); toast(prettyType(piece.type)+' added');
 }
 function nextNum(){ const used=pieces.filter(p=>p.type==='player'&&p.color===COLORS[playerColor]).length; return used+1; }
-function prettyType(t){ return ({player:'Skater',goalie:'Goalie',coach:'Coach',puck:'Puck',puckstack:'Pucks',net:'Net',cone:'Cone',tire:'Tire',bumper:'Bumper',ring:'Ring',dot:'Dot',zone:'Zone',image:'Image',text:'Text'})[t]||t; }
-function defColor(t){ return ({cone:'#F2811D',net:'#D11C2C',bumper:'#E7B416',dot:'#D11C2C',tire:'#E7B416',puck:'#111418',puckstack:'#111418',ring:'#222831',coach:'#E7B416',zone:'#2FA866'})[t]||'#11181f'; }
+function prettyType(t){ return ({player:'Skater',goalie:'Goalie',coach:'Coach',puck:'Puck',puckstack:'Pucks',ball:'Ball',net:'Net',cone:'Cone',tire:'Tire',bumper:'Bumper',ring:'Ring',dot:'Dot',zone:'Zone',image:'Image',text:'Text'})[t]||t; }
+function defColor(t){ return ({cone:'#F2811D',net:'#D11C2C',bumper:'#E7B416',dot:'#D11C2C',tire:'#E7B416',puck:'#111418',puckstack:'#111418',ball:'#ffffff',ring:'#222831',coach:'#E7B416',zone:'#2FA866'})[t]||'#11181f'; }
 function isDark(hex){ if(!hex)return true; const c=(hex+'').replace('#',''); const r=parseInt(c.substr(0,2),16),g=parseInt(c.substr(2,2),16),b=parseInt(c.substr(4,2),16); return (0.299*r+0.587*g+0.114*b)<140; }
 function escapeHtml(s){ return (s||'').replace(/[&<>"\']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 function getPiece(i){ return pieces.find(p=>p.id===i); }
@@ -646,7 +647,7 @@ function drawPiece(p, pos){
   }
 }
 function pieceRadius(p){ // in feet
-  const b={player:2.6,goalie:3.0,coach:2.6,puck:1.0,puckstack:2.0,net:3.4,cone:1.6,tire:2.0,bumper:7,ring:2.2,dot:1.2,image:8,zone:10}[p.type]||2;
+  const b={player:2.6,goalie:3.0,coach:2.6,puck:1.0,puckstack:2.0,ball:1.6,net:3.4,cone:1.6,tire:2.0,bumper:7,ring:2.2,dot:1.2,image:8,zone:10}[p.type]||2;
   return b*(p.size||1);
 }
 function drawPieceShape(c, p, scale, thumb){
@@ -684,6 +685,16 @@ function drawPieceShape(c, p, scale, thumb){
     case 'puck':{
       const r=1.1*z*size; c.fillStyle=p.color||'#111'; c.beginPath(); c.ellipse(0,0,r,r*0.6,0,0,7); c.fill();
       c.strokeStyle='#444'; c.lineWidth=1; c.stroke(); break; }
+    case 'ball':{
+      const r=1.6*z*size;
+      // white sphere
+      c.fillStyle=p.color||'#fff'; c.beginPath(); c.arc(0,0,r,0,7); c.fill();
+      c.strokeStyle='#222'; c.lineWidth=Math.max(0.8,r*0.1); c.stroke();
+      // pentagon patches — simplified as small black arcs
+      c.fillStyle='#111';
+      const pts=[[0,-r*0.55],[r*0.52,-r*0.17],[ r*0.32,r*0.45],[-r*0.32,r*0.45],[-r*0.52,-r*0.17]];
+      pts.forEach(([px,py])=>{ c.beginPath(); c.arc(px,py,r*0.22,0,7); c.fill(); });
+      break; }
     case 'net':{
       // Top-down hockey net: wide opening at top, rounded back corners
       const W=6*z*size, D=4*z*size, r=1.2*z*size;
@@ -1099,7 +1110,7 @@ function drawPuckJourney(pk){ const legs=pk.legs; if(!legs||!legs.length) return
 function animatedPositions(){
   const map={};
   paths.forEach(p=>{ if(!(p.motion||p.owner)) return; const pc=getPiece(p.owner); if(!pc) return; map[p.owner]=posAt(pc,tNow); });
-  pieces.forEach(pk=>{ if(pk.type==='puck' && pk.legs && pk.legs.length){ map[pk.id]=puckPosAt(pk,tNow); } });
+  pieces.forEach(pk=>{ if(pk.type==='puck'||pk.type==='ball' && pk.legs && pk.legs.length){ map[pk.id]=puckPosAt(pk,tNow); } });
   return map;
 }
 const clamp=(v,a,b)=>v<a?a:v>b?b:v;
@@ -1140,7 +1151,7 @@ function render(){
   // pieces (animated positions if mid-play or scrubbed)
   const showAnim = playing || tNow>0;
   const map = showAnim? animatedPositions() : {};
-  pieces.forEach(p=>{ if(p.type==='puck'&&p.legs&&p.legs.length) drawPuckJourney(p); });
+  pieces.forEach(p=>{ if(p.type==='puck'||p.type==='ball'&&p.legs&&p.legs.length) drawPuckJourney(p); });
   pieces.filter(p=>p.type!=='zone').forEach(p=>drawPiece(p, map[p.id]));
   // rotation handle for selected net
   const rotPc = selSet.length===1 && selSet[0].kind==='piece' ? getPiece(selSet[0].id) : null;
@@ -1557,7 +1568,7 @@ function updateInspector(){
   if(sel.kind==='piece'){ const p=getPiece(sel.id); if(!p){selOne(null);return updateInspector();}
     inspTitle.textContent=prettyType(p.type);
     let h='';
-    if(p.type==='puck'){ h+=possessionHTML(p); }
+    if(p.type==='puck'||p.type==='ball'){ h+=possessionHTML(p); }
     const teamColored=(p.type==='player'||p.type==='goalie');
     if(teamColored){
       h+=swatchHTML(p.color);
