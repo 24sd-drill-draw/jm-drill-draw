@@ -21,6 +21,8 @@ let DPR = Math.min(window.devicePixelRatio||1, 2);
 // ---- world / rink geometry (feet) ----
 const RW=200, RH=85, GAP=24;           // full-sheet size + gap between sheets
 const FW=210, FH=120;                  // grass field (dryland) dimensions in feet
+// KCI Iceplex floor plan (feet, scaled to match piece scale)
+const IW=420, IH=220;                  // total facility footprint
 let rinkConfig='full';
 let showTrap=true;
 const CONFIGS={
@@ -29,10 +31,11 @@ const CONFIGS={
   halves:  {label:'Two half sheets', panels:[{ox:0,oy:0,kind:'halfL'},{ox:100+GAP,oy:0,kind:'halfL'}]},
   twofull: {label:'Two full sheets', panels:[{ox:0,oy:0,kind:'full'},{ox:0,oy:RH+GAP,kind:'full'}]},
   field:   {label:'Grass Field',     panels:[{ox:0,oy:0,kind:'field'}]},
+  iceplex: {label:'KCI Iceplex',     panels:[{ox:0,oy:0,kind:'iceplex'}]},
 };
 function panels(){ return CONFIGS[rinkConfig].panels; }
-function panelW(k){ return k==='field'?FW:k==='full'?RW:100; }
-function panelH(k){ return k==='field'?FH:RH; }
+function panelW(k){ return k==='iceplex'?IW:k==='field'?FW:k==='full'?RW:100; }
+function panelH(k){ return k==='iceplex'?IH:k==='field'?FH:RH; }
 function worldBounds(){ let mx=0,my=0; panels().forEach(p=>{mx=Math.max(mx,p.ox+panelW(p.kind)); my=Math.max(my,p.oy+panelH(p.kind));}); return {x:0,y:0,w:mx,h:my}; }
 
 // ---- camera ----
@@ -49,6 +52,14 @@ function fitRect(r,pad=24){
 function defaultView(){ return rinkConfig==='full'?'full': rinkConfig==='half'?'zone': rinkConfig==='field'?'full':'both'; }
 function viewPresets(){
   const b=worldBounds();
+  if(rinkConfig==='iceplex') return [
+    {k:'full',  t:'Full',     r:{x:-10,y:-10,w:IW+20,h:IH+20}},
+    {k:'sb',    t:'Starbucks',r:{x:28, y:30, w:105,  h:165}},
+    {k:'ss',    t:'Smartsheet',r:{x:148,y:30, w:105,  h:165}},
+    {k:'vm',    t:'Virginia Mason',r:{x:278,y:30,w:105,h:165}},
+    {k:'mpr',   t:'MPR',      r:{x:255,y:5,  w:90,   h:60}},
+    {k:'lobby', t:'Lobby',    r:{x:140,y:0,  w:200,  h:40}},
+  ];
   if(rinkConfig==='field') return [
     {k:'full', t:'Full',     r:{x:-15,y:-40,w:FW+55,h:FH+110}},
     {k:'field',t:'Field',    r:{x:-5, y:-5, w:FW+10,h:FH+10}},
@@ -512,6 +523,131 @@ function drawRinkBg(p){
     ctx.save(); ctx.globalAlpha=0.95; ctx.drawImage(img, X(100)-ww/2, Y(42.5)-hh/2, ww, hh); ctx.restore();
   }
 }
+function drawIceplexBg(p){
+  const s=cam.s;
+  const X=x=>(x+p.ox)*s+cam.tx, Y=y=>(y+p.oy)*s+cam.ty;
+  const dark=document.body.classList.contains('dark-ice');
+
+  // colour palette
+  const floor   = dark?'#1a1a22':'#d8d4cc';
+  const iceCol  = dark?'#1a2a3a':'#ddeef8';
+  const wallCol = dark?'#2a2a32':'#a8a098';
+  const tealCol = dark?'#1a3a3a':'#7ecece';
+  const greenCol= dark?'#1a3020':'#6aaa6a';
+  const ink     = dark?'rgba(220,230,255,0.85)':'rgba(20,20,40,0.85)';
+  const lw      = Math.max(1, 0.5*s);
+
+  // ── helpers ──────────────────────────────────────────────
+  function fillBox(x,y,w,h,col){ ctx.fillStyle=col; ctx.fillRect(X(x),Y(y),w*s,h*s); }
+  function strokeBox(x,y,w,h,col,lwd=lw){
+    ctx.strokeStyle=col; ctx.lineWidth=lwd;
+    ctx.strokeRect(X(x),Y(y),w*s,h*s);
+  }
+  function label(x,y,w,h,txt,size=2.8,bold=true){
+    ctx.fillStyle=ink;
+    ctx.font=`${bold?'bold ':''} ${Math.max(6,size*s)}px Inter,sans-serif`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(txt, X(x+w/2), Y(y+h/2));
+  }
+
+  // ── building shell ────────────────────────────────────────
+  fillBox(0,0,IW,IH, floor);
+  strokeBox(0,0,IW,IH,'#555', Math.max(2,1.2*s));
+
+  // ── public park (right) ───────────────────────────────────
+  fillBox(385,0,35,IH, greenCol);
+  strokeBox(385,0,35,IH,'#396','');
+  ctx.save(); ctx.fillStyle=dark?'#2a5a2a':'#2a6a2a';
+  ctx.font=`bold ${Math.max(6,2.4*s)}px Inter,sans-serif`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.translate(X(402),Y(IH/2)); ctx.rotate(-Math.PI/2);
+  ctx.fillText('PUBLIC PARK',0,0); ctx.restore();
+
+  // ── hockey operations (left strip) ───────────────────────
+  fillBox(0,0,28,IH, wallCol);
+  ctx.save(); ctx.fillStyle=ink;
+  ctx.font=`bold ${Math.max(6,2.2*s)}px Inter,sans-serif`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.translate(X(14),Y(IH/2)); ctx.rotate(-Math.PI/2);
+  ctx.fillText('HOCKEY OPERATIONS',0,0); ctx.restore();
+
+  // ── top lobby / concessions ───────────────────────────────
+  fillBox(28,0,357,28, dark?'#22222c':'#c8c0b4');
+  strokeBox(28,0,357,28,'#888');
+  label(28,0,357,28,'GUEST SERVICES  ·  SKATE RENTALS  ·  CONCESSIONS', 2.2);
+
+  // ── locker rooms corridor (between rinks 2 & 3) ──────────
+  fillBox(263,28,25,172, tealCol);
+  strokeBox(263,28,25,172,'#4a9a9a');
+  ctx.save(); ctx.fillStyle=dark?'rgba(0,0,0,0.7)':'rgba(0,0,0,0.55)';
+  ctx.font=`bold ${Math.max(5,2.0*s)}px Inter,sans-serif`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.translate(X(275.5),Y(114)); ctx.rotate(-Math.PI/2);
+  ctx.fillText('LOCKER ROOMS',0,0); ctx.restore();
+
+  // ── MPR room ─────────────────────────────────────────────
+  fillBox(263,0,122,28, tealCol);
+  strokeBox(263,0,122,28,'#4a9a9a');
+  label(263,0,122,28,'MPR  815 sq ft', 2.2);
+
+  // ── draw one ice rink ─────────────────────────────────────
+  function drawRink(rx,ry,rw,rh,name){
+    const cr=Math.min(rw,rh)*0.12*s;
+    // ice surface
+    ctx.fillStyle=iceCol;
+    ctx.beginPath();
+    ctx.moveTo(X(rx)+cr,Y(ry));
+    ctx.arcTo(X(rx+rw),Y(ry),X(rx+rw),Y(ry+rh),cr);
+    ctx.arcTo(X(rx+rw),Y(ry+rh),X(rx),Y(ry+rh),cr);
+    ctx.arcTo(X(rx),Y(ry+rh),X(rx),Y(ry),cr);
+    ctx.arcTo(X(rx),Y(ry),X(rx+rw),Y(ry),cr);
+    ctx.closePath(); ctx.fill();
+    // boards outline
+    ctx.strokeStyle=dark?'#6699bb':'#cc2233'; ctx.lineWidth=Math.max(1.5,0.7*s);
+    ctx.stroke();
+    // red center line
+    const cy=ry+rh/2;
+    ctx.strokeStyle='#cc2233'; ctx.lineWidth=Math.max(1,0.5*s);
+    ctx.beginPath(); ctx.moveTo(X(rx+rw*0.08),Y(cy)); ctx.lineTo(X(rx+rw*0.92),Y(cy)); ctx.stroke();
+    // blue lines (at 1/3 and 2/3)
+    [ry+rh*0.3, ry+rh*0.7].forEach(by=>{
+      ctx.strokeStyle='#3366cc'; ctx.lineWidth=Math.max(1,0.45*s);
+      ctx.beginPath(); ctx.moveTo(X(rx+rw*0.08),Y(by)); ctx.lineTo(X(rx+rw*0.92),Y(by)); ctx.stroke();
+    });
+    // center circle
+    const ccr=rw*0.18*s;
+    ctx.strokeStyle='#3366cc'; ctx.lineWidth=Math.max(1,0.4*s);
+    ctx.beginPath(); ctx.arc(X(rx+rw/2),Y(cy),ccr,0,7); ctx.stroke();
+    ctx.fillStyle='#cc2233'; ctx.beginPath(); ctx.arc(X(rx+rw/2),Y(cy),Math.max(2,0.8*s),0,7); ctx.fill();
+    // faceoff circles (end zones)
+    [ry+rh*0.2, ry+rh*0.8].forEach(fy=>{
+      [rx+rw*0.28, rx+rw*0.72].forEach(fx=>{
+        const fr=rw*0.14*s;
+        ctx.strokeStyle='#cc2233'; ctx.lineWidth=Math.max(1,0.4*s);
+        ctx.beginPath(); ctx.arc(X(fx),Y(fy),fr,0,7); ctx.stroke();
+        ctx.fillStyle='#cc2233'; ctx.beginPath(); ctx.arc(X(fx),Y(fy),Math.max(2,0.8*s),0,7); ctx.fill();
+      });
+    });
+    // rink name label
+    ctx.fillStyle='rgba(0,0,0,0.55)';
+    const lh=Math.max(10,6*s), lpad=rw*0.12*s;
+    ctx.fillRect(X(rx)+lpad, Y(cy+rh*0.04), (rw*s-lpad*2), lh);
+    ctx.fillStyle='#fff';
+    ctx.font=`bold ${Math.max(5,2.2*s)}px Inter,sans-serif`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(name, X(rx+rw/2), Y(cy+rh*0.04)+lh/2);
+  }
+
+  // ── three rinks ───────────────────────────────────────────
+  drawRink(28,  28, 110, 172, 'STARBUCKS RINK');
+  drawRink(148, 28, 110, 172, 'SMARTSHEET RINK');
+  drawRink(288, 28, 97,  172, 'VIRGINIA MASON\nFRANCISCAN HEALTH RINK');
+
+  // ── east entrance marker ──────────────────────────────────
+  fillBox(148,0,115,6, dark?'#3a4a5a':'#8ab4cc');
+  label(148,0,115,6,'EAST PUBLIC ENTRANCE', 1.8, false);
+}
+
 function drawFieldBg(p){
   const s=cam.s;
   const X=x=>(x+p.ox)*s+cam.tx, Y=y=>(y+p.oy)*s+cam.ty;
@@ -1143,7 +1279,7 @@ function stagger(){
 // =========================================================
 function render(){
   clear();
-  panels().forEach(p=>p.kind==='field'?drawFieldBg(p):drawRinkBg(p));
+  panels().forEach(p=>p.kind==='field'?drawFieldBg(p):p.kind==='iceplex'?drawIceplexBg(p):drawRinkBg(p));
   // zones under everything
   pieces.filter(p=>p.type==='zone').forEach(p=>drawPiece(p,null));
   // paths under pieces
