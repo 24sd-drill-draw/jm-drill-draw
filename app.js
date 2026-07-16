@@ -792,19 +792,21 @@ function drawIceplexBg(p){
       ctx.stroke();
     });
 
-    // goal creases: fill closed D-shape, then stroke only the arc (not the chord on the goal line)
+    // goal creases: explicit D-path — straight sides from goal line + rounded far end
+    const cHW=rw*0.09, cD=rh*0.024;
     [gLine1,gLine2].forEach((gy,i)=>{
-      const ccw=i===1;
-      // fill
-      ctx.fillStyle='rgba(200,34,51,0.12)';
+      const dir=i===0?1:-1;       // +1=top goal opens down; -1=bottom goal opens up
+      const arcY=gy+dir*cD;       // y of the arc center (inside the rink from the goal line)
+      ctx.fillStyle='rgba(200,34,51,0.10)';
+      ctx.strokeStyle=red; ctx.lineWidth=Math.max(0.8,0.35*s);
       ctx.beginPath();
-      ctx.arc(X(rx+rw/2),Y(gy),rw*0.11*s,0,Math.PI,ccw);
-      ctx.closePath(); ctx.fill();
-      // stroke arc only — no closePath so chord doesn't appear over goal line
-      ctx.strokeStyle=red; ctx.lineWidth=Math.max(1,0.4*s);
-      ctx.beginPath();
-      ctx.arc(X(rx+rw/2),Y(gy),rw*0.11*s,0,Math.PI,ccw);
-      ctx.stroke();
+      ctx.moveTo(X(rx+rw/2-cHW), Y(gy));       // left post at goal line
+      ctx.lineTo(X(rx+rw/2-cHW), Y(arcY));      // left straight side
+      // arc from PI(left) to 0(right): clockwise=curves down(top goal), anticlockwise=curves up(bottom goal)
+      ctx.arc(X(rx+rw/2),Y(arcY),cHW*s,Math.PI,0,dir<0);
+      ctx.lineTo(X(rx+rw/2+cHW), Y(gy));        // right straight side back to goal line
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
     });
 
     // blue lines
