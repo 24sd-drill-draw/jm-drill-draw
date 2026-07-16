@@ -792,21 +792,15 @@ function drawIceplexBg(p){
       ctx.stroke();
     });
 
-    // goal creases: explicit D-path — straight sides from goal line + rounded far end
-    const cHW=rw*0.09, cD=rh*0.024;
+    // goal creases — same pattern as working landscape rink, rotated 90°:
+    // top goal: CW 0→PI curves DOWN into rink; bottom: CW PI→0 curves UP into rink
     [gLine1,gLine2].forEach((gy,i)=>{
-      const dir=i===0?1:-1;       // +1=top goal opens down; -1=bottom goal opens up
-      const arcY=gy+dir*cD;       // y of the arc center (inside the rink from the goal line)
-      ctx.fillStyle='rgba(200,34,51,0.10)';
-      ctx.strokeStyle=red; ctx.lineWidth=Math.max(0.8,0.35*s);
+      ctx.fillStyle='rgba(120,180,235,0.18)';
+      ctx.strokeStyle=red; ctx.lineWidth=Math.max(1,0.4*s);
       ctx.beginPath();
-      ctx.moveTo(X(rx+rw/2-cHW), Y(gy));       // left post at goal line
-      ctx.lineTo(X(rx+rw/2-cHW), Y(arcY));      // left straight side
-      // arc from PI(left) to 0(right): clockwise=curves down(top goal), anticlockwise=curves up(bottom goal)
-      ctx.arc(X(rx+rw/2),Y(arcY),cHW*s,Math.PI,0,dir<0);
-      ctx.lineTo(X(rx+rw/2+cHW), Y(gy));        // right straight side back to goal line
-      ctx.closePath();
-      ctx.fill(); ctx.stroke();
+      if(i===0) ctx.arc(X(rx+rw/2),Y(gy),rw*0.1*s, 0,Math.PI, false);
+      else       ctx.arc(X(rx+rw/2),Y(gy),rw*0.1*s, Math.PI,0, false);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
     });
 
     // blue lines
