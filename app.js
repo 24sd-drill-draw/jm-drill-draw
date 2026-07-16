@@ -706,18 +706,6 @@ function drawIceplexBg(p){
 
   // ── Top lobby / concessions ───────────────────────────────────
   box(xCorL,yLobby,xLock-xCorL,hLobby, lobbyCol,'#777');
-  // skate rental counter (above SB right half)
-  const skX=xSB+wRink*0.52, skW=wRink*0.42;
-  ctx.fillStyle=dark?'#282838':'#a09088';
-  ctx.fillRect(X(skX),Y(yLobby+hLobby-9),skW*s,Math.max(5,3*s));
-  // stools
-  ctx.fillStyle=dark?'#3a3a50':'#787068';
-  for(let i=0;i<5;i++){
-    const sx=skX+skW*(i+0.5)/5;
-    ctx.beginPath(); ctx.arc(X(sx),Y(yLobby+hLobby-12),Math.max(1.8,0.8*s),0,7); ctx.fill();
-  }
-  txt(skX+skW/2, yLobby+hLobby-17,'SKATE RENTALS',1.5,true,inkFade);
-
   // concessions counter (above SS)
   const ccX=xSS+wRink*0.06, ccW=wRink*0.88;
   ctx.fillStyle=dark?'#282838':'#a09088';
@@ -736,23 +724,8 @@ function drawIceplexBg(p){
   ctx.font=`bold ${Math.max(5,1.8*s)}px Inter,sans-serif`;
   ctx.fillText('GUEST SERVICES · SKATE RENTALS · CONCESSIONS',X(gsX+gsW/2),Y(yLobby+3)+Math.max(10,6.5*s)/2);
 
-  // VM lobby + amenities
+  // VM lobby
   box(xVM,yLobby,wVM+wRwall,hLobby, lobbyCol,'#777');
-  // WaFd ATM
-  const atmX=xVM+8;
-  ctx.fillStyle=dark?'#20304a':'#90aac0';
-  ctx.fillRect(X(atmX),Y(yLobby+5),Math.max(7,3.5*s),Math.max(10,6*s));
-  txt(atmX+1.75,yLobby+11,'ATM',1.2,true,dark?'#aaccff':'#1a3a6a');
-  // EA Sports gaming station
-  const eaX=xVM+22;
-  ctx.fillStyle=dark?'#1a1838':'#8888c0';
-  ctx.fillRect(X(eaX),Y(yLobby+5),Math.max(16,8*s),Math.max(10,6*s));
-  txt(eaX+4,yLobby+9,'EA SPORTS GAMING',1.3,true,dark?'#aaaaff':'#222288');
-  // Team store
-  const tsX=xVM+wVM*0.52;
-  ctx.fillStyle=dark?'#1a2820':'#96c0a0';
-  ctx.fillRect(X(tsX),Y(yLobby+5),(wVM*0.42)*s,Math.max(10,6*s));
-  txt(tsX+wVM*0.21,yLobby+11,'TEAM STORE',1.3,true,dark?'#335544':'#1a3a22');
 
   // ── Entrance markers ─────────────────────────────────────────
   marker(xCorL+wCorL/2, yLobby+6,'A','#1a5a9a');
@@ -819,14 +792,19 @@ function drawIceplexBg(p){
       ctx.stroke();
     });
 
-    // goal creases (filled D-shape — top opens DOWN toward center, bottom opens UP)
+    // goal creases: fill closed D-shape, then stroke only the arc (not the chord on the goal line)
     [gLine1,gLine2].forEach((gy,i)=>{
-      ctx.strokeStyle=red; ctx.lineWidth=Math.max(1,0.4*s);
+      const ccw=i===1;
+      // fill
       ctx.fillStyle='rgba(200,34,51,0.12)';
       ctx.beginPath();
-      if(i===0) ctx.arc(X(rx+rw/2),Y(gy),rw*0.11*s,0,Math.PI,false);   // lower semi (opens down = into rink)
-      else       ctx.arc(X(rx+rw/2),Y(gy),rw*0.11*s,0,Math.PI,true);    // upper semi (opens up = into rink)
-      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.arc(X(rx+rw/2),Y(gy),rw*0.11*s,0,Math.PI,ccw);
+      ctx.closePath(); ctx.fill();
+      // stroke arc only — no closePath so chord doesn't appear over goal line
+      ctx.strokeStyle=red; ctx.lineWidth=Math.max(1,0.4*s);
+      ctx.beginPath();
+      ctx.arc(X(rx+rw/2),Y(gy),rw*0.11*s,0,Math.PI,ccw);
+      ctx.stroke();
     });
 
     // blue lines
