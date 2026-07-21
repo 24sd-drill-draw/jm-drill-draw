@@ -1,0 +1,30 @@
+{
+  "v": 2,
+  "showTrap": true,
+  "centerLogo": "anchorage",
+  "customLogo": null,
+  "currentScene": 0,
+  "scenes": [
+    {
+      "name": "1v1 Reactive - Off leads, Def mirrors",
+      "rinkType": "field",
+      "notes": "1v1 reactive change-of-direction. Def and Off face each other on the line, a pole behind each as their target, dome + cone in the middle. OFFENSE leads - shuffles toward its pole and back, changing direction whenever it wants. DEFENSE mirrors and reacts. Offense decides direction AND when it ends (a decisive break the defender must chase). Reactive beats scripted (better than the 5-10-5).",
+      "equip": "2 tall poles + 1 dome, per pair",
+      "pieces": [
+        {"id":1,"type":"cone","x":25,"y":60,"size":1,"rot":0,"color":"#E8313A","num":"","label":"","_src":null},
+        {"id":2,"type":"player","x":48,"y":60,"size":1,"rot":0,"color":"#E9072B","num":"Def","label":"","_src":null},
+        {"id":3,"type":"cone","x":70,"y":60,"size":1,"rot":0,"num":"","label":"","_src":null},
+        {"id":4,"type":"dot","x":70,"y":57,"size":1,"rot":0,"color":"#E7B416","num":"","label":"","_src":null},
+        {"id":5,"type":"player","x":92,"y":60,"size":1,"rot":0,"color":"#1E7FA0","num":"Off","label":"","_src":null},
+        {"id":6,"type":"cone","x":115,"y":60,"size":1,"rot":0,"color":"#2F6FE0","num":"","label":"","_src":null},
+        {"id":10,"type":"text","x":70,"y":-9,"text":"1v1 Reactive  -  Off leads, Def mirrors","color":"#11181f","size":1.7,"rot":0,"_wft":160,"_hft":9,"_src":null}
+      ],
+      "paths": [
+        {"id":20,"type":"skate","motion":true,"color":"#1E7FA0","pts":[{"x":94,"y":57},{"x":113,"y":57}],"anchors":[{"x":94,"y":57},{"x":113,"y":57}],"owner":null,"delay":0,"dur":3000},
+        {"id":21,"type":"skate","motion":true,"color":"#1E7FA0","pts":[{"x":111,"y":63},{"x":94,"y":63}],"anchors":[{"x":111,"y":63},{"x":94,"y":63}],"owner":null,"delay":0,"dur":3000},
+        {"id":22,"type":"skate","motion":true,"color":"#E8313A","pts":[{"x":46,"y":57},{"x":27,"y":57}],"anchors":[{"x":46,"y":57},{"x":27,"y":57}],"owner":null,"delay":0,"dur":3000},
+        {"id":23,"type":"skate","motion":true,"color":"#E8313A","pts":[{"x":29,"y":63},{"x":46,"y":63}],"anchors":[{"x":29,"y":63},{"x":46,"y":63}],"owner":null,"delay":0,"dur":3000}
+      ]
+    }
+  ]
+}

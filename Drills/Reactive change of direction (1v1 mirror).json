@@ -1,0 +1,34 @@
+{
+  "v": 2,
+  "showTrap": false,
+  "centerLogo": "anchorage",
+  "customLogo": null,
+  "currentScene": 0,
+  "scenes": [
+    {
+      "name": "Reactive Change of Direction (1v1)",
+      "rinkType": "field",
+      "notes": "1v1 reactive change-of-direction (mirror drill). Yellow dome in the center, pink pole one side, blue pole the other. OFFENSE leads - shuffles laterally between the poles and changes direction whenever they want; DEFENSE mirrors and reacts. Offense decides direction AND when it ends, finishing with a decisive sprint the defender must chase. Reactive beats scripted (coach prefers it to the 5-10-5).",
+      "equip": "2 tall poles (1 pink, 1 blue), 1 dome, per pair",
+      "pieces": [
+        {"id":1,"type":"dot","x":105,"y":60,"size":1.2,"rot":0,"num":"","label":"","_src":null},
+        {"id":2,"type":"cone","x":80,"y":60,"size":1.3,"rot":0,"color":"#F04AA0","num":"","label":"","_src":null},
+        {"id":3,"type":"cone","x":130,"y":60,"size":1.3,"rot":0,"color":"#2E7FD0","num":"","label":"","_src":null},
+        {"id":4,"type":"player","x":105,"y":77,"size":1,"rot":0,"color":"#D9342B","num":"O","label":"","_src":null},
+        {"id":5,"type":"player","x":105,"y":43,"size":1,"rot":0,"color":"#1E7FA0","num":"D","label":"","_src":null},
+        {"id":10,"type":"text","x":105,"y":22,"text":"Reactive Change of Direction  -  1v1 Mirror","color":"#11181f","size":2.0,"rot":0,"_wft":190,"_hft":10.25,"_src":null},
+        {"id":11,"type":"text","x":105,"y":94,"text":"O = Offense (leads / decides).  D = Defense (mirrors).","color":"#31465c","size":1.4,"rot":0,"_wft":170,"_hft":7.5,"_src":null}
+      ],
+      "paths": [
+        {"id":101,"type":"skate","motion":true,"color":"#D9342B",
+         "pts":[{"x":105,"y":77},{"x":128,"y":77},{"x":82,"y":77},{"x":116,"y":77},{"x":110,"y":30}],
+         "anchors":[{"x":105,"y":77},{"x":128,"y":77},{"x":82,"y":77},{"x":116,"y":77},{"x":110,"y":30}],
+         "owner":4,"delay":0,"dur":4200,"_lut":null},
+        {"id":102,"type":"skate","motion":true,"color":"#1E7FA0",
+         "pts":[{"x":105,"y":43},{"x":128,"y":43},{"x":82,"y":43},{"x":116,"y":43},{"x":110,"y":36}],
+         "anchors":[{"x":105,"y":43},{"x":128,"y":43},{"x":82,"y":43},{"x":116,"y":43},{"x":110,"y":36}],
+         "owner":5,"delay":250,"dur":4200,"_lut":null}
+      ]
+    }
+  ]
+}

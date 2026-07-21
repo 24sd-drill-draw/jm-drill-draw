@@ -2133,7 +2133,7 @@ function exportImage(fmt){
 document.getElementById('imgExportBtn').onclick=()=>exportImage('jpg');
 
 // save / open
-function doSaveDrill(name){
+async function doSaveDrill(name){
   syncScene();
   const data={v:2,showTrap,centerLogo,
     customLogo: LOGO_SRC.custom||null,
@@ -2144,7 +2144,27 @@ function doSaveDrill(name){
       paths:s.paths.map(p=>({...p,_lut:undefined}))
     }))};
   const safe=name.trim().replace(/[^a-zA-Z0-9 _\-]/g,'').trim()||('drill-'+new Date().toISOString().slice(0,10));
-  const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
+  const json=JSON.stringify(data);
+  // Preferred: File System Access API — saves straight into a folder you pick (it remembers your Drills
+  // folder across saves). This is app-only; it does NOT change the browser's global download location.
+  if(window.showSaveFilePicker){
+    try{
+      const handle=await window.showSaveFilePicker({
+        id:'drillsDir',                         // browser remembers this picker's last-used folder
+        suggestedName:safe+'.json',
+        types:[{description:'Drill file', accept:{'application/json':['.json']}}]
+      });
+      const w=await handle.createWritable();
+      await w.write(json); await w.close();
+      toast('"'+safe+'" saved');
+      return;
+    }catch(err){
+      if(err && err.name==='AbortError') return;   // you cancelled the save dialog — do nothing
+      // any other error: fall through to the download fallback below
+    }
+  }
+  // Fallback (browsers without the File System Access API): normal download
+  const blob=new Blob([json],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
   a.download=safe+'.json'; a.click();
   toast('"'+safe+'" saved — move it to your Drills folder');

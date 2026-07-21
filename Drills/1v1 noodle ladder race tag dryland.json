@@ -1,0 +1,36 @@
+{
+  "v": 2,
+  "showTrap": true,
+  "centerLogo": "anchorage",
+  "customLogo": null,
+  "currentScene": 0,
+  "scenes": [
+    {
+      "name": "1v1 Noodle Ladder Color Tag",
+      "rinkType": "field",
+      "notes": "Two agility ladders side by side, a colored cone at the far end of each (yellow lane, pink lane). One athlete per lane, each holding the matching noodle color. Both go OUT TOGETHER through their ladder to the far end. At the end the coach YELLS A COLOR (yellow or pink). Both players turn the SAME direction and sprint back toward the start line single-file - the yelled color ends up in FRONT trying to outrun, the other color is right BEHIND trying to TAG with the noodle before they reach the line. Runner safe if they reach the line untagged; chaser wins if they tag first. Reset and go again - the yelled color is random so both stay reactive. Animation shows one example: coach yelled YELLOW (yellow runs in front, pink chases from behind).",
+      "equip": "2 agility ladders + 2 colored cones + 2 pool noodles (1 yellow, 1 pink), per pair",
+      "pieces": [
+        {"id":1,"type":"bumper","x":38,"y":60,"size":2.7,"rot":90,"color":"#9AA6B2","num":"","label":"","_src":null},
+        {"id":2,"type":"bumper","x":66,"y":46,"size":2.6,"rot":0,"color":"#6FA8DC","num":"","label":"","_src":null},
+        {"id":3,"type":"bumper","x":66,"y":74,"size":2.6,"rot":0,"color":"#6FA8DC","num":"","label":"","_src":null},
+        {"id":4,"type":"player","x":43,"y":46,"size":1,"rot":0,"color":"#E0A000","num":"Y","label":"","_src":null},
+        {"id":5,"type":"player","x":43,"y":74,"size":1,"rot":0,"color":"#E5559E","num":"P","label":"","_src":null},
+        {"id":6,"type":"cone","x":94,"y":46,"size":1,"rot":0,"color":"#E7B416","num":"","label":"","_src":null},
+        {"id":7,"type":"cone","x":94,"y":74,"size":1,"rot":0,"color":"#E5559E","num":"","label":"","_src":null},
+        {"id":8,"type":"bumper","x":48,"y":41,"size":0.6,"rot":70,"color":"#E7B416","num":"","label":"","_src":null},
+        {"id":9,"type":"bumper","x":48,"y":79,"size":0.6,"rot":110,"color":"#E5559E","num":"","label":"","_src":null},
+        {"id":10,"type":"text","x":66,"y":60,"text":"Ladders","color":"#11181f","size":1.1,"rot":0,"_wft":40,"_hft":6,"_src":null},
+        {"id":11,"type":"text","x":38,"y":33,"text":"Start / Finish","color":"#11181f","size":1.1,"rot":0,"_wft":60,"_hft":6,"_src":null},
+        {"id":12,"type":"text","x":128,"y":58,"text":"Coach yells a color","color":"#11181f","size":1.2,"rot":0,"_wft":90,"_hft":6,"_src":null},
+        {"id":20,"type":"text","x":100,"y":-9,"text":"1v1 Noodle Ladder Color Tag","color":"#11181f","size":1.7,"rot":0,"_wft":185,"_hft":9,"_src":null}
+      ],
+      "paths": [
+        {"id":30,"type":"skate","motion":true,"color":"#C99A0E","pts":[{"x":44,"y":46},{"x":90,"y":46}],"anchors":[{"x":44,"y":46},{"x":90,"y":46}],"owner":null,"delay":0,"dur":1800},
+        {"id":31,"type":"skate","motion":true,"color":"#E5559E","pts":[{"x":44,"y":74},{"x":90,"y":74}],"anchors":[{"x":44,"y":74},{"x":90,"y":74}],"owner":null,"delay":0,"dur":1800},
+        {"id":32,"type":"skate","motion":true,"color":"#C99A0E","pts":[{"x":91,"y":46},{"x":44,"y":46}],"anchors":[{"x":91,"y":46},{"x":44,"y":46}],"owner":null,"delay":2300,"dur":2100},
+        {"id":33,"type":"skate","motion":true,"color":"#E5559E","pts":[{"x":92,"y":74},{"x":84,"y":55},{"x":68,"y":50},{"x":44,"y":50}],"anchors":[{"x":92,"y":74},{"x":84,"y":55},{"x":68,"y":50},{"x":44,"y":50}],"owner":null,"delay":2450,"dur":2150}
+      ]
+    }
+  ]
+}

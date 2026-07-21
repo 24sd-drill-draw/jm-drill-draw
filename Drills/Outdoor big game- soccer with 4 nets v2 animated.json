@@ -1,0 +1,102 @@
+{
+  "v": 2,
+  "showTrap": true,
+  "centerLogo": "anchorage",
+  "customLogo": null,
+  "currentScene": 0,
+  "scenes": [
+    {
+      "name": "Drill 1",
+      "rinkType": "field",
+      "notes": "4-net soccer game. Zone circles = keepers + attackers only, no defenders. Blue attacks right, white attacks left.",
+      "equip": "4 nets, 2 balls, pinnies (1 colour per team)",
+      "pieces": [
+        {"id":1,"type":"net","x":30.1,"y":29.9,"size":1,"rot":90,"num":"","label":"","_src":null},
+        {"id":2,"type":"net","x":31.2,"y":91.1,"size":1,"rot":90,"num":"","label":"","_src":null},
+        {"id":3,"type":"net","x":171.3,"y":32.0,"size":1,"rot":-92.3,"num":"","label":"","_src":null},
+        {"id":4,"type":"net","x":172.3,"y":93.2,"size":1,"rot":-89.9,"num":"","label":"","_src":null},
+        {"id":5,"type":"zone","x":32.6,"y":30.6,"size":1,"rot":0,"num":"","label":"","_src":null},
+        {"id":6,"type":"zone","x":32.2,"y":91.4,"size":1,"rot":0,"num":"","label":"","_src":null},
+        {"id":7,"type":"zone","x":168.1,"y":32.3,"size":1,"rot":0,"num":"","label":"","_src":null},
+        {"id":8,"type":"zone","x":169.2,"y":93.5,"size":1,"rot":0,"num":"","label":"","_src":null},
+
+        {"id":9, "type":"player","x":71.9,"y":39.1,"size":1,"rot":0,"color":"#1E7FA0","num":"","label":"","_src":null},
+        {"id":10,"type":"player","x":70.8,"y":59.9,"size":1,"rot":0,"color":"#1E7FA0","num":"","label":"","_src":null},
+        {"id":11,"type":"player","x":70.4,"y":91.4,"size":1,"rot":0,"color":"#1E7FA0","num":"","label":"","_src":null},
+        {"id":12,"type":"player","x":59.8,"y":75.9,"size":1,"rot":0,"color":"#1E7FA0","num":"","label":"","_src":null},
+        {"id":13,"type":"player","x":55.6,"y":48.6,"size":1,"rot":0,"color":"#1E7FA0","num":"","label":"","_src":null},
+        {"id":14,"type":"player","x":81.8,"y":11.8,"size":1,"rot":0,"color":"#1E7FA0","num":"","label":"","_src":null},
+        {"id":15,"type":"player","x":61.6,"y":14.6,"size":1,"rot":0,"color":"#1E7FA0","num":"","label":"","_src":null},
+        {"id":16,"type":"player","x":53.1,"y":98.9,"size":1,"rot":0,"color":"#1E7FA0","num":"","label":"","_src":null},
+        {"id":17,"type":"player","x":78.2,"y":109.1,"size":1,"rot":0,"color":"#1E7FA0","num":"","label":"","_src":null},
+
+        {"id":18,"type":"player","x":135.9,"y":16.8,"size":1,"rot":0,"color":"#EEF5F8","num":"","label":"","_src":null},
+        {"id":19,"type":"player","x":133.4,"y":52.9,"size":1,"rot":0,"color":"#EEF5F8","num":"","label":"","_src":null},
+        {"id":20,"type":"player","x":143.0,"y":73.0,"size":1,"rot":0,"color":"#EEF5F8","num":"","label":"","_src":null},
+        {"id":21,"type":"player","x":132.7,"y":86.8,"size":1,"rot":0,"color":"#EEF5F8","num":"","label":"","_src":null},
+        {"id":22,"type":"player","x":123.2,"y":62.1,"size":1,"rot":0,"color":"#EEF5F8","num":"","label":"","_src":null},
+        {"id":23,"type":"player","x":120.3,"y":24.2,"size":1,"rot":0,"color":"#EEF5F8","num":"","label":"","_src":null},
+        {"id":24,"type":"player","x":160.7,"y":59.2,"size":1,"rot":0,"color":"#EEF5F8","num":"","label":"","_src":null},
+        {"id":25,"type":"player","x":142.3,"y":94.3,"size":1,"rot":0,"color":"#EEF5F8","num":"","label":"","_src":null},
+        {"id":26,"type":"player","x":129.5,"y":102.0,"size":1,"rot":0,"color":"#EEF5F8","num":"","label":"","_src":null},
+
+{"id":30,"type":"text","x":106.2,"y":-10.1,"text":"4 Nets, 2-teams Soccer Game","color":"#11181f","size":2.05,"rot":0,"_wft":140.3,"_hft":10.25,"_src":null},
+
+        {
+          "id":200,"type":"ball","x":71.9,"y":39.1,"size":1,"rot":0,"num":"","label":"","_src":null,
+          "legs":[
+            {"type":"carry","piece":9,  "s":0},
+            {"type":"pass", "to":14,    "s":2000},
+            {"type":"carry","piece":14, "s":2600},
+            {"type":"pass", "toXY":{"x":171,"y":32}, "s":4400}
+          ]
+        },
+        {
+          "id":201,"type":"ball","x":70.4,"y":91.4,"size":1,"rot":0,"num":"","label":"","_src":null,
+          "legs":[
+            {"type":"carry","piece":11, "s":0},
+            {"type":"pass", "toXY":{"x":172,"y":93}, "s":4000}
+          ]
+        }
+      ],
+      "paths": [
+        {
+          "id":101,"type":"move","motion":true,"color":"#1E7FA0",
+          "pts":[{"x":71.9,"y":39.1},{"x":100,"y":30},{"x":130,"y":22},{"x":155,"y":24}],
+          "anchors":[{"x":71.9,"y":39.1},{"x":100,"y":30},{"x":130,"y":22},{"x":155,"y":24}],
+          "owner":9,"delay":0,"dur":4500,"_lut":null
+        },
+        {
+          "id":102,"type":"move","motion":true,"color":"#1E7FA0",
+          "pts":[{"x":81.8,"y":11.8},{"x":110,"y":8},{"x":145,"y":10},{"x":163,"y":26}],
+          "anchors":[{"x":81.8,"y":11.8},{"x":110,"y":8},{"x":145,"y":10},{"x":163,"y":26}],
+          "owner":14,"delay":500,"dur":4000,"_lut":null
+        },
+        {
+          "id":103,"type":"move","motion":true,"color":"#1E7FA0",
+          "pts":[{"x":70.8,"y":59.9},{"x":95,"y":55},{"x":118,"y":60},{"x":130,"y":72}],
+          "anchors":[{"x":70.8,"y":59.9},{"x":95,"y":55},{"x":118,"y":60},{"x":130,"y":72}],
+          "owner":10,"delay":0,"dur":4000,"_lut":null
+        },
+        {
+          "id":104,"type":"move","motion":true,"color":"#1E7FA0",
+          "pts":[{"x":70.4,"y":91.4},{"x":100,"y":96},{"x":135,"y":98},{"x":160,"y":95}],
+          "anchors":[{"x":70.4,"y":91.4},{"x":100,"y":96},{"x":135,"y":98},{"x":160,"y":95}],
+          "owner":11,"delay":300,"dur":4000,"_lut":null
+        },
+        {
+          "id":105,"type":"move","motion":true,"color":"#EEF5F8",
+          "pts":[{"x":123.2,"y":62.1},{"x":115,"y":45},{"x":110,"y":30}],
+          "anchors":[{"x":123.2,"y":62.1},{"x":115,"y":45},{"x":110,"y":30}],
+          "owner":22,"delay":0,"dur":3000,"_lut":null
+        },
+        {
+          "id":106,"type":"move","motion":true,"color":"#EEF5F8",
+          "pts":[{"x":133.4,"y":52.9},{"x":125,"y":65},{"x":118,"y":80}],
+          "anchors":[{"x":133.4,"y":52.9},{"x":125,"y":65},{"x":118,"y":80}],
+          "owner":19,"delay":0,"dur":3000,"_lut":null
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "v": 2,
+  "showTrap": true,
+  "centerLogo": "anchorage",
+  "customLogo": null,
+  "currentScene": 0,
+  "scenes": [
+    {
+      "name": "1v1 Steal the Cone Sprint",
+      "rinkType": "field",
+      "notes": "Reactive 1v1 sprint race. Two athletes face off in an athletic stance over a small cluster of dome cones. On the coach's cue, one athlete reacts first - 'steals' the cone - turns and sprints flat-out down the lane to the finish cone. The partner reacts and chases. Whoever reaches the finish first wins. Run like you stole something: it's about the reaction jump + top-speed sprint under pressure, head-to-head. Reset and switch who leads.",
+      "equip": "3 dome cones (start cluster) + 1 finish cone, per pair",
+      "pieces": [
+        {"id":1,"type":"player","x":40,"y":60,"size":1,"rot":0,"color":"#E9072B","num":"Def","label":"","_src":null},
+        {"id":2,"type":"dot","x":55,"y":60,"size":1,"rot":0,"color":"#E8842B","num":"","label":"","_src":null},
+        {"id":3,"type":"dot","x":52,"y":55,"size":1,"rot":0,"color":"#2F6FE0","num":"","label":"","_src":null},
+        {"id":4,"type":"dot","x":52,"y":65,"size":1,"rot":0,"color":"#E7B416","num":"","label":"","_src":null},
+        {"id":5,"type":"player","x":63,"y":60,"size":1,"rot":0,"color":"#1E7FA0","num":"Off","label":"","_src":null},
+        {"id":6,"type":"cone","x":160,"y":60,"size":1,"rot":0,"color":"#E8313A","num":"","label":"","_src":null},
+        {"id":7,"type":"dot","x":160,"y":57,"size":1,"rot":0,"color":"#E7B416","num":"","label":"","_src":null},
+        {"id":10,"type":"text","x":100,"y":-9,"text":"1v1 Steal the Cone Sprint","color":"#11181f","size":1.7,"rot":0,"_wft":170,"_hft":9,"_src":null}
+      ],
+      "paths": [
+        {"id":20,"type":"skate","motion":true,"color":"#1E7FA0","pts":[{"x":66,"y":57},{"x":158,"y":57}],"anchors":[{"x":66,"y":57},{"x":158,"y":57}],"owner":null,"delay":0,"dur":2200},
+        {"id":21,"type":"skate","motion":true,"color":"#E8313A","pts":[{"x":42,"y":63},{"x":156,"y":63}],"anchors":[{"x":42,"y":63},{"x":156,"y":63}],"owner":null,"delay":200,"dur":2400}
+      ]
+    }
+  ]
+}
