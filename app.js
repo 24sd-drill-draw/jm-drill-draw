@@ -1423,24 +1423,23 @@ function setRing(p,cx,cy,rx,ry){
     out.push({x:cx+rx*Math.cos(a), y:cy+ry*Math.sin(a)}); }
   p.pts=out; p._lut=null;
 }
-// What a click on a selected ring means: grab anywhere on the rim to resize,
-// anywhere inside to move. No handle dots to aim at — the axis you're pulling
-// is inferred from where on the rim you grabbed, so a side widens it, top or
-// bottom flattens it, and a corner does both.
-function ringGrabAt(p,wx,wy,sx,sy){
+// One resize handle, at the top-right corner of the ring's box. Everything
+// else about the ring — rim included — moves it. Resizing off the rim itself
+// meant a click meant to reposition the ring resized it instead.
+function ringHandle(p){
   const g=ringGeom(p);
-  const nx=(wx-g.cx)/g.rx, ny=(wy-g.cy)/g.ry;
-  const d=Math.hypot(nx,ny);                       // 1.0 == exactly on the rim
-  // a ~11px grab band, expressed in the ellipse's own normalised units
+  const [sx,sy]=W2S(g.cx+g.rx, g.cy-g.ry);
+  return {sx,sy,g};
+}
+function ringGrabAt(p,wx,wy,sx,sy){
+  const h=ringHandle(p);
+  if(Math.hypot(sx-h.sx, sy-h.sy)<15) return 'xy';   // the handle
+  const g=h.g;
+  const nx=(wx-g.cx)/g.rx, ny=(wy-g.cy)/g.ry, d=Math.hypot(nx,ny);
+  // inside, plus a band just outside so grabbing the stroke itself counts
   const px=Math.max(6, Math.min(g.rx,g.ry)*cam.s);
-  const tol=Math.max(0.18, Math.min(0.75, 11/px));
-  if(Math.abs(d-1)<=tol && d>0.001){
-    const a=Math.atan2(ny,nx), ca=Math.abs(Math.cos(a)), sa=Math.abs(Math.sin(a));
-    if(ca>0.88) return 'x';
-    if(sa>0.88) return 'y';
-    return 'xy';
-  }
-  if(d<1) return 'move';
+  const band=Math.max(0.12, Math.min(0.8, 10/px));
+  if(d<=1+band) return 'move';
   return null;
 }
 function selectedRing(){
@@ -1734,15 +1733,23 @@ function render(){
     ctx.beginPath(); ctx.arc(hx,hy,7,0,7); ctx.fill(); ctx.stroke();
     ctx.restore();
   }
-  // A selected ring gets a faint halo instead of handle dots — you resize it by
-  // grabbing the edge anywhere, so there is nothing to aim at.
+  // A selected ring: dashed box showing its extent, one grab handle at the
+  // top-right corner for size. Drag the ring itself to move it.
   const ringSel=selectedRing();
   if(ringSel){
     const g=ringGeom(ringSel), c=W2S(g.cx,g.cy);
+    const rxp=g.rx*cam.s, ryp=g.ry*cam.s;
     ctx.save();
-    ctx.strokeStyle='#5BC2D6'; ctx.globalAlpha=.5; ctx.lineWidth=1.5; ctx.setLineDash([5,4]);
-    ctx.beginPath(); ctx.ellipse(c[0],c[1],g.rx*cam.s,g.ry*cam.s,0,0,Math.PI*2); ctx.stroke();
-    ctx.setLineDash([]); ctx.restore();
+    ctx.strokeStyle='#5BC2D6'; ctx.globalAlpha=.5; ctx.lineWidth=1.2; ctx.setLineDash([5,4]);
+    ctx.strokeRect(c[0]-rxp, c[1]-ryp, rxp*2, ryp*2);
+    ctx.setLineDash([]);
+    const h=W2S(g.cx+g.rx, g.cy-g.ry);
+    ctx.globalAlpha=1; ctx.fillStyle='#5BC2D6'; ctx.strokeStyle='#fff'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(h[0],h[1],7,0,7); ctx.fill(); ctx.stroke();
+    // little diagonal inside the dot so it reads as "drag to size"
+    ctx.strokeStyle='#04141c'; ctx.lineWidth=1.4;
+    ctx.beginPath(); ctx.moveTo(h[0]-3,h[1]+3); ctx.lineTo(h[0]+3,h[1]-3); ctx.stroke();
+    ctx.restore();
   }
   if(marquee){ const a=W2S(marquee.x0,marquee.y0), b=W2S(marquee.x1,marquee.y1);
     ctx.save(); ctx.strokeStyle='#5BC2D6'; ctx.fillStyle='rgba(91,194,214,.12)'; ctx.lineWidth=1.5; ctx.setLineDash([6,4]);
@@ -1899,7 +1906,16 @@ cv.addEventListener('pointerdown',e=>{
       updateInspector(); render(); return;
     }
     const pa=pathAt(wx,wy);
-    if(pa){ if(addKey) selToggle('path',pa.id); else selOne('path',pa.id); updateInspector(); render(); return; }
+    if(pa){
+      if(addKey) selToggle('path',pa.id);
+      else {
+        selOne('path',pa.id);
+        // grab-and-go: clicking a ring picks it up in the same gesture rather
+        // than making you click once to select and again to drag
+        if(pa.type==='ring'){ const rg=ringGeom(pa); pushUndo();
+          ringDrag={path:pa, mode:'move', ox:wx-rg.cx, oy:wy-rg.cy}; }
+      }
+      updateInspector(); render(); return; }
     if(!addKey) selOne(null);
     marquee={x0:wx,y0:wy,x1:wx,y1:wy,add:addKey}; updateInspector(); render(); return;
   }
@@ -2014,8 +2030,7 @@ cv.addEventListener('pointermove',e=>{
     const rs=selectedRing();
     if(rs){
       const m=ringGrabAt(rs,wx,wy,e.offsetX,e.offsetY);
-      cv.style.cursor = m==='x'?'ew-resize' : m==='y'?'ns-resize'
-                      : m==='xy'?'nwse-resize' : m==='move'?'move' : '';
+      cv.style.cursor = m==='xy'?'nesw-resize' : m==='move'?'move' : '';
     }
   }
   if(ringDrag){ const p=ringDrag.path, g=ringGeom(p);
