@@ -319,6 +319,19 @@
     if (!ps.length) {
       head.textContent = 'New marks';
       head.classList.remove('on');
+      // Restore the controls to the NEW-MARK defaults. Without this they keep
+      // showing whatever the last selected mark had, so the freeze box could
+      // read unchecked while markFreeze was still true (and the reverse) —
+      // you'd draw a mark whose settings did not match the panel.
+      $('markFreezeChk').checked = !!markFreeze;
+      wSlider.value = markW;
+      wPrev.style.height = Math.max(2, markW * 1.6).toFixed(1) + 'px';
+      oSlider.value = Math.round(markOp * 100);
+      oVal.textContent = Math.round(markOp * 100) + '%';
+      holdBtns.forEach(function (b) {
+        var v = b.dataset.hold ? parseInt(b.dataset.hold, 10) : null;
+        b.classList.toggle('on', v === markHold);
+      });
       return;
     }
     head.textContent = ps.length === 1
