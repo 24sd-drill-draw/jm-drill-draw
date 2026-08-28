@@ -6,3 +6,11 @@ camp-staff-board.html
 
 # local scratch notes (VLC frame-extraction help, etc.)
 vlc-help.txt
+
+# local NHL test clip for video-markup testing — never commit (size + copyright)
+test-media/
+__testclip.mp4
+
+# Claude Code local state — machine-specific, and the pre-change app.js backup
+.claude/settings.local.json
+*.bak

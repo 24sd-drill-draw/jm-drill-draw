@@ -1,0 +1,1013 @@
+/* ============================================================
+   animate-ui.js — Klipdraw-Animate-style shell for JM Drill Draw
+   Loads AFTER app.js. It never forks the engine; it wraps it.
+
+   Provides:
+     • File / Edit / View menus driving the engine's own buttons
+     • A left tool rail with a contextual panel (Players / Objects / Tool)
+     • A right Properties / Surface / Notes panel
+     • A real keyframe timeline: one track per moving piece, bars you can
+       drag to retime, diamonds for each puck pass, a draggable playhead.
+   ============================================================ */
+(function () {
+  'use strict';
+
+  var $ = function (i) { return document.getElementById(i); };
+  var clamp = function (v, a, b) { return v < a ? a : v > b ? b : v; };
+
+  // ---------------------------------------------------------
+  // 1. Top-bar menus
+  // ---------------------------------------------------------
+  var menus = [].slice.call(document.querySelectorAll('[data-menu]'));
+  function closeMenus() { menus.forEach(function (m) { m.classList.remove('open'); }); }
+  menus.forEach(function (m) {
+    m.querySelector('button').addEventListener('click', function (e) {
+      e.stopPropagation();
+      var was = m.classList.contains('open');
+      closeMenus();
+      if (!was) m.classList.add('open');
+    });
+  });
+  document.addEventListener('click', closeMenus);
+
+  // Menu items simply click the engine's own (hidden) buttons, so there is
+  // exactly one implementation of every action.
+  function relay(menuId, targetId) {
+    var b = $(menuId);
+    if (b) b.addEventListener('click', function () { closeMenus(); $(targetId).click(); });
+  }
+  relay('mFileNew', 'clearBtn');
+  relay('mFileOpen', 'importBtn');
+  relay('mFileSave', 'exportBtn');
+  relay('mFileJpg', 'imgExportBtn');
+  relay('mFileRec', 'recBtn');
+  relay('mFilePrint', 'printBtn');
+  relay('mFileDemo', 'demoBtn');
+  relay('mEditUndo', 'undoBtn');
+  relay('mEditRedo', 'redoBtn');
+  relay('mEditStagger', 'staggerBtn');
+  relay('mEditClear', 'clearBtn');
+  relay('mViewFit', 'zfit');
+  relay('mViewIn', 'zin');
+  relay('mViewOut', 'zout');
+  relay('mViewTheme', 'darkIceBtn');
+  relay('mViewImg', 'imgBtn');
+
+  // ---------------------------------------------------------
+  // 2. Right panel tabs
+  // ---------------------------------------------------------
+  var rtabs = [].slice.call(document.querySelectorAll('.kd-rtabs button'));
+  rtabs.forEach(function (b) {
+    b.addEventListener('click', function () {
+      var k = b.dataset.rtab;
+      rtabs.forEach(function (x) { x.classList.toggle('on', x === b); });
+      document.querySelectorAll('.kd-rtab').forEach(function (p) {
+        p.classList.toggle('on', p.dataset.rtab === k);
+      });
+    });
+  });
+  function showPropsTab() {
+    var b = document.querySelector('.kd-rtabs button[data-rtab="props"]');
+    if (b && !b.classList.contains('on')) b.click();
+  }
+
+  // ---------------------------------------------------------
+  // 3. Tool rail — add Players / Objects, keep panel in sync
+  // ---------------------------------------------------------
+  var railHost = $('tools');
+  var panelTitle = $('kdPanelTitle');
+  var toolName = $('kdToolName');
+  var toolTip = $('kdToolTip');
+
+  function railBtn(k, label, svg) {
+    var b = document.createElement('button');
+    b.className = 'tool';
+    b.dataset.k = k;
+    b.type = 'button';
+    b.innerHTML = '<svg viewBox="0 0 24 24">' + svg + '</svg>' + label;
+    return b;
+  }
+
+  var bPlayers = railBtn('players', 'Players',
+    '<circle cx="9" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/>' +
+    '<path d="M3.5 20c0-3.3 2.5-5.5 5.5-5.5s5.5 2.2 5.5 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
+    '<circle cx="17.5" cy="9" r="2.4" fill="none" stroke="currentColor" stroke-width="2"/>' +
+    '<path d="M15 20c0-2.6 1.6-4.3 3.6-4.3S22 17.4 22 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>');
+  var bObjects = railBtn('objects', 'Objects',
+    '<rect x="3" y="13" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/>' +
+    '<circle cx="17.5" cy="17" r="4" fill="none" stroke="currentColor" stroke-width="2"/>' +
+    '<path d="M8 3l5 8H3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>');
+  var div1 = document.createElement('div'); div1.className = 'kd-raildiv';
+
+  railHost.insertBefore(div1, railHost.firstChild);
+  railHost.insertBefore(bObjects, railHost.firstChild);
+  railHost.insertBefore(bPlayers, railHost.firstChild);
+
+  // a second divider after Select, so Select reads as its own group
+  var selBtn = railHost.querySelector('.tool[data-k="select"]');
+  if (selBtn && selBtn.nextSibling) {
+    var div2 = document.createElement('div'); div2.className = 'kd-raildiv';
+    railHost.insertBefore(div2, selBtn.nextSibling);
+  }
+
+  // the rail is icon-first, so every button gets a tooltip
+  railHost.querySelectorAll('.tool').forEach(function (b) {
+    if (!b.title) b.title = b.textContent.trim();
+  });
+
+  var TIPS = {
+    select: 'Click to pick one piece. <b>Drag a box</b> over empty ice to grab several, <b>Shift-click</b> to add or remove. Drag any selected piece to move the whole group.',
+    motion: 'The animation tool. <b>Drag from a piece</b> to draw where it travels, or click to add turns. Double-click or Enter to finish. Every route becomes a bar on the timeline.',
+    skate: 'Draws a skating route. Diagram only — it does not move anything.',
+    skateback: 'Draws a puck-carry route. Diagram only.',
+    skaterev: 'Draws a backwards-skating route. Diagram only.',
+    pass: 'Click to start a pass, click again to add a redirect, double-click or Enter to finish. Diagram only.',
+    shot: 'Draws a shot line. Diagram only.',
+    arrow: 'Draws a straight arrow. Diagram only.',
+    web: 'Click each player (or each corner of a space), then Enter to close it. Joins every point to every other with hairlines over a faint blanket. <b>Dense mesh = bunched up. Sparse = space available.</b> Red for a problem, green for a chance.',
+    ring: 'Drag a box to drop a hollow ring. Wide and short gives the flattened ellipse that sits right on the ice — put it under a player or on open space.',
+    bar: 'Drag a short, thick straight segment. No arrowhead — for marking a gap, a line, or where someone stopped.',
+    pen: 'Freehand draw anywhere — the fat lasso for circling an area of the ice.',
+    text: 'Click anywhere — on or off the ice — to drop a label. Double-click a label to edit it.',
+    pan: 'Drag to move the view around. Scroll or use the zoom buttons to change scale.',
+    erase: 'Click any piece or line to delete it.',
+    players: 'Pick a team colour, then a skater or position. Click the ice to place it — it keeps stamping until you press Esc.',
+    objects: 'Nets, pucks, cones, tires, bumpers, dots. Click one, then click the ice to place it.'
+  };
+  var LABELS = { players: 'Players', objects: 'Objects' };
+  TOOLS.forEach(function (t) { LABELS[t.k] = t.n; });
+
+  function showPanel(k) {
+    var sec = (k === 'players' || k === 'objects') ? k : 'tool';
+    document.querySelectorAll('.kd-sec').forEach(function (s) {
+      s.classList.toggle('on', s.dataset.sec === sec);
+    });
+    panelTitle.textContent = LABELS[k] || 'Tool';
+    if (sec === 'tool') {
+      toolName.textContent = LABELS[k] || 'Tool';
+      toolTip.innerHTML = TIPS[k] || '';
+    }
+  }
+
+  function pickPalette(k) {
+    setTool('select');
+    railHost.querySelectorAll('.tool').forEach(function (b) {
+      b.classList.toggle('on', b.dataset.k === k);
+    });
+    showPanel(k);
+  }
+  bPlayers.addEventListener('click', function () { pickPalette('players'); });
+  bObjects.addEventListener('click', function () { pickPalette('objects'); });
+
+  // Wrap setTool so panel + rail stay in sync however the tool changed
+  // (rail click, keyboard shortcut v/s/p/a, or the engine itself).
+  var _setTool = setTool;
+  setTool = function (k) {
+    _setTool(k);
+    showPanel(k);
+  };
+
+  // ---------------------------------------------------------
+  // 3b. Mark colour + weight
+  //
+  // Colours and weights taken from the Klipdraw exports: saturated, fat, no
+  // fills. Diagram hairlines vanish over footage.
+  // ---------------------------------------------------------
+  var MARK_COLOURS = [
+    ['Black', '#111111'], ['Green', '#19CC4C'], ['Yellow', '#FFD100'],
+    ['Sky blue', '#22A0E0'], ['Navy', '#1B3A9B'], ['Red', '#E8313A'],
+    ['Orange', '#F2811D'], ['Magenta', '#D6259B'], ['White', '#FFFFFF']
+  ];
+
+  var cChip = $('colourChip'), cName = $('colourName'), cMenu = $('colourMenu');
+
+  // A visible grid, not a dropdown: one click per colour instead of two.
+  function paintColourMenu() {
+    cMenu.innerHTML = MARK_COLOURS.map(function (c) {
+      return '<button type="button" class="kd-sw' + (activeColor === c[1] ? ' on' : '') +
+        '" data-col="' + c[1] + '" title="' + c[0] + '" style="background:' + c[1] + '"></button>';
+    }).join('');
+    cMenu.querySelectorAll('button').forEach(function (b) {
+      b.addEventListener('click', function (e) {
+        e.stopPropagation();
+        setMarkColour(b.dataset.col);
+      });
+    });
+  }
+
+  // Recently used colours, most recent first. Persisted so the row is still
+  // useful next time the app opens; storage can throw in some contexts, so
+  // every access is guarded and the row simply starts empty if it fails.
+  var recent = [];
+  try {
+    var saved = localStorage.getItem('kd.recentColours');
+    if (saved) recent = JSON.parse(saved).slice(0, 8);
+  } catch (e) { recent = []; }
+
+  function paintRecent() {
+    var el = $('recentColours');
+    $('recentLbl').style.display = recent.length ? '' : 'none';
+    el.style.display = recent.length ? '' : 'none';
+    el.innerHTML = recent.map(function (hex) {
+      var name = (MARK_COLOURS.filter(function (c) { return c[1] === hex; })[0] || [hex])[0];
+      return '<button type="button" class="kd-sw' + (activeColor === hex ? ' on' : '') +
+        '" data-col="' + hex + '" title="' + name + '" style="background:' + hex + '"></button>';
+    }).join('');
+    el.querySelectorAll('button').forEach(function (b) {
+      b.addEventListener('click', function (e) { e.stopPropagation(); setMarkColour(b.dataset.col); });
+    });
+  }
+
+  function noteRecent(hex) {
+    recent = [hex].concat(recent.filter(function (c) { return c !== hex; })).slice(0, 8);
+    try { localStorage.setItem('kd.recentColours', JSON.stringify(recent)); } catch (e) { }
+  }
+
+  function setMarkColour(hex) {
+    if (selSet.length) {
+      // recolour what's selected rather than arming a colour nobody asked for
+      pushUndo();
+      selPieces().forEach(function (p) { p.color = hex; });
+      selPaths().forEach(function (pa) { pa.color = hex; });
+      render(); updateInspector();
+    }
+    activeColor = hex;
+    var found = MARK_COLOURS.filter(function (c) { return c[1] === hex; })[0];
+    cChip.style.background = hex;
+    cName.textContent = found ? found[0] : hex;
+    noteRecent(hex);
+    paintColourMenu(); paintRecent();
+    fillTray('equip', EQUIP); fillTray('positions', POSITIONS);
+  }
+
+
+  var wSlider = $('markWeight'), wPrev = $('markWPrev');
+  var wDirty = false;   // one undo entry per drag, not one per pixel
+
+  function applyWeight(v) {
+    markW = v;
+    wPrev.style.height = Math.max(2, v * 1.6).toFixed(1) + 'px';
+    var ps = selPaths();
+    if (ps.length) {
+      // Apply live while dragging. Committing only on release made the slider
+      // look broken: you'd drag it and nothing on the ice would move.
+      if (!wDirty) { pushUndo(); wDirty = true; }
+      ps.forEach(function (pa) { pa.w = v; });
+      render();
+      updateInspector();
+    }
+  }
+  wSlider.addEventListener('pointerdown', function () { wDirty = false; });
+  wSlider.addEventListener('keydown', function () { wDirty = false; });
+  wSlider.addEventListener('input', function () { applyWeight(parseFloat(this.value)); });
+  wSlider.addEventListener('change', function () { wDirty = false; });
+
+  var oSlider = $('markOpacity'), oVal = $('markOpVal');
+  var oDirty = false;
+  function applyOpacity(pct) {
+    markOp = pct / 100;
+    oVal.textContent = Math.round(pct) + '%';
+    var ps = selPaths();
+    if (ps.length) {
+      if (!oDirty) { pushUndo(); oDirty = true; }
+      ps.forEach(function (pa) { pa.op = markOp; });
+      render(); updateInspector();
+    }
+  }
+  oSlider.addEventListener('pointerdown', function () { oDirty = false; });
+  oSlider.addEventListener('keydown', function () { oDirty = false; });
+  oSlider.addEventListener('input', function () { applyOpacity(parseFloat(this.value)); });
+  oSlider.addEventListener('change', function () { oDirty = false; });
+
+  // ---------------------------------------------------------
+  // 4. Timeline
+  // ---------------------------------------------------------
+  var grid = $('kdGrid');
+  var ruler = $('kdRuler');
+  var tracksEl = $('kdTracks');
+  var namesEl = $('kdNames');
+  var playhead = $('kdPlayhead');
+  var trackInfo = $('kdTrackInfo');
+
+  var ROW = 26;
+  var rows = [];        // [{kind:'path'|'puck', path?, piece?}]
+  var lastSig = '';
+  var lastW = 0;
+  var lastT = 0;
+
+  function gridW() { return grid.clientWidth || 1; }
+  function msToX(ms) { return (ms / T) * gridW(); }
+  function xToMs(x) { return (x / gridW()) * T; }
+
+  // Every path gets a track now, not just the moving ones: a motion bar means
+  // "the piece travels here", a mark's bar means "this drawing is on screen".
+  function motionPaths() {
+    return paths.slice();
+  }
+  function isMotion(p) { return !!(p.motion || p.owner); }
+
+  var TYPE_LABEL = {
+    ring: 'Ring', web: 'Web', bar: 'Bar', pen: 'Freehand', arrow: 'Arrow',
+    pass: 'Pass', shot: 'Shot', skate: 'Skate', skateback: 'Puck carry',
+    skaterev: 'Backwards', text: 'Text'
+  };
+  function puckPieces() {
+    return pieces.filter(function (p) {
+      return (p.type === 'puck' || p.type === 'ball') && p.legs && p.legs.length;
+    });
+  }
+
+  function rowLabel(r) {
+    if (r.kind === 'puck') return prettyType(r.piece.type);
+    var p = r.path;
+    if (!isMotion(p)) return TYPE_LABEL[p.type] || p.type;
+    var owner = p.owner ? getPiece(p.owner) : null;
+    if (!owner) return 'Motion';
+    var n = (owner.num || '').toString().trim();
+    return prettyType(owner.type) + (n ? ' ' + n : '');
+  }
+  function rowColor(r) {
+    if (r.kind === 'puck') return r.piece.color || '#111418';
+    return r.path.color || 'var(--accent)';
+  }
+
+  function signature() {
+    var s = T + '|' + (sel ? sel.kind + sel.id : '-') + '|';
+    motionPaths().forEach(function (p) {
+      s += p.id + ',' + p.delay + ',' + p.dur + ',' + p.owner + ',' + p.color + ',' + (p.hidden ? 1 : 0) + ';';
+    });
+    s += '#';
+    puckPieces().forEach(function (p) {
+      s += p.id + ',' + p.legs.map(function (l) { return l.type + l.s; }).join('.') + ';';
+    });
+    return s;
+  }
+
+  // A 5-second drill and a 3-minute video clip both have to read well, so the
+  // tick spacing is chosen from the total length rather than hard-coded.
+  var STEPS = [100, 250, 500, 1000, 2000, 5000, 10000, 15000, 30000, 60000, 120000, 300000];
+  function niceStep() {
+    var want = clamp(Math.floor(gridW() / 110), 4, 12);
+    var raw = T / want;
+    for (var i = 0; i < STEPS.length; i++) if (STEPS[i] >= raw) return STEPS[i];
+    return STEPS[STEPS.length - 1];
+  }
+  function fmtT(ms) {
+    if (T < 60000) return (ms / 1000).toFixed(ms % 1000 ? 1 : 0) + 's';
+    var s = Math.round(ms / 1000);
+    return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2);
+  }
+
+  function buildRuler() {
+    var W = gridW();
+    var major = niceStep();
+    var minor = major / 2;
+    var h = '';
+    for (var ms = 0; ms <= T + 1; ms += minor) {
+      var x = (ms / T) * W;
+      var isMajor = Math.abs(ms % major) < 1;
+      h += '<div class="kd-tick' + (isMajor ? '' : ' minor') + '" style="left:' + x.toFixed(1) + 'px"></div>';
+      if (isMajor) h += '<div class="kd-tlab" style="left:' + x.toFixed(1) + 'px">' + fmtT(ms) + '</div>';
+    }
+    ruler.innerHTML = h;
+  }
+
+  function buildTracks() {
+    var W = gridW();
+    rows = [];
+    motionPaths().forEach(function (p) { rows.push({ kind: 'path', path: p }); });
+    puckPieces().forEach(function (p) { rows.push({ kind: 'puck', piece: p }); });
+
+    trackInfo.textContent = rows.length + (rows.length === 1 ? ' track' : ' tracks') +
+      ' · ' + (T / 1000).toFixed(1) + 's total';
+
+    if (!rows.length) {
+      namesEl.innerHTML = '';
+      tracksEl.innerHTML = '<div class="kd-tlempty">No animation yet.<br>' +
+        'Place a piece, choose the <b>Move</b> tool, then drag from that piece to draw where it travels. ' +
+        'Its route shows up here as a bar you can drag to retime.</div>';
+      playhead.style.height = '100%';
+      return;
+    }
+
+    // gridlines on the same beat as the ruler
+    var major = niceStep();
+    var lines = '';
+    for (var ms = major; ms < T; ms += major) {
+      lines += '<div class="kd-gline" style="left:' + ((ms / T) * W).toFixed(1) + 'px"></div>';
+    }
+
+    var nh = '', th = '';
+    rows.forEach(function (r, i) {
+      var selected = sel && ((r.kind === 'path' && sel.kind === 'path' && sel.id === r.path.id) ||
+        (r.kind === 'puck' && sel.kind === 'piece' && sel.id === r.piece.id));
+      var hid = r.kind === 'path' && r.path.hidden;
+      nh += '<div class="kd-name' + (selected ? ' on' : '') + (hid ? ' off' : '') + '" data-row="' + i + '">' +
+        '<button class="kd-eye" data-eye="' + i + '" title="Show / hide this mark">' +
+        (hid ? '&#9663;' : '&#9679;') + '</button>' +
+        '<span class="kd-chip" style="background:' + rowColor(r) + '"></span>' +
+        '<span class="kd-nm">' + rowLabel(r) + '</span>' +
+        '<button class="kd-del" data-del="' + i + '" title="Delete this mark">&times;</button></div>';
+
+      var inner = '';
+      if (r.kind === 'path') {
+        var p = r.path;
+        var left = (p.delay / T) * W;
+        var w = Math.max(10, (p.dur / T) * W);
+        inner = '<div class="kd-bar' + (selected ? ' sel' : '') + '" data-row="' + i + '"' +
+          ' style="left:' + left.toFixed(1) + 'px;width:' + w.toFixed(1) + 'px;background:' +
+          (p.color || '#B9E60C') + '">' +
+          '<span class="kd-bt">' + (p.dur / 1000).toFixed(1) + 's</span>' +
+          '<div class="kd-hand l" data-edge="l"></div><div class="kd-hand r" data-edge="r"></div></div>';
+      } else {
+        r.piece.legs.forEach(function (l, li) {
+          inner += '<div class="kd-key' + (selected ? ' sel' : '') + '" data-row="' + i + '" data-leg="' + li + '"' +
+            ' title="' + (l.type === 'pass' ? 'Pass' : 'Carry') + ' at ' + (l.s / 1000).toFixed(1) + 's"' +
+            ' style="left:' + ((l.s / T) * W).toFixed(1) + 'px;background:' +
+            (l.type === 'pass' ? 'var(--accent)' : '#6d747d') + '"></div>';
+        });
+      }
+      th += '<div class="kd-track" data-row="' + i + '">' + lines + inner + '</div>';
+    });
+    namesEl.innerHTML = nh;
+    tracksEl.innerHTML = th;
+    playhead.style.height = (22 + rows.length * ROW) + 'px';
+
+    namesEl.querySelectorAll('.kd-name').forEach(function (el) {
+      el.addEventListener('click', function () { selectRow(+el.dataset.row); });
+    });
+    namesEl.querySelectorAll('.kd-eye').forEach(function (b) {
+      b.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var r = rows[+b.dataset.eye];
+        if (!r || r.kind !== 'path') return;
+        pushUndo();
+        r.path.hidden = !r.path.hidden;
+        lastSig = ''; render();
+      });
+    });
+    namesEl.querySelectorAll('.kd-del').forEach(function (b) {
+      b.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var r = rows[+b.dataset.del];
+        if (!r || r.kind !== 'path') return;
+        pushUndo();
+        paths = paths.filter(function (x) { return x !== r.path; });
+        scenes[currentScene].paths = paths;
+        selOne(null); updateInspector();
+        lastSig = ''; render();
+      });
+    });
+  }
+
+  function selectRow(i) {
+    var r = rows[i];
+    if (!r) return;
+    if (r.kind === 'path') selOne('path', r.path.id);
+    else selOne('piece', r.piece.id);
+    showPropsTab();
+    updateInspector();
+    render();
+  }
+
+  function movePlayhead() {
+    playhead.style.left = msToX(tNow).toFixed(1) + 'px';
+  }
+
+  function syncTimeline(force) {
+    var w = gridW();
+    // the ruler depends on both the pixel width and the total length
+    if (force || w !== lastW || T !== lastT) { lastW = w; lastT = T; buildRuler(); lastSig = ''; }
+    var sig = signature();
+    if (sig !== lastSig) { lastSig = sig; buildTracks(); }
+    movePlayhead();
+    layoutTrim();
+    enforceOut();
+  }
+
+  // keep the name column scrolled with the track column
+  grid.addEventListener('scroll', function () {
+    namesEl.style.transform = 'translateY(' + (-grid.scrollTop) + 'px)';
+  });
+
+  // ---------------------------------------------------------
+  // 5. Timeline dragging
+  // ---------------------------------------------------------
+  var drag = null;
+
+  function localX(e) {
+    return clamp(e.clientX - grid.getBoundingClientRect().left, 0, gridW());
+  }
+
+  grid.addEventListener('pointerdown', function (e) {
+    var bar = e.target.closest ? e.target.closest('.kd-bar') : null;
+    var key = e.target.closest ? e.target.closest('.kd-key') : null;
+    var x = localX(e);
+
+    if (key) {
+      var kr = rows[+key.dataset.row];
+      pushUndo();
+      drag = { mode: 'key', piece: kr.piece, leg: +key.dataset.leg };
+      selOne('piece', kr.piece.id); showPropsTab(); updateInspector();
+    } else if (bar) {
+      var br = rows[+bar.dataset.row];
+      var edge = e.target.dataset ? e.target.dataset.edge : null;
+      pushUndo();
+      drag = {
+        mode: edge === 'r' ? 'dur' : edge === 'l' ? 'lead' : 'move',
+        path: br.path, grabMs: xToMs(x) - br.path.delay,
+        d0: br.path.delay, u0: br.path.dur
+      };
+      selOne('path', br.path.id); showPropsTab(); updateInspector();
+    } else {
+      drag = { mode: 'scrub' };
+      playing = false; setPlayUI();
+    }
+    grid.setPointerCapture(e.pointerId);
+    onDrag(e);
+    e.preventDefault();
+  });
+
+  function onDrag(e) {
+    if (!drag) return;
+    var ms = xToMs(localX(e));
+
+    if (drag.mode === 'scrub') {
+      tNow = clamp(ms, 0, T);
+      syncScrub();
+    } else if (drag.mode === 'move') {
+      drag.path.delay = Math.round(clamp(ms - drag.grabMs, 0, Math.max(0, T - drag.path.dur)) / 50) * 50;
+    } else if (drag.mode === 'dur') {
+      drag.path.dur = Math.round(clamp(ms - drag.path.delay, 300, T - drag.path.delay) / 50) * 50;
+    } else if (drag.mode === 'lead') {
+      var end = drag.d0 + drag.u0;
+      var nd = Math.round(clamp(ms, 0, end - 300) / 50) * 50;
+      drag.path.delay = nd;
+      drag.path.dur = end - nd;
+    } else if (drag.mode === 'key') {
+      var legs = drag.piece.legs;
+      legs[drag.leg].s = Math.round(clamp(ms, 0, T) / 50) * 50;
+      // keep the possession chain in order, the same rule the inspector uses
+      for (var k = 1; k < legs.length; k++) {
+        if (legs[k].s <= legs[k - 1].s) legs[k].s = legs[k - 1].s + 100;
+      }
+    }
+    if (drag.mode !== 'scrub') lastSig = '';
+    render();
+  }
+
+  grid.addEventListener('pointermove', onDrag);
+  grid.addEventListener('pointerup', function () { drag = null; updateInspector(); });
+  grid.addEventListener('pointercancel', function () { drag = null; });
+
+  // ---------------------------------------------------------
+  // 6. Transport extras
+  // ---------------------------------------------------------
+  $('kdToStart').onclick = function () {
+    playing = false; setPlayUI(); tNow = 0; syncScrub(); render();
+  };
+  $('kdToEnd').onclick = function () {
+    playing = false; setPlayUI(); tNow = T; syncScrub(); render();
+  };
+
+  // Frame-step. Browsers don't expose a clip's real frame rate, so this assumes
+  // 30fps — close enough to land on a moment, which is the whole point.
+  var FRAME = 1000 / 30;
+  function step(n) {
+    playing = false; setPlayUI();
+    tNow = clamp(tNow + n * FRAME, 0, T);
+    syncScrub(); render();
+  }
+  $('kdPrevF').onclick = function () { step(-1); };
+  $('kdNextF').onclick = function () { step(1); };
+  window.addEventListener('keydown', function (e) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.key === 'ArrowLeft') { e.preventDefault(); step(e.shiftKey ? -10 : -1); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); step(e.shiftKey ? 10 : 1); }
+  });
+
+  // ---------------------------------------------------------
+  // 6b. Video markup mode
+  //
+  // The engine dispatches surface backgrounds as
+  //   kind==='field' ? drawFieldBg : kind==='iceplex' ? drawIceplexBg : drawRinkBg
+  // so an unknown kind falls through to drawRinkBg. Wrapping that one function
+  // is enough to add a whole new surface without touching app.js. ctx.drawImage
+  // takes a <video> exactly like an <img>, and tick() already calls render()
+  // every frame, so the clip animates with no changes to the render loop.
+  // ---------------------------------------------------------
+  var vid = null;        // the <video> element, or null
+  var vidURL = null;     // object URL to revoke
+  var vidName = '';
+  var VW = 200, VH = 112.5;   // clip size in world units (16:9 default)
+
+  CONFIGS.video = { label: 'Video clip', panels: [{ ox: 0, oy: 0, kind: 'video' }] };
+
+  var _panelW = panelW, _panelH = panelH;
+  panelW = function (k) { return k === 'video' ? VW : _panelW(k); };
+  panelH = function (k) { return k === 'video' ? VH : _panelH(k); };
+
+  var _drawRinkBg = drawRinkBg;
+  drawRinkBg = function (p) {
+    if (p.kind !== 'video') return _drawRinkBg(p);
+    var a = W2S(p.ox, p.oy), b = W2S(p.ox + VW, p.oy + VH);
+    var w = b[0] - a[0], h = b[1] - a[1];
+    ctx.save();
+    ctx.fillStyle = '#000';
+    ctx.fillRect(a[0], a[1], w, h);
+    if (vid && vid.readyState >= 2) {
+      try { ctx.drawImage(vid, a[0], a[1], w, h); } catch (e) { }
+    } else {
+      ctx.fillStyle = '#8B929C';
+      ctx.font = '600 14px system-ui,Segoe UI,sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(vid ? 'Loading clip…' : 'No clip loaded — File ▸ Open video…',
+        a[0] + w / 2, a[1] + h / 2);
+      ctx.textAlign = 'start';
+    }
+    ctx.strokeStyle = '#343A43';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(a[0], a[1], w, h);
+    ctx.restore();
+  };
+
+  var _viewPresets = viewPresets;
+  viewPresets = function () {
+    if (rinkConfig !== 'video') return _viewPresets();
+    return [
+      { k: 'frame', t: 'Frame', r: { x: 0, y: 0, w: VW, h: VH } },
+      { k: 'vleft', t: 'Left', r: { x: 0, y: 0, w: VW * 0.6, h: VH } },
+      { k: 'vright', t: 'Right', r: { x: VW * 0.4, y: 0, w: VW * 0.6, h: VH } }
+    ];
+  };
+  var _defaultView = defaultView;
+  defaultView = function () { return rinkConfig === 'video' ? 'frame' : _defaultView(); };
+
+  // --- clock: the clip is the master while it plays, the slave while you scrub
+  var _syncScrub = syncScrub;
+  syncScrub = function () {
+    if (vid && vid.duration) {
+      if (!vid.paused && !vid.ended) {
+        tNow = clamp(vid.currentTime * 1000, 0, T);
+      } else {
+        var want = tNow / 1000;
+        if (Math.abs(vid.currentTime - want) > 0.04) {
+          try { vid.currentTime = want; } catch (e) { }
+        }
+      }
+    }
+    _syncScrub();
+    if (T >= 60000) {
+      $('timeLbl').textContent = fmtT(tNow) + ' / ' + fmtT(T);
+    }
+  };
+
+  var _togglePlay = togglePlay;
+  togglePlay = function () {
+    _togglePlay();
+    if (!vid) return;
+    if (playing) {
+      try { vid.currentTime = tNow / 1000; } catch (e) { }
+      var pr = vid.play();
+      // autoplay policy can still refuse with sound; fall back to muted
+      if (pr && pr.catch) pr.catch(function () { vid.muted = true; updateVideoPanel(); vid.play().catch(function () { }); });
+    } else {
+      vid.pause();
+    }
+  };
+
+  // app.js does `playBtn.onclick = togglePlay`, which captured the ORIGINAL
+  // function by value before the wrapper above existed — so the button would
+  // bypass it while the Space key (which resolves the name at call time) would
+  // not. Rebind to pick up the wrapper. Same story for the demo drill.
+  $('playBtn').onclick = togglePlay;
+
+  var _loadDemo = loadDemo;
+  loadDemo = function () {
+    // a rink drill and a clip are different contexts; don't leave both loaded
+    if (vid) { disposeVideo(); rinkConfig = 'full'; scenes[currentScene].rinkType = 'full'; }
+    _loadDemo();
+    lastT = 0; updateVideoPanel();
+  };
+  $('demoBtn').onclick = loadDemo;
+
+  $('loopChk').addEventListener('change', function () { if (vid) vid.loop = this.checked; });
+
+  function openVideo() { $('vidFile').click(); }
+
+  function loadVideoFile(file) {
+    disposeVideo();
+    vidURL = URL.createObjectURL(file);
+    vidName = file.name;
+    vid = document.createElement('video');
+    vid.preload = 'auto';
+    vid.playsInline = true;
+    vid.loop = !!$('loopChk').checked;
+    vid.muted = !!$('vidMute').checked;
+
+    vid.addEventListener('loadedmetadata', function () {
+      VW = 200;
+      VH = 200 * ((vid.videoHeight / vid.videoWidth) || 0.5625);
+      T = Math.max(1000, Math.round(vid.duration * 1000));
+      pushUndo();
+      rinkConfig = 'video';
+      scenes[currentScene].rinkType = 'video';
+      currentView = 'frame';
+      buildLayoutSeg(); buildViewSeg();
+      fitRect(viewPresets()[0].r);
+      tNow = 0; playing = false; setPlayUI();
+      lastT = 0;               // force the ruler to rebuild at the new length
+      inMs = 0; outMs = T;     // trim spans the whole clip until you drag it in
+      syncScrub(); updateVideoPanel(); render();
+      toast('Loaded ' + vidName + ' — ' + fmtT(T));
+    }, { once: true });
+
+    vid.addEventListener('error', function () {
+      var n = vidName;
+      disposeVideo(); updateVideoPanel(); render();
+      toast('Could not read ' + n + ' — try MP4 (H.264) or WebM');
+    }, { once: true });
+
+    vid.src = vidURL;
+    updateVideoPanel();
+  }
+
+  function disposeVideo() {
+    if (vid) {
+      try { vid.pause(); } catch (e) { }
+      vid.removeAttribute('src');
+      try { vid.load(); } catch (e) { }
+    }
+    if (vidURL) { URL.revokeObjectURL(vidURL); vidURL = null; }
+    vid = null; vidName = '';
+  }
+
+  function removeVideo() {
+    if (!vid && rinkConfig !== 'video') { toast('No clip loaded'); return; }
+    disposeVideo();
+    if (rinkConfig === 'video') {
+      pushUndo();
+      rinkConfig = 'full';
+      scenes[currentScene].rinkType = 'full';
+      currentView = defaultView();
+      buildLayoutSeg(); buildViewSeg();
+      fitRect(viewPresets()[0].r);
+    }
+    T = 5000; $('speed').value = 9;
+    tNow = 0; playing = false; setPlayUI();
+    lastT = 0; inMs = 0; outMs = T;
+    syncScrub(); updateVideoPanel(); render();
+    toast('Clip removed');
+  }
+
+  $('vidFile').addEventListener('change', function (e) {
+    var f = e.target.files[0];
+    e.target.value = '';
+    if (f) loadVideoFile(f);
+  });
+  $('vidOpen').onclick = openVideo;
+  $('vidRemove').onclick = removeVideo;
+  $('vidMute').addEventListener('change', function () { if (vid) vid.muted = this.checked; });
+  relay('mFileVideo', 'vidOpen');
+  relay('mFileVideoOff', 'vidRemove');
+
+  // Picking "Video clip" in the Surface list with nothing loaded opens the picker.
+  // The engine's own onchange has already run by the time this fires.
+  $('rinkSel').addEventListener('change', function () {
+    if (this.value === 'video' && !vid) openVideo();
+    updateVideoPanel();
+  });
+
+  function updateVideoPanel() {
+    var loaded = !!(vid && vid.duration);
+    $('vidName').textContent = loaded ? vidName : (vid ? 'Loading…' : 'No clip loaded');
+    $('vidMeta').textContent = loaded
+      ? vid.videoWidth + '×' + vid.videoHeight + ' · ' + fmtT(T)
+      : 'MP4 (H.264) or WebM';
+    $('vidRemove').disabled = !vid;
+    $('vidMute').checked = vid ? !!vid.muted : false;
+    // While a clip is loaded the timeline length IS the clip length.
+    var sp = $('speed');
+    sp.disabled = loaded;
+    sp.parentNode.style.opacity = loaded ? 0.4 : 1;
+    sp.parentNode.title = loaded ? 'Length is set by the video clip' : '';
+  }
+
+  // ---------------------------------------------------------
+  // 6c. In / out trim + clip export
+  //
+  // Drag the two handles to pick the window you want (5s, 25s, whatever),
+  // then Export records the canvas from in to out with the marks burned in.
+  // Audio is pulled off the clip when the browser allows it.
+  // ---------------------------------------------------------
+  var inMs = 0, outMs = 0;      // outMs 0 == "not set yet", filled from T
+  var exporting = false;
+  var shadeL = $('kdShadeL'), shadeR = $('kdShadeR'), hIn = $('kdIn'), hOut = $('kdOut');
+
+  function trimSpan() { return Math.max(0, outMs - inMs); }
+
+  function clampTrim() {
+    if (!outMs || outMs > T) outMs = T;
+    if (inMs > T - 200) inMs = Math.max(0, T - 200);
+    if (outMs <= inMs + 200) outMs = Math.min(T, inMs + 200);
+  }
+
+  function layoutTrim() {
+    clampTrim();
+    var W = gridW(), h = 22 + rows.length * ROW;
+    var a = (inMs / T) * W, b = (outMs / T) * W;
+    shadeL.style.left = '0px'; shadeL.style.width = a.toFixed(1) + 'px'; shadeL.style.height = h + 'px';
+    shadeR.style.left = b.toFixed(1) + 'px'; shadeR.style.width = Math.max(0, W - b).toFixed(1) + 'px';
+    shadeR.style.height = h + 'px';
+    hIn.style.left = a.toFixed(1) + 'px'; hIn.style.height = h + 'px';
+    hOut.style.left = b.toFixed(1) + 'px'; hOut.style.height = h + 'px';
+    $('kdSelInfo').textContent = 'Clip ' + fmtT(trimSpan());
+  }
+
+  function trimDrag(handle, which) {
+    handle.addEventListener('pointerdown', function (e) {
+      e.stopPropagation(); e.preventDefault();
+      // capture is a nicety, not a requirement — listen on window so the drag
+      // survives the pointer leaving the handle either way
+      try { handle.setPointerCapture(e.pointerId); } catch (err) { }
+      var move = function (ev) {
+        var ms = xToMs(clamp(ev.clientX - grid.getBoundingClientRect().left, 0, gridW()));
+        if (which === 'in') inMs = clamp(ms, 0, outMs - 200);
+        else outMs = clamp(ms, inMs + 200, T);
+        layoutTrim();
+      };
+      var up = function () {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    });
+  }
+  trimDrag(hIn, 'in');
+  trimDrag(hOut, 'out');
+
+  $('kdSelAll').onclick = function () { inMs = 0; outMs = T; layoutTrim(); };
+
+  // Playback respects the trim window: start at `in`, stop (or loop) at `out`.
+  var _togglePlay2 = togglePlay;
+  togglePlay = function () {
+    if (!playing && (tNow < inMs || tNow >= outMs - 30)) { tNow = inMs; syncScrub(); }
+    _togglePlay2();
+  };
+  $('playBtn').onclick = togglePlay;
+
+  function enforceOut() {
+    if (!playing) return;
+    if (tNow >= outMs) {
+      if (loop && !exporting) { tNow = inMs; syncScrub(); }
+      else { tNow = outMs; playing = false; setPlayUI(); if (vid) vid.pause(); syncScrub(); }
+    }
+  }
+
+  // --- export ---------------------------------------------------------
+  // MP4/H.264 first so clips play on a phone without converting; WebM is the
+  // fallback. Pairing matters: MP4 needs AAC, WebM needs Opus.
+  function pickMime() {
+    var opts = [
+      'video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4;codecs=avc1', 'video/mp4',
+      'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'
+    ];
+    for (var i = 0; i < opts.length; i++) if (MediaRecorder.isTypeSupported(opts[i])) return opts[i];
+    return 'video/webm';
+  }
+
+  // The clip's audio, rebuilt through WebAudio.
+  //
+  // Taking vid.captureStream().getAudioTracks() and bolting that track onto the
+  // canvas stream makes the MP4 muxer emit zero bytes and hang on stop (WebM
+  // tolerates it). Re-originating the audio through a MediaStreamDestination
+  // yields a track MP4 accepts. createMediaElementSource can only be called
+  // once per element and reroutes its output, so it's cached and reconnected to
+  // ctx.destination to keep local playback audible.
+  var audioCtx = null, srcNode = null, srcFor = null;
+  function clipAudioTrack() {
+    if (!vid) return null;
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      if (!audioCtx) audioCtx = new AC();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      if (srcFor !== vid) {
+        srcNode = audioCtx.createMediaElementSource(vid);
+        srcNode.connect(audioCtx.destination);
+        srcFor = vid;
+      }
+      var dest = audioCtx.createMediaStreamDestination();
+      srcNode.connect(dest);
+      return dest.stream.getAudioTracks()[0] || null;
+    } catch (e) { return null; }
+  }
+
+  function exportClip() {
+    if (exporting) return;
+    if (trimSpan() < 200) { toast('Drag the in/out handles to pick a window first'); return; }
+
+    var stream = cv.captureStream(30);
+    var withAudio = false;
+    var atrack = clipAudioTrack();
+    if (atrack) { stream.addTrack(atrack); withAudio = true; }
+
+    var mime = pickMime();
+    var ext = mime.indexOf('mp4') >= 0 ? 'mp4' : 'webm';
+    var rec, chunks = [];
+    try {
+      rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 8000000 });
+    } catch (e) { toast('This browser cannot record — try Chrome'); return; }
+
+    rec.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+    rec.onstop = function () {
+      var blob = new Blob(chunks, { type: 'video/' + ext });
+      exporting = false;
+      $('kdExport').classList.remove('rec');
+      $('kdExport').textContent = '⬇ Export clip';
+      // A muxer that fails silently produces a zero-byte file. Say so rather
+      // than dropping an unplayable download in the user's folder.
+      if (!blob.size) {
+        toast('Export failed — the ' + ext.toUpperCase() + ' encoder produced no data. Try again, or mute the clip.');
+        return;
+      }
+      var base = (vidName ? vidName.replace(/\.[^.]+$/, '') : 'drill');
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = base + '_marked_' + Math.round(inMs / 100) / 10 + 's-' + Math.round(outMs / 100) / 10 + 's.' + ext;
+      a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+      toast('Saved ' + fmtT(trimSpan()) + ' ' + ext.toUpperCase() +
+        (withAudio ? ' with audio' : ' (no audio)') + ' to your downloads');
+    };
+
+    exporting = true;
+    $('kdExport').classList.add('rec');
+    $('kdExport').textContent = '⏹ Recording…';
+
+    // park on the in-point, let the clip actually seek, then roll
+    playing = false; setPlayUI();
+    tNow = inMs; syncScrub(); render();
+
+    var begin = function () {
+      rec.start(100);
+      playing = true; lastTs = 0; setPlayUI();
+      if (vid) { try { vid.currentTime = inMs / 1000; } catch (e) { } vid.play().catch(function () { }); }
+      // Read the clip's own clock rather than tNow: tNow is advanced by the
+      // rAF render loop, which the browser throttles when the tab isn't
+      // visible, and a stuck watcher would record forever.
+      var watch = setInterval(function () {
+        var at = (vid && vid.duration) ? vid.currentTime * 1000 : tNow;
+        if (at >= outMs || !playing) {
+          clearInterval(watch);
+          playing = false; setPlayUI();
+          if (vid) vid.pause();
+          tNow = outMs; syncScrub(); render();
+          setTimeout(function () { if (rec.state !== 'inactive') rec.stop(); }, 120);
+        }
+      }, 40);
+    };
+    // Don't start recording on a timer — wait until the clip has actually
+    // landed on the in-point, or the head of the export is padded with
+    // whatever frame happened to be showing.
+    if (vid) {
+      var started = false;
+      var go = function () { if (!started) { started = true; begin(); } };
+      vid.addEventListener('seeked', go, { once: true });
+      try { vid.currentTime = inMs / 1000; } catch (e) { }
+      setTimeout(go, 1200);                 // fallback if 'seeked' never fires
+    } else begin();
+  }
+
+  $('kdExport').onclick = function () { exporting ? null : exportClip(); };
+
+  // ---------------------------------------------------------
+  // 7. Hook the engine's render loop
+  // ---------------------------------------------------------
+  var _render = render;
+  render = function () {
+    _render.apply(this, arguments);
+    syncTimeline(false);
+  };
+
+  if (window.ResizeObserver) {
+    new ResizeObserver(function () { syncTimeline(true); }).observe(grid);
+  }
+  window.addEventListener('resize', function () { syncTimeline(true); });
+
+  // ---------------------------------------------------------
+  // 8. Boot
+  // ---------------------------------------------------------
+  // Speed slider 2..12 maps to T=(14-v)*1000, so 9 == the engine's default 5s.
+  $('speed').value = 9;
+  showPanel('select');
+  showPropsTab();
+  updateVideoPanel();
+  setMarkColour('#111111');            // black by default; all colours stay in the palette
+  applyWeight(parseFloat(wSlider.value));
+  applyOpacity(parseFloat(oSlider.value));
+  paintRecent();
+  syncTimeline(true);
+  setTimeout(function () { syncTimeline(true); }, 300);
+})();
