@@ -182,7 +182,11 @@ select{font:inherit;color:inherit}
   padding:5px 0;font-size:10.5px;font-weight:700;color:var(--muted)}
 .kd-holds button:hover{background:var(--panel2);color:var(--ink)}
 .kd-holds button.on{background:var(--accent);border-color:var(--accent);color:#0E1013}
-.kd-freeze{margin-top:8px;font-size:11px}
+.kd-modes{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.kd-modes button{background:var(--panel);border:1px solid var(--line);border-radius:6px;
+  padding:7px 0;font-size:10.5px;font-weight:800;color:var(--muted)}
+.kd-modes button:hover{background:var(--panel2);color:var(--ink)}
+.kd-modes button.on{background:var(--accent);border-color:var(--accent);color:#0E1013}
 .kd-bar.frz{background-image:repeating-linear-gradient(45deg,rgba(0,0,0,.28) 0 4px,transparent 4px 8px)}
 
 /* the clip's own track, pinned at the top */

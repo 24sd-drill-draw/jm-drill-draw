@@ -134,7 +134,14 @@
           <span class="kd-opval" id="markOpVal">100%</span>
         </div>
 
-        <div class="kd-lbl">Mark stays up for</div>
+        <div class="kd-lbl">While the mark is up</div>
+        <div class="kd-modes" id="markModes">
+          <button type="button" data-freeze="0" class="on">&#9654; Clip plays on</button>
+          <button type="button" data-freeze="1">&#9208; Clip pauses</button>
+        </div>
+        <input type="checkbox" id="markFreezeChk" class="kd-hidden">
+
+        <div class="kd-lbl" id="holdLbl">Mark stays up for</div>
         <div class="kd-holds" id="markHolds">
           <button type="button" data-hold="1000">1s</button>
           <button type="button" data-hold="2000">2s</button>
@@ -142,8 +149,6 @@
           <button type="button" data-hold="5000">5s</button>
           <button type="button" data-hold="" class="on">Rest</button>
         </div>
-        <label class="tchk kd-freeze"><input type="checkbox" id="markFreezeChk">
-          Pause the clip while it&rsquo;s up</label>
 
         <!-- engine-built swatches: kept for app.js, superseded by the dropdown -->
         <div class="swatchrow kd-hidden" id="objcolors"></div>

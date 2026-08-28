@@ -293,14 +293,37 @@
     });
   });
 
-  $('markFreezeChk').addEventListener('change', function () {
-    markFreeze = this.checked;
-    var ps = selPaths().filter(function (p) { return !(p.motion || p.owner); });
-    if (ps.length) {
-      pushUndo();
-      ps.forEach(function (p) { p.freeze = markFreeze; });
-      lastSig = ''; render(); updateInspector();
+  // Plays-on vs pauses, as a visible two-way choice. This was a checkbox at the
+  // bottom of a long panel and simply wasn't being found.
+  var modeBtns = [].slice.call(document.querySelectorAll('#markModes button'));
+  function setFreezeMode(on, applyToSel) {
+    markFreeze = !!on;
+    $('markFreezeChk').checked = markFreeze;
+    modeBtns.forEach(function (b) { b.classList.toggle('on', (b.dataset.freeze === '1') === markFreeze); });
+    $('holdLbl').textContent = markFreeze ? 'Clip pauses for' : 'Mark stays up for';
+    // "Rest" means "to the end of the clip" — as a pause that's a ten-second
+    // hang that reads as a crash, so it's not offered while pausing.
+    var restBtn = document.querySelector('#markHolds [data-hold=""]');
+    restBtn.disabled = markFreeze;
+    restBtn.style.display = markFreeze ? 'none' : '';
+    if (markFreeze && markHold == null) {
+      markHold = 2000;
+      holdBtns.forEach(function (b) { b.classList.toggle('on', b.dataset.hold === '2000'); });
     }
+    if (applyToSel) {
+      var ps = selPaths().filter(function (p) { return !(p.motion || p.owner); });
+      if (ps.length) {
+        pushUndo();
+        ps.forEach(function (p) {
+          p.freeze = markFreeze;
+          if (markFreeze && p.dur > 5000) p.dur = markHold || 2000;
+        });
+        lastSig = ''; render(); updateInspector();
+      }
+    }
+  }
+  modeBtns.forEach(function (b) {
+    b.addEventListener('click', function () { setFreezeMode(b.dataset.freeze === '1', true); });
   });
 
   oSlider.addEventListener('pointerdown', function () { oDirty = false; });
@@ -323,7 +346,7 @@
       // showing whatever the last selected mark had, so the freeze box could
       // read unchecked while markFreeze was still true (and the reverse) —
       // you'd draw a mark whose settings did not match the panel.
-      $('markFreezeChk').checked = !!markFreeze;
+      setFreezeMode(markFreeze, false);
       wSlider.value = markW;
       wPrev.style.height = Math.max(2, markW * 1.6).toFixed(1) + 'px';
       oSlider.value = Math.round(markOp * 100);
@@ -345,7 +368,7 @@
     wPrev.style.height = Math.max(2, (p.w || 1) * 1.6).toFixed(1) + 'px';
     var pct = Math.round((p.op == null ? 1 : p.op) * 100);
     oSlider.value = pct; oVal.textContent = pct + '%';
-    $('markFreezeChk').checked = !!p.freeze;
+      setFreezeMode(!!p.freeze, false);
     var rest = T - (p.delay || 0);
     holdBtns.forEach(function (b) {
       var v = b.dataset.hold ? parseInt(b.dataset.hold, 10) : null;

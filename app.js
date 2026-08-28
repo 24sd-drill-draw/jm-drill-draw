@@ -1389,8 +1389,18 @@ function drawAnnotation(p){
   else if(p.type==='arrow'){ strokePoly(scr); arrowHead(scr,col); }
   else if(p.type==='web'){ drawWeb(scr,col); }
   else if(p.type==='bar'){ strokePoly(scr); }               // plain segment, no head
-  else if(p.type==='ring'){ ctx.beginPath(); ctx.moveTo(scr[0][0],scr[0][1]);
-    for(let i=1;i<scr.length;i++) ctx.lineTo(scr[i][0],scr[i][1]); ctx.closePath(); ctx.stroke(); }
+  else if(p.type==='ring'){
+    // Always draw the ellipse that BOUNDS the points, never the points
+    // themselves. Mid-drag those points are the raw mouse trail, so this shows
+    // the real ring live as you size it instead of a squiggle; once finished
+    // the points already are the ellipse, so it renders identically.
+    let ax=Infinity,ay=Infinity,bx=-Infinity,by=-Infinity;
+    for(let i=0;i<scr.length;i++){ ax=Math.min(ax,scr[i][0]); ay=Math.min(ay,scr[i][1]);
+      bx=Math.max(bx,scr[i][0]); by=Math.max(by,scr[i][1]); }
+    ctx.beginPath();
+    ctx.ellipse((ax+bx)/2,(ay+by)/2,Math.max(1,(bx-ax)/2),Math.max(1,(by-ay)/2),0,0,Math.PI*2);
+    ctx.stroke();
+  }
   else if(p.type==='pen'){ strokePoly(scr); }
   if(selContains('path',p.id)){
     ctx.save(); ctx.strokeStyle='#5BC2D6'; ctx.lineWidth=Math.max(2,0.55*cam.s*_wmul)+4; ctx.globalAlpha=.35;
@@ -1413,11 +1423,25 @@ function setRing(p,cx,cy,rx,ry){
     out.push({x:cx+rx*Math.cos(a), y:cy+ry*Math.sin(a)}); }
   p.pts=out; p._lut=null;
 }
-function ringHandles(p){
+// What a click on a selected ring means: grab anywhere on the rim to resize,
+// anywhere inside to move. No handle dots to aim at — the axis you're pulling
+// is inferred from where on the rim you grabbed, so a side widens it, top or
+// bottom flattens it, and a corner does both.
+function ringGrabAt(p,wx,wy,sx,sy){
   const g=ringGeom(p);
-  return [{k:'e',x:g.cx+g.rx,y:g.cy},{k:'w',x:g.cx-g.rx,y:g.cy},
-          {k:'n',x:g.cx,y:g.cy-g.ry},{k:'s',x:g.cx,y:g.cy+g.ry}]
-    .map(h=>{ const [sx,sy]=W2S(h.x,h.y); return {k:h.k,sx,sy}; });
+  const nx=(wx-g.cx)/g.rx, ny=(wy-g.cy)/g.ry;
+  const d=Math.hypot(nx,ny);                       // 1.0 == exactly on the rim
+  // a ~11px grab band, expressed in the ellipse's own normalised units
+  const px=Math.max(6, Math.min(g.rx,g.ry)*cam.s);
+  const tol=Math.max(0.18, Math.min(0.75, 11/px));
+  if(Math.abs(d-1)<=tol && d>0.001){
+    const a=Math.atan2(ny,nx), ca=Math.abs(Math.cos(a)), sa=Math.abs(Math.sin(a));
+    if(ca>0.88) return 'x';
+    if(sa>0.88) return 'y';
+    return 'xy';
+  }
+  if(d<1) return 'move';
+  return null;
 }
 function selectedRing(){
   if(selSet.length!==1 || selSet[0].kind!=='path') return null;
@@ -1710,15 +1734,15 @@ function render(){
     ctx.beginPath(); ctx.arc(hx,hy,7,0,7); ctx.fill(); ctx.stroke();
     ctx.restore();
   }
-  // resize handles for a selected ring
+  // A selected ring gets a faint halo instead of handle dots — you resize it by
+  // grabbing the edge anywhere, so there is nothing to aim at.
   const ringSel=selectedRing();
   if(ringSel){
+    const g=ringGeom(ringSel), c=W2S(g.cx,g.cy);
     ctx.save();
-    ringHandles(ringSel).forEach(h=>{
-      ctx.fillStyle='#5BC2D6'; ctx.strokeStyle='#fff'; ctx.lineWidth=1.5;
-      ctx.beginPath(); ctx.arc(h.sx,h.sy,6,0,7); ctx.fill(); ctx.stroke();
-    });
-    ctx.restore();
+    ctx.strokeStyle='#5BC2D6'; ctx.globalAlpha=.5; ctx.lineWidth=1.5; ctx.setLineDash([5,4]);
+    ctx.beginPath(); ctx.ellipse(c[0],c[1],g.rx*cam.s,g.ry*cam.s,0,0,Math.PI*2); ctx.stroke();
+    ctx.setLineDash([]); ctx.restore();
   }
   if(marquee){ const a=W2S(marquee.x0,marquee.y0), b=W2S(marquee.x1,marquee.y1);
     ctx.save(); ctx.strokeStyle='#5BC2D6'; ctx.fillStyle='rgba(91,194,214,.12)'; ctx.lineWidth=1.5; ctx.setLineDash([6,4]);
@@ -1851,21 +1875,11 @@ cv.addEventListener('pointerdown',e=>{
   const ringDown = (tool==='select') ? selectedRing() : null;
   if(ringDown){
     const g=ringGeom(ringDown);
-    const nx=(wx-g.cx)/g.rx, ny=(wy-g.cy)/g.ry, d2=nx*nx+ny*ny;
-    const startMove=()=>{ pushUndo(); ringDrag={path:ringDown, mode:'move', ox:wx-g.cx, oy:wy-g.cy}; };
-    // The inner core always moves. On a small or flattened ring the n/s handles
-    // sit almost on top of the centre, and without this they'd swallow the whole
-    // body — leaving no way to reposition it.
-    if(d2<=0.35){ startMove(); return; }
-    // Handle grab radius shrinks with the ring so it can't cover everything.
-    const rxPx=g.rx*cam.s, ryPx=g.ry*cam.s;
-    const hr=Math.max(7, Math.min(13, Math.min(rxPx,ryPx)*0.7));
-    const hs=ringHandles(ringDown);
-    for(let i=0;i<hs.length;i++){
-      if(Math.hypot(e.offsetX-hs[i].sx, e.offsetY-hs[i].sy)<hr){
-        pushUndo(); ringDrag={path:ringDown, mode:hs[i].k}; return; }
-    }
-    if(d2<=1.2){ startMove(); return; }
+    const m=ringGrabAt(ringDown,wx,wy,e.offsetX,e.offsetY);
+    if(m){ pushUndo();
+      ringDrag = m==='move' ? {path:ringDown, mode:'move', ox:wx-g.cx, oy:wy-g.cy}
+                            : {path:ringDown, mode:m};
+      return; }
   }
   if(pendingPick){ resolvePick(wx,wy); return; }
   if(pendingType){ addPiece(pendingType,{x:wx,y:wy},pendingOpts);
@@ -1999,17 +2013,16 @@ cv.addEventListener('pointermove',e=>{
   if(!ringDrag && !drag && !drawing && !pendingType && tool==='select'){
     const rs=selectedRing();
     if(rs){
-      const rg=ringGeom(rs);
-      const hr=Math.max(7, Math.min(13, Math.min(rg.rx*cam.s, rg.ry*cam.s)*0.7));
-      const nx2=(wx-rg.cx)/rg.rx, ny2=(wy-rg.cy)/rg.ry, dd=nx2*nx2+ny2*ny2;
-      const hit=(dd<=0.35)?null:ringHandles(rs).filter(h=>Math.hypot(e.offsetX-h.sx,e.offsetY-h.sy)<hr)[0];
-      cv.style.cursor = hit ? ((hit.k==='e'||hit.k==='w')?'ew-resize':'ns-resize') : (dd<=1.2?'move':'');
+      const m=ringGrabAt(rs,wx,wy,e.offsetX,e.offsetY);
+      cv.style.cursor = m==='x'?'ew-resize' : m==='y'?'ns-resize'
+                      : m==='xy'?'nwse-resize' : m==='move'?'move' : '';
     }
   }
   if(ringDrag){ const p=ringDrag.path, g=ringGeom(p);
-    if(ringDrag.mode==='move')      setRing(p, wx-ringDrag.ox, wy-ringDrag.oy, g.rx, g.ry);
-    else if(ringDrag.mode==='e'||ringDrag.mode==='w') setRing(p, g.cx, g.cy, Math.abs(wx-g.cx), g.ry);
-    else                                              setRing(p, g.cx, g.cy, g.rx, Math.abs(wy-g.cy));
+    if(ringDrag.mode==='move')    setRing(p, wx-ringDrag.ox, wy-ringDrag.oy, g.rx, g.ry);
+    else if(ringDrag.mode==='x')  setRing(p, g.cx, g.cy, Math.abs(wx-g.cx), g.ry);
+    else if(ringDrag.mode==='y')  setRing(p, g.cx, g.cy, g.rx, Math.abs(wy-g.cy));
+    else                          setRing(p, g.cx, g.cy, Math.abs(wx-g.cx), Math.abs(wy-g.cy));
     render(); return; }
   if(rotDrag){ const p=rotDrag.piece; const [sx,sy]=W2S(p.x,p.y);
     p.rot=Math.atan2(e.offsetX-sx,sy-e.offsetY)*180/Math.PI; render(); return; }
