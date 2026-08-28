@@ -1,0 +1,348 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>JM Drill Draw — Animate</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230E1013'/><path d='M32 26v48l38-24z' fill='%23B9E60C'/></svg>">
+<link rel="stylesheet" href="animate.css">
+
+<div class="kd-app">
+
+  <!-- ============ TOP BAR ============ -->
+  <div class="kd-top">
+    <div class="brand"><span class="mark">&#9655;</span><div>DRILL&nbsp;DRAW<small>ANIMATE</small></div></div>
+
+    <div class="kd-menu" data-menu>
+      <button type="button">File</button>
+      <div class="kd-drop">
+        <button type="button" id="mFileNew">&#10006;&nbsp; Clear board</button>
+        <button type="button" id="mFileOpen">&#128194;&nbsp; Open drill&hellip;</button>
+        <button type="button" id="mFileSave">&#128190;&nbsp; Save drill&hellip;</button>
+        <hr>
+        <button type="button" id="mFileVideo">&#127909;&nbsp; Open video&hellip;</button>
+        <button type="button" id="mFileVideoOff">&#9723;&nbsp; Remove video</button>
+        <hr>
+        <button type="button" id="mFileJpg">&#128247;&nbsp; Export image (JPG)</button>
+        <button type="button" id="mFileRec">&#9210;&nbsp; Record video (WebM)</button>
+        <button type="button" id="mFilePrint">&#128424;&nbsp; Print drill</button>
+        <hr>
+        <button type="button" id="mFileDemo">&#9654;&nbsp; Load demo drill</button>
+      </div>
+    </div>
+
+    <div class="kd-menu" data-menu>
+      <button type="button">Edit</button>
+      <div class="kd-drop">
+        <button type="button" id="mEditUndo">&#8617;&nbsp; Undo <span style="margin-left:auto;color:var(--muted)">Ctrl Z</span></button>
+        <button type="button" id="mEditRedo">&#8618;&nbsp; Redo <span style="margin-left:auto;color:var(--muted)">Ctrl Y</span></button>
+        <hr>
+        <button type="button" id="mEditStagger">&#8677;&nbsp; Stagger start times</button>
+        <button type="button" id="mEditClear">&#10006;&nbsp; Clear board</button>
+      </div>
+    </div>
+
+    <div class="kd-menu" data-menu>
+      <button type="button">View</button>
+      <div class="kd-drop">
+        <button type="button" id="mViewFit">&#9635;&nbsp; Fit to view</button>
+        <button type="button" id="mViewIn">&#65291;&nbsp; Zoom in</button>
+        <button type="button" id="mViewOut">&#65293;&nbsp; Zoom out</button>
+        <hr>
+        <button type="button" id="mViewTheme">&#9728;&nbsp; Light / dark</button>
+        <button type="button" id="mViewImg">&#65291;&nbsp; Insert image&hellip;</button>
+      </div>
+    </div>
+
+    <div class="kd-spacer"></div>
+
+    <button class="tbtn ghost kd-ico" id="undoBtn" title="Undo (Ctrl+Z)">&#8617;</button>
+    <button class="tbtn ghost kd-ico" id="redoBtn" title="Redo (Ctrl+Y)">&#8618;</button>
+    <button class="tbtn ghost kd-ico" id="darkIceBtn" title="Light / dark">&#9728;</button>
+    <button class="tbtn ghost kd-ico kd-rec" id="recBtn" title="Record canvas to WebM">&#9210;</button>
+    <button class="tbtn ghost" id="importBtn">Open</button>
+    <button class="tbtn accent" id="exportBtn">Save</button>
+    <button class="tbtn ghost kd-ico" id="helpBtn" title="Help">?</button>
+
+    <!-- kept for the engine; reachable from the File / Edit menus -->
+    <div class="kd-hidden">
+      <button id="printBtn"></button>
+      <button id="demoBtn"></button>
+      <button id="imgBtn"></button>
+      <button id="imgExportBtn"></button>
+      <button id="clearBtn"></button>
+    </div>
+    <input type="file" id="imgFile" accept="image/*" hidden>
+    <input type="file" id="jsonFile" accept="application/json,.json" hidden>
+    <input type="file" id="logoFile" accept="image/*" hidden>
+    <input type="file" id="refFile" accept="image/*" hidden>
+    <input type="file" id="vidFile" accept="video/*" hidden>
+  </div>
+
+  <!-- ============ SCENE TABS ============ -->
+  <div class="scenebar" id="scenebar"></div>
+
+  <!-- ============ MAIN ============ -->
+  <div class="kd-main">
+
+    <!-- tool rail (engine fills #tools; animate-ui.js prepends Players/Objects) -->
+    <div class="kd-rail">
+      <div class="toolgrid" id="tools"></div>
+    </div>
+
+    <!-- contextual panel -->
+    <div class="kd-panel">
+      <div class="kd-phead" id="kdPanelTitle">Select</div>
+
+      <div class="kd-sec" data-sec="players">
+        <div class="kd-lbl">Team colour</div>
+        <div class="swatchrow" id="swatches"></div>
+        <div class="kd-lbl">Skaters</div>
+        <div class="pieces player-grid" id="skaters"></div>
+        <div class="kd-lbl">Positions</div>
+        <div class="pieces player-grid" id="positions"></div>
+      </div>
+
+      <div class="kd-sec" data-sec="objects">
+        <div class="kd-lbl">Equipment</div>
+        <div class="pieces three-col" id="equip"></div>
+      </div>
+
+      <div class="kd-sec" data-sec="tool">
+        <div class="kd-lbl" id="kdToolName">Tool</div>
+        <div class="kd-tip" id="kdToolTip"></div>
+      </div>
+
+      <div class="kd-pfoot">
+        <div class="kd-lbl" style="margin-top:0">Colour</div>
+        <div class="kd-cwrap">
+          <div class="kd-cnow"><span class="kd-cbig" id="colourChip"></span><span class="kd-cname" id="colourName">Black</span></div>
+          <div class="kd-sublbl" id="recentLbl">Last colours</div>
+          <div class="kd-cgrid recent" id="recentColours"></div>
+          <div class="kd-sublbl">Palette</div>
+          <div class="kd-cgrid" id="colourMenu"></div>
+        </div>
+
+        <div class="kd-lbl">Mark weight</div>
+        <div class="kd-wrow">
+          <input type="range" id="markWeight" min="1" max="8" step="0.5" value="3">
+          <span class="kd-wpreview"><i id="markWPrev"></i></span>
+        </div>
+
+        <div class="kd-lbl">Opacity</div>
+        <div class="kd-wrow">
+          <input type="range" id="markOpacity" min="15" max="100" step="5" value="100">
+          <span class="kd-opval" id="markOpVal">100%</span>
+        </div>
+
+        <!-- engine-built swatches: kept for app.js, superseded by the dropdown -->
+        <div class="swatchrow kd-hidden" id="objcolors"></div>
+      </div>
+    </div>
+
+    <!-- stage -->
+    <div class="stage">
+      <canvas id="cv"></canvas>
+      <div class="kd-viewpill"><div class="seg" id="viewSeg"></div></div>
+      <div class="zoomctl">
+        <button id="zin" title="Zoom in">&#65291;</button>
+        <button id="zout" title="Zoom out">&#65293;</button>
+        <button id="zfit" title="Fit view" style="font-size:10px;font-weight:800">FIT</button>
+      </div>
+    </div>
+
+    <!-- right panel -->
+    <div class="kd-right">
+      <div class="kd-rtabs">
+        <button type="button" class="on" data-rtab="props">Properties</button>
+        <button type="button" data-rtab="scene">Surface</button>
+        <button type="button" data-rtab="notes">Notes</button>
+      </div>
+      <div class="kd-rbody">
+
+        <div class="kd-rtab on" data-rtab="props">
+          <div class="inspect" id="inspect">
+            <div class="title"><span id="inspTitle">Selection</span><button type="button" id="inspClose">&times;</button></div>
+            <div id="inspBody"></div>
+          </div>
+          <div class="kd-empty">
+            Nothing selected.<br><br>
+            Pick a piece from the left panel and click the ice to place it. Choose <b style="color:var(--accent)">Move</b>
+            and drag from a piece to draw the route it travels &mdash; the route appears as a bar on the timeline below.
+          </div>
+        </div>
+
+        <div class="kd-rtab" data-rtab="scene">
+          <div class="kd-vid">
+            <div class="kd-vid-name" id="vidName">No clip loaded</div>
+            <div class="kd-vid-meta" id="vidMeta">MP4 (H.264) or WebM</div>
+            <div class="row2" style="margin-top:8px">
+              <button class="tbtn" id="vidOpen">Load video&hellip;</button>
+              <button class="tbtn" id="vidRemove">Remove</button>
+            </div>
+            <label class="tchk" style="margin-top:8px"><input type="checkbox" id="vidMute"> Mute audio</label>
+          </div>
+
+          <div class="kd-field">
+            <label>Surface</label>
+            <select id="rinkSel" class="kd-sel">
+              <option value="video">Video clip</option>
+              <option value="full">Full sheet</option>
+              <option value="half">Half sheet</option>
+              <option value="halves">Two half sheets</option>
+              <option value="twofull">Two full sheets</option>
+              <option value="field">Grass field</option>
+              <option value="iceplex">KCI Iceplex</option>
+            </select>
+          </div>
+          <div class="kd-field">
+            <label style="display:flex;align-items:center;gap:7px;text-transform:none;font-size:12px;letter-spacing:0">
+              <input type="checkbox" id="trapChk" checked style="accent-color:var(--accent)"> Show trapezoid
+            </label>
+          </div>
+          <div class="kd-field">
+            <label>Centre logo</label>
+            <select id="logoSel" class="kd-sel">
+              <option value="none">No logo</option>
+              <option value="anchorage" selected>Anchorage Academy</option>
+              <option value="krakenS">Seattle Kraken</option>
+              <option value="youthS">Kraken (mono)</option>
+              <option value="anchorLight">Anchor (ice)</option>
+              <option value="anchorNavy">Anchor (navy)</option>
+              <option value="upload">Upload&hellip;</option>
+            </select>
+          </div>
+          <div class="kd-field">
+            <label>Reference underlay</label>
+            <select id="refSel" class="kd-sel">
+              <option value="">None</option>
+              <option value="stations">10U Stealth (stations)</option>
+              <option value="swing">Figure-8 swing</option>
+              <option value="flow">Flow / regroup</option>
+              <option value="cones">Cone weave</option>
+              <option value="uploadref">Upload&hellip;</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="kd-rtab" data-rtab="notes">
+          <div class="kd-field">
+            <label>Drill notes</label>
+            <textarea id="drillNotes" class="kd-note" rows="6" placeholder="What the drill teaches, coaching points&hellip;"></textarea>
+          </div>
+          <div class="kd-field">
+            <label>Equipment</label>
+            <textarea id="equipNotes" class="kd-note" rows="4" placeholder="e.g. 6 big nets, 20 pads, pucks, pinnies&hellip;"></textarea>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ STATUS BAR ============ -->
+  <div class="kd-status"><span class="dot"></span><span class="hint" id="hint"></span></div>
+
+  <!-- ============ TIMELINE ============ -->
+  <div class="kd-timeline">
+    <div class="kd-transport">
+      <button class="kd-tp" id="kdToStart" title="Go to start">&#9198;</button>
+      <button class="kd-tp" id="kdPrevF" title="Back one frame (&larr;)">&#8249;</button>
+      <button class="play" id="playBtn" title="Play / pause (Space)">&#9654;</button>
+      <button class="kd-tp" id="kdNextF" title="Forward one frame (&rarr;)">&#8250;</button>
+      <button class="kd-tp" id="kdToEnd" title="Go to end">&#9197;</button>
+      <span class="time" id="timeLbl">0.0s / 5.0s</span>
+      <label class="tchk"><input type="checkbox" id="loopChk"> Loop</label>
+      <div class="kd-tsep"></div>
+      <button class="tbtn" id="staggerBtn" title="Space out start times so pieces move one after another">&#8677; Stagger</button>
+      <label class="tchk">Speed <input type="range" id="speed" min="2" max="12" step="0.5" value="9"></label>
+      <input type="range" id="scrubber" min="0" max="1000" value="0" class="kd-hidden">
+      <div class="kd-tsep"></div>
+      <span class="kd-selinfo" id="kdSelInfo">Clip 0.0s</span>
+      <button class="tbtn" id="kdSelAll" title="Reset the in/out points to the whole timeline">Reset</button>
+      <button class="tbtn accent" id="kdExport" title="Export the trimmed clip with your marks burned in">&#11015; Export clip</button>
+      <span class="kd-tinfo" id="kdTrackInfo">0 tracks</span>
+    </div>
+
+    <div class="kd-tl">
+      <div class="kd-names">
+        <div class="kd-names-head">Timeline</div>
+        <div class="kd-names-list" id="kdNames"></div>
+      </div>
+      <div class="kd-grid" id="kdGrid">
+        <div class="kd-ruler" id="kdRuler"></div>
+        <div class="kd-tracks" id="kdTracks"></div>
+        <div class="kd-shade" id="kdShadeL"></div>
+        <div class="kd-shade" id="kdShadeR"></div>
+        <div class="kd-trim in" id="kdIn" title="Drag to set the start of the clip"></div>
+        <div class="kd-trim out" id="kdOut" title="Drag to set the end of the clip"></div>
+        <div class="kd-playhead" id="kdPlayhead"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- SAVE DRILL MODAL -->
+<div class="modal" id="saveModal">
+  <div class="card" style="max-width:380px">
+    <h2 style="font-size:16px;margin-bottom:12px">Save Drill</h2>
+    <div class="field">
+      <label>Drill name</label>
+      <input type="text" id="drillNameInput" placeholder="e.g. 2v1 Breakout" maxlength="80" style="font-size:14px">
+    </div>
+    <p style="font-size:11px;color:var(--muted);margin:8px 0">File will download &mdash; save it to your <strong>Drills</strong> folder.</p>
+    <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
+      <button class="tbtn ghost" id="saveModalCancel">Cancel</button>
+      <button class="tbtn accent" id="saveModalConfirm">Download</button>
+    </div>
+  </div>
+</div>
+
+<!-- HELP -->
+<div class="modal" id="modal">
+  <div class="card">
+    <h2>Drill Draw Animate &mdash; quick start</h2>
+    <p>A whiteboard that <b>moves</b>. Drop pieces on the ice, draw where they travel, press play.</p>
+
+    <h3>The layout</h3>
+    <ol>
+      <li><b>Tool rail</b> (far left) picks what you are doing. The <b>panel next to it</b> changes to match.</li>
+      <li><b>Properties</b> on the right edits whatever is selected; <b>Surface</b> sets the rink; <b>Notes</b> holds coaching points and equipment.</li>
+      <li>The <b>timeline</b> along the bottom shows one bar per moving piece.</li>
+    </ol>
+
+    <h3>Marking up video</h3>
+    <ol>
+      <li><b>File &#9656; Open video&hellip;</b> and pick an MP4 or WebM off your machine. Nothing uploads &mdash; the clip stays on your computer.</li>
+      <li>The clip becomes the surface, and the timeline becomes the clip's length. <b>Drag the playhead</b> to scrub to the moment you want.</li>
+      <li>Draw on it with any tool &mdash; arrows, circles, pen, labels. Marks sit still on a paused frame.</li>
+      <li>To make a marker <b>follow a player</b>, drop a piece on them, then use <b>Move</b> to draw the route they take. Its bar on the timeline is in clip seconds, so you can line it up with exactly when the play happens.</li>
+      <li><b>File &#9656; Remove video</b> puts you back on the rink.</li>
+    </ol>
+    <p class="mini">The clip is not saved inside the drill file &mdash; a saved drill stores your marks, not the footage. Re-open the video and it lines back up.</p>
+
+    <h3>Make a piece move</h3>
+    <ol>
+      <li>Click <b>Players</b> in the rail, pick a skater, then click the ice to place it.</li>
+      <li>Pick the <b>Move</b> tool and <b>drag from that piece</b> to draw where it travels.</li>
+      <li>Press <b>Play</b>. The piece glides along the lane.</li>
+      <li>A green bar appears on the timeline. <b>Drag the bar</b> to change when it starts; <b>drag its right edge</b> to change how long it takes. Or hit <b>&#8677; Stagger</b> to space everything out automatically.</li>
+    </ol>
+    <p class="mini">The <b>Skate</b>, <b>Pass</b>, <b>Shot</b>, <b>Arrow</b> and <b>Pen</b> tools draw diagram lines only &mdash; they never move anything. Use <b>Move</b> for animation.</p>
+
+    <h3>Carry &amp; pass a puck</h3>
+    <ol>
+      <li>Give your players their <b>Move</b> routes first.</li>
+      <li>Select a <b>puck</b>. In Properties, <b>Set carrier</b> and click the player who starts with it.</li>
+      <li><b>Add pass</b> and click the receiver. Each pass shows as a diamond keyframe on the puck's timeline track &mdash; drag it to retime the pass.</li>
+    </ol>
+
+    <h3>Keep your work</h3>
+    <p><b>Save</b> downloads the drill as a file; <b>Open</b> loads it back. <kbd>Space</kbd> play, <kbd>Esc</kbd> deselect, <kbd>Ctrl/&#8984; Z</kbd> undo.</p>
+
+    <div class="closerow"><button class="tbtn accent" id="helpClose">Got it</button></div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script src="animate-ui.js"></script>

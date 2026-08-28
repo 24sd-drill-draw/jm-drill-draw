@@ -132,7 +132,7 @@ function loadScene(idx){
   document.getElementById('rinkSel').value=rinkConfig;
   const nt=document.getElementById('drillNotes'); if(nt) nt.value=s.notes||'';
   const eq=document.getElementById('equipNotes'); if(eq) eq.value=s.equip||'';
-  selOne(null); building=null; passBuilding=null; shotBuilding=null; skateBuilding=null; skateBackBuilding=null; skateBackCursor=null; skateRevBuilding=null; skateRevCursor=null;
+  selOne(null); building=null; passBuilding=null; webBuilding=null; webCursor=null; shotBuilding=null; skateBuilding=null; skateBackBuilding=null; skateBackCursor=null; skateRevBuilding=null; skateRevCursor=null;
   tNow=0; playing=false;
   try{setPlayUI();}catch(e){}
   currentView=defaultView(); buildLayoutSeg(); buildViewSeg();
@@ -191,6 +191,33 @@ function updateSceneTabs(){
   add.onclick=addScene; bar.appendChild(add);
 }
 
+// Telestration stroke weight. Diagram lines on a rink want hairlines; marks
+// burned over game footage need to be fat to read. Each annotation carries its
+// own `w` multiplier, applied while that annotation draws.
+let _wmul=1;
+let _opa=1;       // opacity of the annotation currently drawing
+let markW=1;      // weight applied to the next mark drawn
+let markOp=1;     // opacity applied to the next mark drawn
+
+// Per-mark timing. A mark drawn while parked at 4s should appear at 4s and run
+// to the end, so an explanation builds up as the clip plays instead of every
+// drawing sitting on screen at once.
+function markStart(){
+  const t=Math.max(0, Math.round(tNow));
+  // Parked at the end (you just watched it through)? Start at 0 instead —
+  // otherwise the mark gets a sliver of life and looks like it vanished.
+  return t > T-800 ? 0 : t;
+}
+function markSpan(){ return Math.max(300, T - markStart()); }
+// Motion paths keep their old meaning — their bar is travel time, not
+// visibility — so only plain annotations are windowed.
+function markVisible(p){
+  if(p.hidden) return false;
+  if(p.motion||p.owner) return true;
+  const d=p.delay||0, u=(p.dur==null?T:p.dur);
+  return tNow>=d-1 && tNow<=d+u+1;
+}
+
 let tool='select';
 let pendingType=null, pendingOpts=null;   // piece (and template) armed to drop at next click
 let pendingPick=null;   // {puckId, kind} — waiting for a carrier/receiver click
@@ -199,6 +226,8 @@ let clip=null;          // copied piece/path
 let pendingStamp=false; // keep placing copies until Esc
 let playerColor='blue';
 let passBuilding=null;  // {path} click-based pass being built
+let webBuilding=null;   // {path} click-based coverage web being built
+let webCursor=null;
 let passCursor=null;    // current mouse pos for live pass preview
 let shotBuilding=null;  // {path} click-based shot being built
 let shotCursor=null;    // current mouse pos for live shot preview
@@ -248,6 +277,9 @@ const TOOLS=[
   {k:'pass',   n:'Pass',   svg:'<path d="M3 12h14" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="3 3"/><path d="M16 8l5 4-5 4" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'},
   {k:'shot',   n:'Shot',   svg:'<path d="M3 12h14M7 8v8M10 8v8" fill="none" stroke="var(--accent)" stroke-width="2"/><path d="M16 8l5 4-5 4" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'},
   {k:'arrow',  n:'Arrow',  svg:'<path d="M3 12h14" fill="none" stroke="var(--accent)" stroke-width="2"/><path d="M16 8l5 4-5 4" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'},
+  {k:'ring',   n:'Ring',   svg:'<ellipse cx="12" cy="13" rx="9" ry="5" fill="none" stroke="var(--accent)" stroke-width="2.6"/>'},
+  {k:'web',    n:'Web',    svg:'<path d="M12 3L4 10l3 10h10l3-10zM12 3l-5 17M12 3l5 17M4 10h16M4 10l13 10M20 10L7 20" fill="none" stroke="var(--accent)" stroke-width="1.1"/>'},
+  {k:'bar',    n:'Bar',    svg:'<path d="M4 12h16" fill="none" stroke="var(--accent)" stroke-width="4" stroke-linecap="round"/>'},
   {k:'pen',    n:'Pen',    svg:'<path d="M4 20l3-1L19 7l-2-2L5 17z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>'},
   {k:'text',   n:'Text',   svg:'<path d="M5 5h14M12 5v14M9 19h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'},
   {k:'pan',    n:'Pan',    svg:'<path d="M12 3v8M8 7l4-4 4 4M5 12h14M9 16l3 4 3-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'},
@@ -1198,13 +1230,15 @@ function drawMotionPath(p){
   const pc=getPiece(p.owner);
   const col=p.color || (pc&&pc.color) || '#2E8FA8';
   const seld = selContains('path',p.id);
+  _wmul = p.w||1;
   const scr=p.pts.map(q=>W2S(q.x,q.y));
   ctx.save(); ctx.lineJoin='round'; ctx.lineCap='round';
   // solid line
-  ctx.strokeStyle=col; ctx.globalAlpha=1; ctx.lineWidth=Math.max(2,0.55*cam.s); strokePoly(scr);
+  ctx.strokeStyle=col; ctx.globalAlpha=_opa; ctx.lineWidth=Math.max(2,0.55*cam.s*_wmul); strokePoly(scr);
   arrowHead(scr,col); ctx.restore();
   // ghost piece at destination
   if(pc){ ctx.save(); ctx.globalAlpha=0.42; drawPieceGhost(pc,p.pts[p.pts.length-1]); ctx.restore(); }
+  _wmul=1;
 }
 function drawScallops(ctx, pts, col, camScale){
   if(pts.length<2) return;
@@ -1218,10 +1252,10 @@ function drawScallops(ctx, pts, col, camScale){
   function normAt(s){ const a=getAt(Math.max(0,s-1)), b=getAt(Math.min(total,s+1));
     const dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy)||1; return [-dy/len,dx/len]; }
 
-  const amp=Math.max(1.2,0.6*camScale); // very small — tight S/C shapes
+  const amp=Math.max(1.2,0.6*camScale*(1+(_wmul-1)*0.55)); // very small — tight S/C shapes
   const wl=amp*1.3;                     // width of each C (along path)
 
-  ctx.save(); ctx.strokeStyle=col; ctx.globalAlpha=0.65; ctx.lineWidth=Math.max(1,0.32*camScale);
+  ctx.save(); ctx.strokeStyle=col; ctx.globalAlpha=0.65*_opa; ctx.lineWidth=Math.max(1,0.32*camScale*_wmul);
   ctx.lineJoin='round'; ctx.lineCap='round';
   ctx.beginPath();
   const [sx,sy]=getAt(0); ctx.moveTo(sx,sy);
@@ -1250,38 +1284,55 @@ function drawBackSkate(ctx, pts, col, camScale){
   function normAt(s){ const a=getAt(Math.max(0,s-1)), b=getAt(Math.min(total,s+1));
     const dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy)||1; return [-dy/len,dx/len]; }
 
-  const amp=Math.max(2.5,1.1*camScale);
-  const cLen=amp*3.5;  // length of ONE C arc
-  const gap=Math.max(1.5,0.6*camScale);
+  // Backwards skating: a chain of discrete C arcs that alternate sides and nest
+  // into one another without ever touching. Each C is its own stroke — a
+  // continuous wave (what this used to draw) reads as a squiggle, not as C's.
+  // Centres sit ON the path and are closer together than a full diameter, so
+  // consecutive C's interlock; because they bulge to opposite sides they can
+  // overlap along the path without their strokes meeting.
+  // A continuous tight coil: alternating arcs, each swinging past a half turn so
+  // consecutive lobes overlap and the necks pinch into small loops. Drawn as one
+  // unbroken stroke — discrete C's were tried first and read as separate marks
+  // rather than as a single travelling line.
+  // A coil, drawn the way a spring is: a helix seen edge-on. Each turn advances
+  // `pitch` along the path while the pen also swings a circle of radius R. When
+  // pitch < 2R the turns overlap and the necks pinch into the little loops that
+  // make this read as backwards skating rather than as a plain wave.
+  const T_=(typeof window!=='undefined'&&window.__bsTune)||null;
+  // 6px floor keeps the loops legible when zoomed out; the stroke is capped at
+  // R/3.5 so a heavy weight thickens the line without filling the loops in.
+  const R=T_?T_.R:Math.max(6, 1.3*camScale*(1+(_wmul-1)*0.18));
+  const pitch=R*(T_?T_.pitchK:1.45);             // < 2R -> loops
+  const lw=T_?T_.lw:Math.min(Math.max(1,0.28*camScale*_wmul), R/3.5);
+  const PER=16;                                  // samples per turn
 
-  ctx.save(); ctx.strokeStyle=col; ctx.globalAlpha=0.75;
-  ctx.lineWidth=Math.max(1,0.34*camScale);
-  ctx.lineJoin='round'; ctx.lineCap='round';
+  ctx.save(); ctx.strokeStyle=col; ctx.globalAlpha=_opa;
+  ctx.lineWidth=lw; ctx.lineJoin='round'; ctx.lineCap='round';
+  ctx.beginPath();
 
-  // Each mark = ONE quadratic bezier (one C). Alternating sides gives the offset-S look.
-  let s=gap, side=1;
-  while(s<total){
-    const sEnd=Math.min(s+cLen,total);
-    if(sEnd-s < cLen*0.3) break;
-    const [ax,ay]=getAt(s);
-    const [bx,by]=getAt(sEnd);
-    const mid=s+cLen*0.5;
-    const [mx,my]=getAt(mid);
-    const [nx,ny]=normAt(mid);
-    ctx.beginPath();
-    ctx.moveTo(ax, ay);
-    ctx.quadraticCurveTo(mx+nx*amp*side, my+ny*amp*side, bx, by);
-    ctx.stroke();
-    s=sEnd+gap; side=-side;
+  const turns=Math.max(1, Math.floor((total-2*R)/pitch));
+  const N=turns*PER;
+  for(let i=0;i<=N;i++){
+    const phi=i/PER*Math.PI*2;
+    const along=R + pitch*phi/(Math.PI*2) + R*Math.cos(phi);
+    const s=Math.max(0, Math.min(total, along));
+    const [px,py]=getAt(s);
+    const [nx,ny]=normAt(s);
+    const x=px+nx*R*Math.sin(phi), y=py+ny*R*Math.sin(phi);
+    if(i) ctx.lineTo(x,y); else ctx.moveTo(x,y);
   }
+  ctx.stroke();
   ctx.restore();
 }
 
 function drawAnnotation(p){
   if(p.pts.length<2) return;
+  _wmul = p.w||1;
+  _opa  = (p.op==null?1:p.op);
   const scr=p.pts.map(pt=>W2S(pt.x,pt.y));
   const col=p.color||'#0C2233';
-  ctx.lineWidth=Math.max(2,0.55*cam.s); ctx.strokeStyle=col; ctx.fillStyle=col;
+  ctx.globalAlpha=_opa;
+  ctx.lineWidth=Math.max(2,0.55*cam.s*_wmul); ctx.strokeStyle=col; ctx.fillStyle=col;
   ctx.lineJoin='round'; ctx.lineCap='round';
   if(p.type==='skate'){
     const anc=p.anchors&&p.anchors.length>=2?p.anchors:p.pts;
@@ -1293,9 +1344,9 @@ function drawAnnotation(p){
     const smooth=anc.length>=2?catmull(anc,48).map(q=>W2S(q.x,q.y)):scr;
     drawScallops(ctx, smooth, col, cam.s);
     // place arrowhead beyond the last scallop
-    ctx.globalAlpha=1;
+    ctx.globalAlpha=_opa;
     const _n=smooth.length, _a=smooth[_n-2]||smooth[0], _b=smooth[_n-1];
-    const _ang=Math.atan2(_b[1]-_a[1],_b[0]-_a[0]), _L=Math.max(8,2.4*cam.s);
+    const _ang=Math.atan2(_b[1]-_a[1],_b[0]-_a[0]), _L=Math.max(8,2.4*cam.s*_wmul);
     const _tip=[_b[0]+_L*Math.cos(_ang), _b[1]+_L*Math.sin(_ang)];
     arrowHead([_a, _tip], col);
   }
@@ -1303,21 +1354,61 @@ function drawAnnotation(p){
     const anc=p.anchors&&p.anchors.length>=2?p.anchors:p.pts;
     const smooth=anc.length>=2?catmull(anc,48).map(q=>W2S(q.x,q.y)):scr;
     drawBackSkate(ctx, smooth, col, cam.s);
-    ctx.globalAlpha=1;
+    ctx.globalAlpha=_opa;
     const _n=smooth.length, _a=smooth[_n-2]||smooth[0], _b=smooth[_n-1];
-    const _ang=Math.atan2(_b[1]-_a[1],_b[0]-_a[0]), _L=Math.max(8,2.4*cam.s);
+    const _ang=Math.atan2(_b[1]-_a[1],_b[0]-_a[0]), _L=Math.max(8,2.4*cam.s*_wmul);
     const _tip=[_b[0]+_L*Math.cos(_ang), _b[1]+_L*Math.sin(_ang)];
     arrowHead([_a, _tip], col);
   }
-  else if(p.type==='pass'){ ctx.setLineDash([7,6]); strokePoly(scr); ctx.setLineDash([]); arrowHead(scr,col,true); }
+  else if(p.type==='pass'){
+    // round dots, not dashes: a zero-length dash with a round cap paints a dot.
+    // Spacing tracks the stroke weight so fat lines don't close up into a solid.
+    const dw=Math.max(2,0.55*cam.s*_wmul);
+    ctx.lineCap='round'; ctx.setLineDash([0, dw*2.2]);
+    strokePoly(scr);
+    ctx.setLineDash([]);
+    arrowHead(scr,col);            // solid head
+  }
   else if(p.type==='shot'){ shotDouble(scr,col); }
   else if(p.type==='arrow'){ strokePoly(scr); arrowHead(scr,col); }
+  else if(p.type==='web'){ drawWeb(scr,col); }
+  else if(p.type==='bar'){ strokePoly(scr); }               // plain segment, no head
+  else if(p.type==='ring'){ ctx.beginPath(); ctx.moveTo(scr[0][0],scr[0][1]);
+    for(let i=1;i<scr.length;i++) ctx.lineTo(scr[i][0],scr[i][1]); ctx.closePath(); ctx.stroke(); }
   else if(p.type==='pen'){ strokePoly(scr); }
   if(selContains('path',p.id)){
-    ctx.save(); ctx.strokeStyle='#5BC2D6'; ctx.lineWidth=Math.max(2,0.55*cam.s)+4; ctx.globalAlpha=.35;
+    ctx.save(); ctx.strokeStyle='#5BC2D6'; ctx.lineWidth=Math.max(2,0.55*cam.s*_wmul)+4; ctx.globalAlpha=.35;
     strokePoly(scr); ctx.restore();
   }
+  _wmul=1; _opa=1; ctx.globalAlpha=1;
 }
+// ---- ring geometry -------------------------------------------------------
+// A ring stores its outline as points so that hit-testing, selection and
+// recolouring work like any other annotation. An axis-aligned ellipse is fully
+// described by its bounding box, so the centre and radii round-trip losslessly.
+function ringGeom(p){
+  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  p.pts.forEach(q=>{ x0=Math.min(x0,q.x); y0=Math.min(y0,q.y); x1=Math.max(x1,q.x); y1=Math.max(y1,q.y); });
+  return {cx:(x0+x1)/2, cy:(y0+y1)/2, rx:Math.max(0.4,(x1-x0)/2), ry:Math.max(0.3,(y1-y0)/2)};
+}
+function setRing(p,cx,cy,rx,ry){
+  rx=Math.max(0.8,rx); ry=Math.max(0.5,ry);
+  const out=[]; for(let i=0;i<=48;i++){ const a=i/48*Math.PI*2;
+    out.push({x:cx+rx*Math.cos(a), y:cy+ry*Math.sin(a)}); }
+  p.pts=out; p._lut=null;
+}
+function ringHandles(p){
+  const g=ringGeom(p);
+  return [{k:'e',x:g.cx+g.rx,y:g.cy},{k:'w',x:g.cx-g.rx,y:g.cy},
+          {k:'n',x:g.cx,y:g.cy-g.ry},{k:'s',x:g.cx,y:g.cy+g.ry}]
+    .map(h=>{ const [sx,sy]=W2S(h.x,h.y); return {k:h.k,sx,sy}; });
+}
+function selectedRing(){
+  if(selSet.length!==1 || selSet[0].kind!=='path') return null;
+  const p=getPath(selSet[0].id);
+  return (p && p.type==='ring') ? p : null;
+}
+
 function strokePoly(scr){ ctx.beginPath(); ctx.moveTo(scr[0][0],scr[0][1]);
   for(let i=1;i<scr.length;i++) ctx.lineTo(scr[i][0],scr[i][1]); ctx.stroke(); }
 function strokeWavy(scr){
@@ -1336,15 +1427,64 @@ function strokeWavy(scr){
 }
 function arrowHead(scr,col,open){
   const n=scr.length; let a=scr[n-2],b=scr[n-1];
-  const ang=Math.atan2(b[1]-a[1],b[0]-a[0]); const L=Math.max(8,2.4*cam.s);
+  const ang=Math.atan2(b[1]-a[1],b[0]-a[0]); const L=Math.max(8,2.4*cam.s*_wmul);
   ctx.fillStyle=col; ctx.strokeStyle=col;
-  if(open){ ctx.lineWidth=Math.max(2,0.55*cam.s);
+  if(open){ ctx.lineWidth=Math.max(2,0.55*cam.s*_wmul);
     ctx.beginPath(); ctx.moveTo(b[0]-L*Math.cos(ang-0.4),b[1]-L*Math.sin(ang-0.4)); ctx.lineTo(b[0],b[1]);
     ctx.lineTo(b[0]-L*Math.cos(ang+0.4),b[1]-L*Math.sin(ang+0.4)); ctx.stroke(); return; }
   ctx.beginPath(); ctx.moveTo(b[0],b[1]);
   ctx.lineTo(b[0]-L*Math.cos(ang-0.42),b[1]-L*Math.sin(ang-0.42));
   ctx.lineTo(b[0]-L*Math.cos(ang+0.42),b[1]-L*Math.sin(ang+0.42)); ctx.closePath(); ctx.fill();
 }
+// ---- coverage web ---------------------------------------------------------
+// Every node joined to every other with hairlines, over a faint fill of the
+// area they enclose. The mesh density IS the reading: a tight cluster goes
+// dark and busy (players bunched), a spread one goes sparse (space available).
+function convexHull(pts){
+  if(pts.length<3) return pts.slice();
+  const p=pts.slice().sort((a,b)=>a[0]-b[0]||a[1]-b[1]);
+  const cross=(o,a,b)=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]);
+  const lo=[]; for(const q of p){ while(lo.length>=2&&cross(lo[lo.length-2],lo[lo.length-1],q)<=0) lo.pop(); lo.push(q); }
+  const hi=[]; for(let i=p.length-1;i>=0;i--){ const q=p[i];
+    while(hi.length>=2&&cross(hi[hi.length-2],hi[hi.length-1],q)<=0) hi.pop(); hi.push(q); }
+  lo.pop(); hi.pop(); return lo.concat(hi);
+}
+function drawWeb(scr,col){
+  const n=scr.length; if(n<2) return;
+  // deliberately much thinner than the other marks — this is a blanket, not a line
+  const lw=Math.max(0.6, 0.16*cam.s*_wmul);
+  ctx.save();
+  ctx.lineJoin='round'; ctx.lineCap='round';
+
+  // faint fill of the enclosed area
+  if(n>=3){
+    const h=convexHull(scr);
+    if(h.length>=3){
+      ctx.beginPath(); ctx.moveTo(h[0][0],h[0][1]);
+      for(let i=1;i<h.length;i++) ctx.lineTo(h[i][0],h[i][1]);
+      ctx.closePath();
+      ctx.globalAlpha=0.10*_opa; ctx.fillStyle=col; ctx.fill();
+    }
+  }
+
+  // every pair joined. A dark halo under the hairline keeps it readable on
+  // white ice and on the dark boards alike.
+  ctx.globalAlpha=0.30*_opa; ctx.strokeStyle='rgba(0,0,0,1)'; ctx.lineWidth=lw+1.1;
+  for(let i=0;i<n;i++) for(let j=i+1;j<n;j++){
+    ctx.beginPath(); ctx.moveTo(scr[i][0],scr[i][1]); ctx.lineTo(scr[j][0],scr[j][1]); ctx.stroke();
+  }
+  ctx.globalAlpha=0.9*_opa; ctx.strokeStyle=col; ctx.lineWidth=lw;
+  for(let i=0;i<n;i++) for(let j=i+1;j<n;j++){
+    ctx.beginPath(); ctx.moveTo(scr[i][0],scr[i][1]); ctx.lineTo(scr[j][0],scr[j][1]); ctx.stroke();
+  }
+
+  // nodes
+  const nr=Math.max(1.6, lw*1.9);
+  ctx.globalAlpha=_opa; ctx.fillStyle=col;
+  for(let i=0;i<n;i++){ ctx.beginPath(); ctx.arc(scr[i][0],scr[i][1],nr,0,7); ctx.fill(); }
+  ctx.restore();
+}
+
 function shotDouble(scr,col){
   const n=scr.length;
   const a=scr[n-2]||scr[0], b=scr[n-1];
@@ -1373,15 +1513,16 @@ function shotDouble(scr,col){
     ctx.stroke();
   }
 
-  // disconnected filled triangle tip
+  // disconnected triangle tip — outlined, not filled
   const tipX=b[0], tipY=b[1];
   const baseX=tipX-L*Math.cos(ang), baseY=tipY-L*Math.sin(ang);
-  ctx.fillStyle=col;
+  ctx.strokeStyle=col; ctx.lineWidth=lw;
+  ctx.lineJoin='round'; ctx.lineCap='round';
   ctx.beginPath();
   ctx.moveTo(tipX, tipY);
   ctx.lineTo(baseX+nx*L*0.42, baseY+ny*L*0.42);
   ctx.lineTo(baseX-nx*L*0.42, baseY-ny*L*0.42);
-  ctx.closePath(); ctx.fill();
+  ctx.closePath(); ctx.stroke();
 }
 function shotHashes(scr,col){
   const a=scr[0],b=scr[1]||scr[0]; const ang=Math.atan2(b[1]-a[1],b[0]-a[0]);
@@ -1522,8 +1663,8 @@ function render(){
   panels().forEach(p=>p.kind==='field'?drawFieldBg(p):p.kind==='iceplex'?drawIceplexBg(p):drawRinkBg(p));
   // zones under everything
   pieces.filter(p=>p.type==='zone').forEach(p=>drawPiece(p,null));
-  // paths under pieces
-  paths.forEach(p=>drawPath(p));
+  // paths under pieces — each mark only shows inside its own time window
+  paths.forEach(p=>{ if(markVisible(p)) drawPath(p); });
   // pieces (animated positions if mid-play or scrubbed)
   const showAnim = playing || tNow>0;
   const map = showAnim? animatedPositions() : {};
@@ -1551,6 +1692,16 @@ function render(){
     ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(hx,hy); ctx.stroke(); ctx.setLineDash([]);
     ctx.fillStyle='#5BC2D6'; ctx.strokeStyle='#fff'; ctx.lineWidth=1.5;
     ctx.beginPath(); ctx.arc(hx,hy,7,0,7); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+  // resize handles for a selected ring
+  const ringSel=selectedRing();
+  if(ringSel){
+    ctx.save();
+    ringHandles(ringSel).forEach(h=>{
+      ctx.fillStyle='#5BC2D6'; ctx.strokeStyle='#fff'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.arc(h.sx,h.sy,6,0,7); ctx.fill(); ctx.stroke();
+    });
     ctx.restore();
   }
   if(marquee){ const a=W2S(marquee.x0,marquee.y0), b=W2S(marquee.x1,marquee.y1);
@@ -1590,6 +1741,16 @@ function render(){
     ctx.lineWidth=Math.max(2,0.55*cam.s); ctx.setLineDash([7,6]);
     ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke();
     ctx.setLineDash([]); ctx.restore();
+  }
+  // live preview of the web: show what joining this next node would add
+  if(webBuilding && webCursor){
+    const pts=webBuilding.path.pts;
+    const c=W2S(webCursor.x,webCursor.y);
+    ctx.save(); ctx.strokeStyle=webBuilding.path.color||'#E8313A'; ctx.globalAlpha=0.4;
+    ctx.lineWidth=Math.max(0.6,0.16*cam.s*(webBuilding.path.w||1));
+    pts.forEach(q=>{ const a=W2S(q.x,q.y);
+      ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(c[0],c[1]); ctx.stroke(); });
+    ctx.restore();
   }
   // live preview of shot being built
   if(shotBuilding && shotCursor){
@@ -1643,13 +1804,14 @@ function distToSeg(px,py,a,b){ const dx=b.x-a.x,dy=b.y-a.y; const L=dx*dx+dy*dy|
 let drag=null;       // {piece, ox,oy} or pan
 let rotDrag=null;    // {piece} — dragging the on-canvas rotation handle
 let zoneSizeDrag=null; // {piece} — dragging the zone size handle
+let ringDrag=null;     // {path, mode:'e'|'w'|'n'|'s'|'move'} — reshaping a ring
 let drawing=null;    // current annotation being drawn
 let panStart=null;
 let building=null;   // motion route being built (multi-segment)
 let seg=null;        // current segment gesture within a build
 
 cv.addEventListener('pointerdown',e=>{
-  cv.setPointerCapture(e.pointerId);
+  try{ cv.setPointerCapture(e.pointerId); }catch(err){}  // capture is a nicety; never abort the handler over it
   const [wx,wy]=S2W(e.offsetX,e.offsetY);
   if(playing){ playing=false; setPlayUI(); }
   // mid/right button = pan regardless of tool
@@ -1666,6 +1828,28 @@ cv.addEventListener('pointerdown',e=>{
     const [sx,sy]=W2S(rotPcDown.x,rotPcDown.y);
     const zr=10*cam.s*(rotPcDown.size||1), hx=sx, hy=sy-zr;
     if(Math.hypot(e.offsetX-hx,e.offsetY-hy)<12){ pushUndo(); zoneSizeDrag={piece:rotPcDown}; return; }
+  }
+  // Ring: grab an edge handle to resize, or the body to move it.
+  // Select tool only — otherwise the ring you just drew swallows the next
+  // drag and you can't draw a second one near it without switching tools.
+  const ringDown = (tool==='select') ? selectedRing() : null;
+  if(ringDown){
+    const g=ringGeom(ringDown);
+    const nx=(wx-g.cx)/g.rx, ny=(wy-g.cy)/g.ry, d2=nx*nx+ny*ny;
+    const startMove=()=>{ pushUndo(); ringDrag={path:ringDown, mode:'move', ox:wx-g.cx, oy:wy-g.cy}; };
+    // The inner core always moves. On a small or flattened ring the n/s handles
+    // sit almost on top of the centre, and without this they'd swallow the whole
+    // body — leaving no way to reposition it.
+    if(d2<=0.35){ startMove(); return; }
+    // Handle grab radius shrinks with the ring so it can't cover everything.
+    const rxPx=g.rx*cam.s, ryPx=g.ry*cam.s;
+    const hr=Math.max(7, Math.min(13, Math.min(rxPx,ryPx)*0.7));
+    const hs=ringHandles(ringDown);
+    for(let i=0;i<hs.length;i++){
+      if(Math.hypot(e.offsetX-hs[i].sx, e.offsetY-hs[i].sy)<hr){
+        pushUndo(); ringDrag={path:ringDown, mode:hs[i].k}; return; }
+    }
+    if(d2<=1.2){ startMove(); return; }
   }
   if(pendingPick){ resolvePick(wx,wy); return; }
   if(pendingType){ addPiece(pendingType,{x:wx,y:wy},pendingOpts);
@@ -1709,7 +1893,7 @@ cv.addEventListener('pointerdown',e=>{
   if(tool==='skate' && !building){
     if(!skateBuilding){
       pushUndo();
-      const np={id:id(),type:'skate',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],anchors:[{x:wx,y:wy}],owner:null,delay:0,dur:T,_lut:null};
+      const np={id:id(),type:'skate',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],anchors:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,_lut:null};
       paths.push(np); skateBuilding={path:np}; selOne('path',np.id);
       toast('Click waypoints for a smooth curve — right-click or Enter to finish');
     } else {
@@ -1721,7 +1905,7 @@ cv.addEventListener('pointerdown',e=>{
   if(tool==='skateback' && !building){
     if(!skateBackBuilding){
       pushUndo();
-      const np={id:id(),type:'skateback',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],anchors:[{x:wx,y:wy}],owner:null,delay:0,dur:T,_lut:null};
+      const np={id:id(),type:'skateback',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],anchors:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,_lut:null};
       paths.push(np); skateBackBuilding={path:np}; selOne('path',np.id);
       toast('Click waypoints for backwards skating — right-click to finish');
     } else {
@@ -1733,7 +1917,7 @@ cv.addEventListener('pointerdown',e=>{
   if(tool==='skaterev' && !building){
     if(!skateRevBuilding){
       pushUndo();
-      const np={id:id(),type:'skaterev',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],anchors:[{x:wx,y:wy}],owner:null,delay:0,dur:T,_lut:null};
+      const np={id:id(),type:'skaterev',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],anchors:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,_lut:null};
       paths.push(np); skateRevBuilding={path:np}; selOne('path',np.id);
       toast('Click waypoints for backwards skating — right-click to finish');
     } else {
@@ -1742,10 +1926,21 @@ cv.addEventListener('pointerdown',e=>{
     }
     skateRevCursor={x:wx,y:wy}; updateInspector(); render(); return;
   }
+  if(tool==='web'){
+    if(!webBuilding){
+      pushUndo();
+      const np={id:id(),type:'web',color:(activeColor||'#E8313A'),pts:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,_lut:null};
+      paths.push(np); webBuilding={path:np}; selOne('path',np.id);
+      toast('Click each player or corner — double-click or Enter to close the web');
+    } else {
+      webBuilding.path.pts.push({x:wx,y:wy});
+    }
+    webCursor={x:wx,y:wy}; updateInspector(); render(); return;
+  }
   if(tool==='pass'){
     if(!passBuilding){
       pushUndo();
-      const np={id:id(),type:'pass',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],owner:null,delay:0,dur:T,_lut:null};
+      const np={id:id(),type:'pass',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,_lut:null};
       paths.push(np); passBuilding={path:np}; selOne('path',np.id);
       toast('Click to add bend points — double-click or Enter to finish');
     } else {
@@ -1756,7 +1951,7 @@ cv.addEventListener('pointerdown',e=>{
   if(tool==='shot'){
     if(!shotBuilding){
       pushUndo();
-      const np={id:id(),type:'shot',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],owner:null,delay:0,dur:T,_lut:null};
+      const np={id:id(),type:'shot',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,_lut:null};
       paths.push(np); shotBuilding={path:np}; selOne('path',np.id);
       toast('Click to add deflection points — right-click or Enter to finish');
     } else {
@@ -1777,19 +1972,36 @@ cv.addEventListener('pointerdown',e=>{
   }
   // a drawing tool
   pushUndo();
-  drawing={ id:id(), type:tool, color:(activeColor||'#0C2233'), pts:[{x:wx,y:wy}], owner:null, delay:0, dur:T, _lut:null };
+  drawing={ id:id(), type:tool, color:(activeColor||'#0C2233'), pts:[{x:wx,y:wy}], owner:null, delay:markStart(), dur:markSpan(), w:markW, op:markOp, _lut:null };
 });
 cv.addEventListener('pointermove',e=>{
   const [wx,wy]=S2W(e.offsetX,e.offsetY);
   if(zoneSizeDrag){ const p=zoneSizeDrag.piece; const [sx,sy]=W2S(p.x,p.y);
     const dist=Math.hypot(e.offsetX-sx,e.offsetY-sy);
     p.size=Math.max(0.2, dist/(10*cam.s)); updateInspector(); render(); return; }
+  // cursor hint over a selected ring's handles
+  if(!ringDrag && !drag && !drawing && !pendingType && tool==='select'){
+    const rs=selectedRing();
+    if(rs){
+      const rg=ringGeom(rs);
+      const hr=Math.max(7, Math.min(13, Math.min(rg.rx*cam.s, rg.ry*cam.s)*0.7));
+      const nx2=(wx-rg.cx)/rg.rx, ny2=(wy-rg.cy)/rg.ry, dd=nx2*nx2+ny2*ny2;
+      const hit=(dd<=0.35)?null:ringHandles(rs).filter(h=>Math.hypot(e.offsetX-h.sx,e.offsetY-h.sy)<hr)[0];
+      cv.style.cursor = hit ? ((hit.k==='e'||hit.k==='w')?'ew-resize':'ns-resize') : (dd<=1.2?'move':'');
+    }
+  }
+  if(ringDrag){ const p=ringDrag.path, g=ringGeom(p);
+    if(ringDrag.mode==='move')      setRing(p, wx-ringDrag.ox, wy-ringDrag.oy, g.rx, g.ry);
+    else if(ringDrag.mode==='e'||ringDrag.mode==='w') setRing(p, g.cx, g.cy, Math.abs(wx-g.cx), g.ry);
+    else                                              setRing(p, g.cx, g.cy, g.rx, Math.abs(wy-g.cy));
+    render(); return; }
   if(rotDrag){ const p=rotDrag.piece; const [sx,sy]=W2S(p.x,p.y);
     p.rot=Math.atan2(e.offsetX-sx,sy-e.offsetY)*180/Math.PI; render(); return; }
   if(skateBuilding){ skateCursor={x:wx,y:wy}; render(); return; }
   if(skateBackBuilding){ skateBackCursor={x:wx,y:wy}; render(); return; }
   if(skateRevBuilding){ skateRevCursor={x:wx,y:wy}; render(); return; }
   if(passBuilding){ passCursor={x:wx,y:wy}; render(); return; }
+  if(webBuilding){ webCursor={x:wx,y:wy}; render(); return; }
   if(shotBuilding){ shotCursor={x:wx,y:wy}; render(); return; }
   if(panStart){ cam.tx=panStart.tx+(e.offsetX-panStart.x); cam.ty=panStart.ty+(e.offsetY-panStart.y); render(); return; }
   if(marquee){ marquee.x1=wx; marquee.y1=wy; render(); return; }
@@ -1812,6 +2024,7 @@ function ctxPreview(p){ drawPath(p); }
 cv.addEventListener('pointerup',e=>{
   if(panStart){ panStart=null; return; }
   if(zoneSizeDrag){ zoneSizeDrag=null; render(); return; }
+  if(ringDrag){ ringDrag=null; updateInspector(); render(); return; }
   if(rotDrag){ rotDrag=null; render(); return; }
   if(marquee){ finalizeMarquee(); marquee=null; render(); return; }
   if(drag){ drag=null; return; }
@@ -1823,8 +2036,20 @@ cv.addEventListener('pointerup',e=>{
     const pc=getPiece(p.owner); if(pc){pc.x=p.anchors[0].x;pc.y=p.anchors[0].y;}
     seg=null; updateInspector(); render(); return; }
   if(drawing){
+    if(drawing.type==='ring' && drawing.pts.length>=2){
+      // the drag defines a bounding box; store the ellipse outline itself so
+      // rendering, hit-testing, selection and dragging all work unchanged.
+      // A wide, short box gives the flattened ring that matches ice perspective.
+      let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+      drawing.pts.forEach(q=>{ x0=Math.min(x0,q.x); y0=Math.min(y0,q.y); x1=Math.max(x1,q.x); y1=Math.max(y1,q.y); });
+      const cx=(x0+x1)/2, cy=(y0+y1)/2;
+      const rx=Math.max(1.2,(x1-x0)/2), ry=Math.max(0.6,(y1-y0)/2);
+      const out=[]; for(let i=0;i<=48;i++){ const a=i/48*Math.PI*2;
+        out.push({x:cx+rx*Math.cos(a), y:cy+ry*Math.sin(a)}); }
+      drawing.pts=out;
+    }
     if(drawing.pts.length>=2){
-      if(drawing.type!=='pen' && drawing.type!=='skate'){
+      if(drawing.type!=='pen' && drawing.type!=='skate' && drawing.type!=='ring'){
         const s=drawing.pts[0], en=drawing.pts[drawing.pts.length-1];
         let maxd=0; drawing.pts.forEach(pt=>{maxd=Math.max(maxd,distToSeg(pt.x,pt.y,s,en));});
         if(maxd<3) drawing.pts=[s,en];
@@ -1848,6 +2073,12 @@ cv.addEventListener('dblclick',e=>{
     if(pts.length>1) pts.pop();
     passBuilding=null; passCursor=null; selOne(null); updateInspector(); render(); return;
   }
+  if(webBuilding){
+    const pts=webBuilding.path.pts;
+    if(pts.length>1) pts.pop();          // drop the duplicate the dbl-click added
+    if(pts.length<2) paths=paths.filter(p=>p!==webBuilding.path);
+    webBuilding=null; webCursor=null; selOne(null); updateInspector(); render(); return;
+  }
   if(shotBuilding){
     const pts=shotBuilding.path.pts;
     if(pts.length>1) pts.pop();
@@ -1863,6 +2094,7 @@ cv.addEventListener('contextmenu',e=>{
   if(skateRevBuilding){ skateRevBuilding=null; skateRevCursor=null; selOne(null); updateInspector(); render(); return; }
   if(skateBuilding){ skateBuilding=null; skateCursor=null; selOne(null); updateInspector(); render(); return; }
   if(passBuilding){ passBuilding=null; passCursor=null; selOne(null); updateInspector(); render(); return; }
+  if(webBuilding){ webBuilding=null; webCursor=null; selOne(null); updateInspector(); render(); return; }
   if(shotBuilding){ shotBuilding=null; shotCursor=null; selOne(null); updateInspector(); render(); return; }
   if(building){ finishBuilding(); return; }
 });
@@ -1988,8 +2220,16 @@ function updateInspector(){
     const isMotion=!!(p.motion||p.owner);
     inspTitle.textContent= isMotion? 'Motion' : 'Drawing';
     let h='';
-    h+='<div class="mini">'+(isMotion? (prettyType(getPiece(p.owner)?.type||'piece')+' travels this lane on Play. Drag the dots to reshape.') : 'Diagram only — does not move.')+'</div>';
+    h+='<div class="mini">'+(isMotion? (prettyType(getPiece(p.owner)?.type||'piece')+' travels this lane on Play. Drag the dots to reshape.')
+      : p.type==='ring' ? 'Drag the blue handles to stretch or shrink it, or drag inside the ring to move it.'
+      : 'Diagram only — does not move.')+'</div>';
     h+=field('Colour', colorBtns(p.color));
+    h+='<div class="field"><label id="lbl_w">Weight — '+(p.w||1).toFixed(1)+'</label><input type="range" id="p_w" min="1" max="8" step="0.5" value="'+(p.w||1)+'"></div>';
+    h+='<div class="field"><label id="lbl_op">Opacity — '+Math.round((p.op==null?1:p.op)*100)+'%</label><input type="range" id="p_op" min="15" max="100" step="5" value="'+Math.round((p.op==null?1:p.op)*100)+'"></div>';
+    if(p.type==='ring'){ const rg=ringGeom(p);
+      h+='<div class="field"><label>Width</label><input type="range" id="p_rx" min="1" max="60" step="0.5" value="'+rg.rx.toFixed(1)+'"></div>';
+      h+='<div class="field"><label>Height</label><input type="range" id="p_ry" min="0.5" max="40" step="0.5" value="'+rg.ry.toFixed(1)+'"></div>';
+    }
     if(isMotion){
       h+='<div class="field"><label id="lbl_delay">Start delay — '+(p.delay/1000).toFixed(1)+'s</label><input type="range" id="p_delay" min="0" max="'+(T-200)+'" step="100" value="'+p.delay+'"></div>';
       h+='<div class="field"><label id="lbl_dur">Travel time — '+(p.dur/1000).toFixed(1)+'s</label><input type="range" id="p_dur" min="300" max="'+T+'" step="100" value="'+p.dur+'"></div>';
@@ -2001,6 +2241,10 @@ function updateInspector(){
       inspBody.querySelectorAll('[data-col]').forEach(x=>x.style.outline=''); b.style.outline='2px solid #fff'; render(); });
     bind('p_delay','input',v=>{p.delay=parseInt(v); const l=byId('lbl_delay'); if(l)l.textContent='Start delay — '+(p.delay/1000).toFixed(1)+'s'; render();});
     bind('p_dur','input',v=>{p.dur=parseInt(v); const l=byId('lbl_dur'); if(l)l.textContent='Travel time — '+(p.dur/1000).toFixed(1)+'s'; render();});
+    bind('p_w','input',v=>{p.w=parseFloat(v); const l=byId('lbl_w'); if(l)l.textContent='Weight — '+parseFloat(v).toFixed(1); render();});
+    bind('p_op','input',v=>{p.op=parseFloat(v)/100; const l=byId('lbl_op'); if(l)l.textContent='Opacity — '+Math.round(v)+'%'; render();});
+    bind('p_rx','input',v=>{const g=ringGeom(p); setRing(p,g.cx,g.cy,parseFloat(v),g.ry); render();});
+    bind('p_ry','input',v=>{const g=ringGeom(p); setRing(p,g.cx,g.cy,g.rx,parseFloat(v)); render();});
     byId('p_unlink')&&(byId('p_unlink').onclick=()=>{ pushUndo(); p.owner=null; updateInspector(); render(); });
     byId('p_del')&&(byId('p_del').onclick=()=>{ pushUndo(); paths=paths.filter(x=>x!==p); selOne(null); updateInspector(); render(); });
   }
@@ -2243,6 +2487,7 @@ window.addEventListener('keydown',e=>{
   if(skateRevBuilding && (e.key==='Enter'||e.key==='Escape')){ e.preventDefault(); skateRevBuilding=null; skateRevCursor=null; selOne(null); updateInspector(); render(); return; }
   if(skateBuilding && (e.key==='Enter'||e.key==='Escape')){ e.preventDefault(); skateBuilding=null; skateCursor=null; selOne(null); updateInspector(); render(); return; }
   if(passBuilding && (e.key==='Enter'||e.key==='Escape')){ e.preventDefault(); passBuilding=null; passCursor=null; selOne(null); updateInspector(); render(); return; }
+  if(webBuilding && (e.key==='Enter'||e.key==='Escape')){ e.preventDefault(); webBuilding=null; webCursor=null; selOne(null); updateInspector(); render(); return; }
   if(shotBuilding && (e.key==='Enter'||e.key==='Escape')){ e.preventDefault(); shotBuilding=null; shotCursor=null; selOne(null); updateInspector(); render(); return; }
   if(e.code==='Space'){ e.preventDefault(); togglePlay(); }
   else if(e.key==='Escape'){ pendingType=null; pendingOpts=null; pendingStamp=false; pendingPick=null; cv.style.cursor=''; selOne(null); updateInspector(); render(); updateHint(); document.getElementById('modal').classList.remove('show'); }
