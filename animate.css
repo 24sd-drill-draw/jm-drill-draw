@@ -116,6 +116,12 @@ select{font:inherit;color:inherit}
 .kd-tip b{color:var(--accent)}
 .kd-pfoot{margin-top:auto;padding:9px 10px 12px;border-top:1px solid var(--line);position:sticky;bottom:0;
   background:var(--navy2)}
+/* Says whether these controls set the default for the NEXT mark or are editing
+   what's selected — the two are easy to confuse, and one silently retimes work. */
+.kd-edithead{font-size:9.5px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;
+  color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:6px;
+  padding:5px 8px;margin-bottom:9px;text-align:center}
+.kd-edithead.on{color:#0E1013;background:var(--accent);border-color:var(--accent)}
 
 .pieces{display:grid;grid-template-columns:1fr 1fr;gap:4px}
 .pieces.three-col{grid-template-columns:1fr 1fr 1fr}
@@ -171,6 +177,25 @@ select{font:inherit;color:inherit}
 .kd-cgrid.recent .kd-sw{height:19px}
 .kd-opval{font-size:10.5px;font-weight:700;color:var(--muted);min-width:34px;text-align:right;
   font-variant-numeric:tabular-nums}
+.kd-holds{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+.kd-holds button{background:var(--panel);border:1px solid var(--line);border-radius:6px;
+  padding:5px 0;font-size:10.5px;font-weight:700;color:var(--muted)}
+.kd-holds button:hover{background:var(--panel2);color:var(--ink)}
+.kd-holds button.on{background:var(--accent);border-color:var(--accent);color:#0E1013}
+.kd-freeze{margin-top:8px;font-size:11px}
+.kd-bar.frz{background-image:repeating-linear-gradient(45deg,rgba(0,0,0,.28) 0 4px,transparent 4px 8px)}
+
+/* the clip's own track, pinned at the top */
+.kd-cliprow{cursor:default;font-weight:800;color:var(--ink);
+  border-bottom:1px solid var(--line);background:rgba(255,255,255,.03)}
+.kd-cliprow:hover{background:rgba(255,255,255,.03)}
+.kd-cliptrack{border-bottom:1px solid var(--line);background:rgba(255,255,255,.03)}
+.kd-clipbar{position:absolute;top:7px;height:12px;border-radius:3px;
+  background:linear-gradient(var(--panel2),var(--panel));border:1px solid var(--line)}
+.kd-stop{position:absolute;top:2px;bottom:2px;width:3px;margin-left:-1px;background:var(--accent);
+  border-radius:2px;z-index:3}
+.kd-stop b{position:absolute;left:6px;top:3px;font-size:8.5px;font-weight:800;color:var(--accent);
+  white-space:nowrap;letter-spacing:.2px}
 .kd-sw{height:24px;border-radius:5px;border:2px solid transparent;padding:0;cursor:pointer;
   box-shadow:inset 0 0 0 1px rgba(0,0,0,.35)}
 .kd-sw:hover{transform:scale(1.08)}

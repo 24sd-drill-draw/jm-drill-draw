@@ -208,13 +208,29 @@ function markStart(){
   // otherwise the mark gets a sliver of life and looks like it vanished.
   return t > T-800 ? 0 : t;
 }
-function markSpan(){ return Math.max(300, T - markStart()); }
+let markHold=null;    // ms a new mark stays up; null = to the end of the clip
+let markFreeze=false; // does a new mark stop the clip while it's up?
+// Set by the UI layer while a freeze-hold is running, so markVisible knows
+// which mark is currently holding the clip.
+let _holdPath=null;
+function markSpan(){
+  const rest = T - markStart();
+  return Math.max(300, markHold==null ? rest : Math.min(markHold, rest));
+}
 // Motion paths keep their old meaning — their bar is travel time, not
 // visibility — so only plain annotations are windowed.
 function markVisible(p){
   if(p.hidden) return false;
   if(p.motion||p.owner) return true;
   const d=p.delay||0, u=(p.dur==null?T:p.dur);
+  if(p.freeze){
+    // A freeze mark occupies no video time — it holds the clip for `dur` of
+    // real time instead. While playing it shows only during its own hold;
+    // while paused it shows across its window so you can still place and edit it.
+    if(_holdPath) return _holdPath===p;
+    if(playing) return false;
+    return tNow>=d-1 && tNow<=d+u+1;
+  }
   return tNow>=d-1 && tNow<=d+u+1;
 }
 
@@ -1893,7 +1909,7 @@ cv.addEventListener('pointerdown',e=>{
   if(tool==='skate' && !building){
     if(!skateBuilding){
       pushUndo();
-      const np={id:id(),type:'skate',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],anchors:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,_lut:null};
+      const np={id:id(),type:'skate',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],anchors:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,freeze:markFreeze,_lut:null};
       paths.push(np); skateBuilding={path:np}; selOne('path',np.id);
       toast('Click waypoints for a smooth curve — right-click or Enter to finish');
     } else {
@@ -1905,7 +1921,7 @@ cv.addEventListener('pointerdown',e=>{
   if(tool==='skateback' && !building){
     if(!skateBackBuilding){
       pushUndo();
-      const np={id:id(),type:'skateback',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],anchors:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,_lut:null};
+      const np={id:id(),type:'skateback',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],anchors:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,freeze:markFreeze,_lut:null};
       paths.push(np); skateBackBuilding={path:np}; selOne('path',np.id);
       toast('Click waypoints for backwards skating — right-click to finish');
     } else {
@@ -1917,7 +1933,7 @@ cv.addEventListener('pointerdown',e=>{
   if(tool==='skaterev' && !building){
     if(!skateRevBuilding){
       pushUndo();
-      const np={id:id(),type:'skaterev',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],anchors:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,_lut:null};
+      const np={id:id(),type:'skaterev',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],anchors:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,freeze:markFreeze,_lut:null};
       paths.push(np); skateRevBuilding={path:np}; selOne('path',np.id);
       toast('Click waypoints for backwards skating — right-click to finish');
     } else {
@@ -1929,7 +1945,7 @@ cv.addEventListener('pointerdown',e=>{
   if(tool==='web'){
     if(!webBuilding){
       pushUndo();
-      const np={id:id(),type:'web',color:(activeColor||'#E8313A'),pts:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,_lut:null};
+      const np={id:id(),type:'web',color:(activeColor||'#E8313A'),pts:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,freeze:markFreeze,_lut:null};
       paths.push(np); webBuilding={path:np}; selOne('path',np.id);
       toast('Click each player or corner — double-click or Enter to close the web');
     } else {
@@ -1940,7 +1956,7 @@ cv.addEventListener('pointerdown',e=>{
   if(tool==='pass'){
     if(!passBuilding){
       pushUndo();
-      const np={id:id(),type:'pass',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,_lut:null};
+      const np={id:id(),type:'pass',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,freeze:markFreeze,_lut:null};
       paths.push(np); passBuilding={path:np}; selOne('path',np.id);
       toast('Click to add bend points — double-click or Enter to finish');
     } else {
@@ -1951,7 +1967,7 @@ cv.addEventListener('pointerdown',e=>{
   if(tool==='shot'){
     if(!shotBuilding){
       pushUndo();
-      const np={id:id(),type:'shot',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,_lut:null};
+      const np={id:id(),type:'shot',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,freeze:markFreeze,_lut:null};
       paths.push(np); shotBuilding={path:np}; selOne('path',np.id);
       toast('Click to add deflection points — right-click or Enter to finish');
     } else {
@@ -1972,7 +1988,7 @@ cv.addEventListener('pointerdown',e=>{
   }
   // a drawing tool
   pushUndo();
-  drawing={ id:id(), type:tool, color:(activeColor||'#0C2233'), pts:[{x:wx,y:wy}], owner:null, delay:markStart(), dur:markSpan(), w:markW, op:markOp, _lut:null };
+  drawing={ id:id(), type:tool, color:(activeColor||'#0C2233'), pts:[{x:wx,y:wy}], owner:null, delay:markStart(), dur:markSpan(), w:markW, op:markOp, freeze:markFreeze, _lut:null };
 });
 cv.addEventListener('pointermove',e=>{
   const [wx,wy]=S2W(e.offsetX,e.offsetY);
@@ -2226,6 +2242,12 @@ function updateInspector(){
     h+=field('Colour', colorBtns(p.color));
     h+='<div class="field"><label id="lbl_w">Weight — '+(p.w||1).toFixed(1)+'</label><input type="range" id="p_w" min="1" max="8" step="0.5" value="'+(p.w||1)+'"></div>';
     h+='<div class="field"><label id="lbl_op">Opacity — '+Math.round((p.op==null?1:p.op)*100)+'%</label><input type="range" id="p_op" min="15" max="100" step="5" value="'+Math.round((p.op==null?1:p.op)*100)+'"></div>';
+    if(!isMotion){
+      h+='<div class="field"><label id="lbl_at">Appears at — '+((p.delay||0)/1000).toFixed(1)+'s</label><input type="range" id="p_at" min="0" max="'+Math.max(0,T-300)+'" step="100" value="'+(p.delay||0)+'"></div>';
+      h+='<div class="field"><label id="lbl_hold">'+(p.freeze?'Freezes clip for':'Stays up for')+' — '+((p.dur||0)/1000).toFixed(1)+'s</label><input type="range" id="p_hold" min="300" max="'+T+'" step="100" value="'+Math.min(p.dur||T,T)+'"></div>';
+      h+='<div class="field"><label style="display:flex;align-items:center;gap:7px;text-transform:none;font-size:11.5px;letter-spacing:0">'+
+         '<input type="checkbox" id="p_freeze"'+(p.freeze?' checked':'')+' style="accent-color:var(--accent)"> Pause the clip while it&rsquo;s up</label></div>';
+    }
     if(p.type==='ring'){ const rg=ringGeom(p);
       h+='<div class="field"><label>Width</label><input type="range" id="p_rx" min="1" max="60" step="0.5" value="'+rg.rx.toFixed(1)+'"></div>';
       h+='<div class="field"><label>Height</label><input type="range" id="p_ry" min="0.5" max="40" step="0.5" value="'+rg.ry.toFixed(1)+'"></div>';
@@ -2243,6 +2265,11 @@ function updateInspector(){
     bind('p_dur','input',v=>{p.dur=parseInt(v); const l=byId('lbl_dur'); if(l)l.textContent='Travel time — '+(p.dur/1000).toFixed(1)+'s'; render();});
     bind('p_w','input',v=>{p.w=parseFloat(v); const l=byId('lbl_w'); if(l)l.textContent='Weight — '+parseFloat(v).toFixed(1); render();});
     bind('p_op','input',v=>{p.op=parseFloat(v)/100; const l=byId('lbl_op'); if(l)l.textContent='Opacity — '+Math.round(v)+'%'; render();});
+    bind('p_at','input',v=>{p.delay=parseInt(v); if(p.delay+p.dur>T) p.dur=Math.max(300,T-p.delay);
+      const l=byId('lbl_at'); if(l)l.textContent='Appears at — '+(p.delay/1000).toFixed(1)+'s'; render();});
+    bind('p_hold','input',v=>{p.dur=Math.min(parseInt(v), Math.max(300,T-(p.delay||0)));
+      const l=byId('lbl_hold'); if(l)l.textContent=(p.freeze?'Freezes clip for':'Stays up for')+' — '+(p.dur/1000).toFixed(1)+'s'; render();});
+    byId('p_freeze')&&(byId('p_freeze').onchange=e=>{ pushUndo(); p.freeze=e.target.checked; updateInspector(); render(); });
     bind('p_rx','input',v=>{const g=ringGeom(p); setRing(p,g.cx,g.cy,parseFloat(v),g.ry); render();});
     bind('p_ry','input',v=>{const g=ringGeom(p); setRing(p,g.cx,g.cy,g.rx,parseFloat(v)); render();});
     byId('p_unlink')&&(byId('p_unlink').onclick=()=>{ pushUndo(); p.owner=null; updateInspector(); render(); });

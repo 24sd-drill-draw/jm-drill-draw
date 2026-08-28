@@ -274,10 +274,83 @@
       render(); updateInspector();
     }
   }
+  // How long a newly drawn mark stays up. Applies to the selection too, so you
+  // can shorten a mark you've already drawn without hunting for its bar edge.
+  var holdBtns = [].slice.call(document.querySelectorAll('#markHolds button'));
+  holdBtns.forEach(function (b) {
+    b.addEventListener('click', function () {
+      markHold = b.dataset.hold ? parseInt(b.dataset.hold, 10) : null;
+      holdBtns.forEach(function (x) { x.classList.toggle('on', x === b); });
+      var ps = selPaths().filter(function (p) { return !(p.motion || p.owner); });
+      if (ps.length) {
+        pushUndo();
+        ps.forEach(function (p) {
+          var rest = T - p.delay;
+          p.dur = Math.max(300, markHold == null ? rest : Math.min(markHold, rest));
+        });
+        lastSig = ''; render(); updateInspector();
+      }
+    });
+  });
+
+  $('markFreezeChk').addEventListener('change', function () {
+    markFreeze = this.checked;
+    var ps = selPaths().filter(function (p) { return !(p.motion || p.owner); });
+    if (ps.length) {
+      pushUndo();
+      ps.forEach(function (p) { p.freeze = markFreeze; });
+      lastSig = ''; render(); updateInspector();
+    }
+  });
+
   oSlider.addEventListener('pointerdown', function () { oDirty = false; });
   oSlider.addEventListener('keydown', function () { oDirty = false; });
   oSlider.addEventListener('input', function () { applyOpacity(parseFloat(this.value)); });
   oSlider.addEventListener('change', function () { oDirty = false; });
+
+  // Keeping a newly drawn mark selected is the right default — it's how every
+  // vector editor works and it lets you tweak what you just made. The hazard is
+  // that these same controls double as "settings for the next mark", so changing
+  // one silently edits the mark you just drew. Rather than remove the behaviour,
+  // label which mode you're in and mirror the selected mark's own values here.
+  function syncPanelToSelection() {
+    var head = $('editHead');
+    var ps = selPaths().filter(function (p) { return !(p.motion || p.owner); });
+    if (!ps.length) {
+      head.textContent = 'New marks';
+      head.classList.remove('on');
+      return;
+    }
+    head.textContent = ps.length === 1
+      ? 'Editing ' + (TYPE_LABEL[ps[0].type] || ps[0].type)
+      : 'Editing ' + ps.length + ' marks';
+    head.classList.add('on');
+
+    // reflect the mark's own settings, without firing the input handlers
+    var p = ps[0];
+    wSlider.value = p.w || 1;
+    wPrev.style.height = Math.max(2, (p.w || 1) * 1.6).toFixed(1) + 'px';
+    var pct = Math.round((p.op == null ? 1 : p.op) * 100);
+    oSlider.value = pct; oVal.textContent = pct + '%';
+    $('markFreezeChk').checked = !!p.freeze;
+    var rest = T - (p.delay || 0);
+    holdBtns.forEach(function (b) {
+      var v = b.dataset.hold ? parseInt(b.dataset.hold, 10) : null;
+      var match = v == null ? (p.dur >= rest - 60) : Math.abs(p.dur - Math.min(v, rest)) < 60;
+      b.classList.toggle('on', match);
+    });
+    if (p.color) {
+      cChip.style.background = p.color;
+      var f = MARK_COLOURS.filter(function (c) { return c[1] === p.color; })[0];
+      cName.textContent = f ? f[0] : p.color;
+    }
+  }
+
+  var _updateInspector = updateInspector;
+  updateInspector = function () {
+    _updateInspector.apply(this, arguments);
+    try { syncPanelToSelection(); } catch (e) { }
+  };
 
   // ---------------------------------------------------------
   // 4. Timeline
@@ -334,7 +407,7 @@
   function signature() {
     var s = T + '|' + (sel ? sel.kind + sel.id : '-') + '|';
     motionPaths().forEach(function (p) {
-      s += p.id + ',' + p.delay + ',' + p.dur + ',' + p.owner + ',' + p.color + ',' + (p.hidden ? 1 : 0) + ';';
+      s += p.id + ',' + p.delay + ',' + p.dur + ',' + p.owner + ',' + p.color + ',' + (p.hidden ? 1 : 0) + ',' + (p.freeze ? 1 : 0) + ';';
     });
     s += '#';
     puckPieces().forEach(function (p) {
@@ -372,23 +445,27 @@
     ruler.innerHTML = h;
   }
 
+  // Total real time the freezes add inside the trim window.
+  function holdTotal() {
+    return paths.filter(function (p) {
+      return p.freeze && !p.hidden && !isMotion(p) && p.delay >= inMs && p.delay <= outMs;
+    }).reduce(function (s, p) { return s + (p.dur || 0); }, 0);
+  }
+
   function buildTracks() {
     var W = gridW();
     rows = [];
+    rows.push({ kind: 'clip' });                       // the clip itself, always on top
     motionPaths().forEach(function (p) { rows.push({ kind: 'path', path: p }); });
     puckPieces().forEach(function (p) { rows.push({ kind: 'puck', piece: p }); });
 
-    trackInfo.textContent = rows.length + (rows.length === 1 ? ' track' : ' tracks') +
-      ' · ' + (T / 1000).toFixed(1) + 's total';
+    var nMarks = rows.length - 1;
+    var holds = holdTotal();
+    trackInfo.textContent = nMarks + (nMarks === 1 ? ' mark' : ' marks') + ' · ' +
+      (holds
+        ? fmtT(trimSpan()) + ' + ' + (holds / 1000).toFixed(1) + 's holds = ' + fmtT(trimSpan() + holds) + ' out'
+        : fmtT(trimSpan()) + ' out');
 
-    if (!rows.length) {
-      namesEl.innerHTML = '';
-      tracksEl.innerHTML = '<div class="kd-tlempty">No animation yet.<br>' +
-        'Place a piece, choose the <b>Move</b> tool, then drag from that piece to draw where it travels. ' +
-        'Its route shows up here as a bar you can drag to retime.</div>';
-      playhead.style.height = '100%';
-      return;
-    }
 
     // gridlines on the same beat as the ruler
     var major = niceStep();
@@ -399,6 +476,27 @@
 
     var nh = '', th = '';
     rows.forEach(function (r, i) {
+      if (r.kind === 'clip') {
+        // The clip's own track. Its bar is the trim window; each freeze shows
+        // as a stop marker, since on a clip-time axis a pause takes no clip
+        // time at all — it just holds there for N seconds of real time.
+        var cname = vidName ? vidName.replace(/\.[^.]+$/, '') : 'Drill';
+        nh += '<div class="kd-name kd-cliprow"><span class="kd-chip" style="background:var(--accent)"></span>' +
+          '<span class="kd-nm">' + cname + '</span></div>';
+        var cl = (inMs / T) * W, cw = Math.max(4, ((outMs - inMs) / T) * W);
+        var stops = '';
+        paths.filter(function (p) {
+          return p.freeze && !p.hidden && !isMotion(p) && p.delay >= inMs && p.delay <= outMs;
+        }).forEach(function (p) {
+          stops += '<div class="kd-stop" style="left:' + ((p.delay / T) * W).toFixed(1) + 'px"' +
+            ' title="Clip pauses ' + (p.dur / 1000).toFixed(1) + 's here"><b>' +
+            (p.dur / 1000).toFixed(1) + 's</b></div>';
+        });
+        th += '<div class="kd-track kd-cliptrack">' + lines +
+          '<div class="kd-clipbar" style="left:' + cl.toFixed(1) + 'px;width:' + cw.toFixed(1) + 'px"></div>' +
+          stops + '</div>';
+        return;
+      }
       var selected = sel && ((r.kind === 'path' && sel.kind === 'path' && sel.id === r.path.id) ||
         (r.kind === 'puck' && sel.kind === 'piece' && sel.id === r.piece.id));
       var hid = r.kind === 'path' && r.path.hidden;
@@ -414,7 +512,7 @@
         var p = r.path;
         var left = (p.delay / T) * W;
         var w = Math.max(10, (p.dur / T) * W);
-        inner = '<div class="kd-bar' + (selected ? ' sel' : '') + '" data-row="' + i + '"' +
+        inner = '<div class="kd-bar' + (selected ? ' sel' : '') + (p.freeze ? ' frz' : '') + '" data-row="' + i + '"' +
           ' style="left:' + left.toFixed(1) + 'px;width:' + w.toFixed(1) + 'px;background:' +
           (p.color || '#B9E60C') + '">' +
           '<span class="kd-bt">' + (p.dur / 1000).toFixed(1) + 's</span>' +
@@ -646,6 +744,8 @@
   // --- clock: the clip is the master while it plays, the slave while you scrub
   var _syncScrub = syncScrub;
   syncScrub = function () {
+    // runs first: a hold pins tNow before anything else reads it
+    if (typeof checkFreeze === 'function') checkFreeze();
     if (vid && vid.duration) {
       if (!vid.paused && !vid.ended) {
         tNow = clamp(vid.currentTime * 1000, 0, T);
@@ -852,10 +952,49 @@
   // Playback respects the trim window: start at `in`, stop (or loop) at `out`.
   var _togglePlay2 = togglePlay;
   togglePlay = function () {
+    resetHolds();                       // every run through re-arms the freezes
     if (!playing && (tNow < inMs || tNow >= outMs - 30)) { tNow = inMs; syncScrub(); }
     _togglePlay2();
   };
   $('playBtn').onclick = togglePlay;
+
+  // --- freeze holds ----------------------------------------------------
+  // A freeze mark stops the clip on its frame for `dur` of REAL time, then
+  // lets it run on without the mark. The video clock stands still during the
+  // hold while wall-clock advances, so the two can't share a timer.
+  var holdNow = null;      // {path, at, endsAt}
+  var holdDone = [];       // ids already held this pass, so it fires once
+
+  function resetHolds() {
+    if (holdNow && vid && playing) { try { vid.play(); } catch (e) { } }
+    holdNow = null; _holdPath = null; holdDone = [];
+  }
+
+  function checkFreeze() {
+    if (!playing) { if (holdNow) { holdNow = null; _holdPath = null; } return; }
+    if (holdNow) {
+      if (performance.now() >= holdNow.endsAt) {
+        holdDone.push(holdNow.path.id);
+        holdNow = null; _holdPath = null;
+        if (vid) vid.play().catch(function () { });
+      } else {
+        tNow = holdNow.at;               // clock stands still
+        return;
+      }
+    }
+    for (var i = 0; i < paths.length; i++) {
+      var p = paths[i];
+      if (!p.freeze || p.hidden || isMotion(p)) continue;
+      if (holdDone.indexOf(p.id) >= 0) continue;
+      if (tNow >= (p.delay || 0)) {
+        holdNow = { path: p, at: p.delay || 0, endsAt: performance.now() + (p.dur || 2000) };
+        _holdPath = p;
+        tNow = holdNow.at;
+        if (vid) vid.pause();
+        break;
+      }
+    }
+  }
 
   function enforceOut() {
     if (!playing) return;
@@ -946,7 +1085,9 @@
     $('kdExport').classList.add('rec');
     $('kdExport').textContent = '⏹ Recording…';
 
-    // park on the in-point, let the clip actually seek, then roll
+    // park on the in-point, let the clip actually seek, then roll.
+    // Holds are re-armed so every freeze fires into the recording.
+    resetHolds();
     playing = false; setPlayUI();
     tNow = inMs; syncScrub(); render();
 

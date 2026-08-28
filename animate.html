@@ -112,6 +112,7 @@
       </div>
 
       <div class="kd-pfoot">
+        <div class="kd-edithead" id="editHead">New marks</div>
         <div class="kd-lbl" style="margin-top:0">Colour</div>
         <div class="kd-cwrap">
           <div class="kd-cnow"><span class="kd-cbig" id="colourChip"></span><span class="kd-cname" id="colourName">Black</span></div>
@@ -132,6 +133,17 @@
           <input type="range" id="markOpacity" min="15" max="100" step="5" value="100">
           <span class="kd-opval" id="markOpVal">100%</span>
         </div>
+
+        <div class="kd-lbl">Mark stays up for</div>
+        <div class="kd-holds" id="markHolds">
+          <button type="button" data-hold="1000">1s</button>
+          <button type="button" data-hold="2000">2s</button>
+          <button type="button" data-hold="3000">3s</button>
+          <button type="button" data-hold="5000">5s</button>
+          <button type="button" data-hold="" class="on">Rest</button>
+        </div>
+        <label class="tchk kd-freeze"><input type="checkbox" id="markFreezeChk">
+          Pause the clip while it&rsquo;s up</label>
 
         <!-- engine-built swatches: kept for app.js, superseded by the dropdown -->
         <div class="swatchrow kd-hidden" id="objcolors"></div>
