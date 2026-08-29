@@ -1740,8 +1740,12 @@ function render(){
   }
   // A selected ring: dashed box showing its extent, one grab handle at the
   // top-right corner for size. Drag the ring itself to move it.
+  // Only while the ring itself is on screen. The box and handle were drawn
+  // straight off the selection, so a hidden freeze mark still left its chrome
+  // sitting on the ice for the rest of the clip — which read as the ring
+  // lingering long after it had actually stopped being drawn.
   const ringSel=selectedRing();
-  if(ringSel){
+  if(ringSel && markVisible(ringSel)){
     const g=ringGeom(ringSel), c=W2S(g.cx,g.cy);
     const rxp=g.rx*cam.s, ryp=g.ry*cam.s;
     ctx.save();
