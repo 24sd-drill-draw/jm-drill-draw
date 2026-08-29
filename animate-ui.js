@@ -441,7 +441,11 @@
   }
 
   function signature() {
-    var s = T + '|' + (sel ? sel.kind + sel.id : '-') + '|';
+    // inMs/outMs belong here: without them, dragging a trim handle left the
+    // track rebuild — and so the "N marks · … out" readout — showing stale
+    // numbers that disagreed with the trim.
+    var s = T + '|' + Math.round(inMs) + '|' + Math.round(outMs) + '|' +
+      (sel ? sel.kind + sel.id : '-') + '|';
     motionPaths().forEach(function (p) {
       s += p.id + ',' + p.delay + ',' + p.dur + ',' + p.owner + ',' + p.color + ',' + (p.hidden ? 1 : 0) + ',' + (p.freeze ? 1 : 0) + ';';
     });
@@ -1004,6 +1008,9 @@
         if (which === 'in') inMs = clamp(ms, 0, outMs - 200);
         else outMs = clamp(ms, inMs + 200, T);
         layoutTrim();
+        // rebuild so the "N marks · … out" readout tracks the drag; without a
+        // render it sat on the old numbers until something else redrew
+        render();
       };
       var up = function () {
         window.removeEventListener('pointermove', move);
@@ -1068,7 +1075,16 @@
   function enforceOut() {
     if (!playing) return;
     if (tNow >= outMs) {
-      if (loop && !exporting) { tNow = inMs; syncScrub(); }
+      if (loop && !exporting) {
+        // Seek the CLIP as well, not just the clock. While playing, the video
+        // is the master and tNow is pulled from vid.currentTime every frame —
+        // so setting tNow alone was overwritten a frame later and playback ran
+        // straight past the out point to the end of the clip.
+        tNow = inMs;
+        if (vid) { try { vid.currentTime = inMs / 1000; } catch (e) { } }
+        resetHolds();                 // freezes re-arm for the next pass round
+        syncScrub();
+      }
       else { tNow = outMs; playing = false; setPlayUI(); if (vid) vid.pause(); syncScrub(); }
     }
   }
