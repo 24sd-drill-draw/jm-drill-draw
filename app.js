@@ -231,7 +231,9 @@ function markVisible(p){
     // span of clip time made it linger long after its moment had passed.
     if(_holdPath) return _holdPath===p;
     if(playing) return false;
-    if(selContains('path',p.id)) return true;
+    // Only near its own instant — no exception for "selected". Keeping a
+    // selected freeze on screen so it stayed editable just made it linger
+    // across the whole clip; selecting one now jumps the playhead to it.
     return Math.abs(tNow-d) <= 250;
   }
   return tNow>=d-1 && tNow<=d+u+1;

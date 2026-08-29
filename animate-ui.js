@@ -606,7 +606,12 @@
   function selectRow(i) {
     var r = rows[i];
     if (!r) return;
-    if (r.kind === 'path') selOne('path', r.path.id);
+    if (r.kind === 'path') {
+      selOne('path', r.path.id);
+      // A freeze exists at a single instant, so park the playhead on it —
+      // otherwise you select the mark and cannot see what you're editing.
+      if (r.path.freeze && !isMotion(r.path)) { tNow = r.path.delay; syncScrub(); }
+    }
     else selOne('piece', r.piece.id);
     showPropsTab();
     updateInspector();
@@ -697,6 +702,8 @@
       // so the usual "must finish before the end" clamp doesn't apply
       var hi = drag.path.freeze ? T : Math.max(0, T - drag.path.dur);
       drag.path.delay = Math.round(clamp(ms - drag.grabMs, 0, hi) / 50) * 50;
+      // dragging a freeze scrubs with it, so you see the frame you're landing on
+      if (drag.path.freeze) { tNow = drag.path.delay; syncScrub(); }
     } else if (drag.mode === 'dur') {
       drag.path.dur = Math.round(clamp(ms - drag.path.delay, 300, T - drag.path.delay) / 50) * 50;
     } else if (drag.mode === 'lead') {
