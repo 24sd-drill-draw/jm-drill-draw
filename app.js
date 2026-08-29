@@ -224,12 +224,15 @@ function markVisible(p){
   if(p.motion||p.owner) return true;
   const d=p.delay||0, u=(p.dur==null?T:p.dur);
   if(p.freeze){
-    // A freeze mark occupies no video time — it holds the clip for `dur` of
-    // real time instead. While playing it shows only during its own hold;
-    // while paused it shows across its window so you can still place and edit it.
+    // A freeze mark occupies NO clip time — it lives at one instant and holds
+    // the world there for `dur` of real time. While playing it shows only
+    // during its own hold. While paused, show it only near its instant (or
+    // whenever it's selected, so you can still edit it); treating `dur` as a
+    // span of clip time made it linger long after its moment had passed.
     if(_holdPath) return _holdPath===p;
     if(playing) return false;
-    return tNow>=d-1 && tNow<=d+u+1;
+    if(selContains('path',p.id)) return true;
+    return Math.abs(tNow-d) <= 250;
   }
   return tNow>=d-1 && tNow<=d+u+1;
 }

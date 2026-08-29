@@ -548,11 +548,20 @@
         var p = r.path;
         var left = (p.delay / T) * W;
         var w = Math.max(10, (p.dur / T) * W);
-        inner = '<div class="kd-bar' + (selected ? ' sel' : '') + (p.freeze ? ' frz' : '') + '" data-row="' + i + '"' +
-          ' style="left:' + left.toFixed(1) + 'px;width:' + w.toFixed(1) + 'px;background:' +
-          (p.color || '#B9E60C') + '">' +
-          '<span class="kd-bt">' + (p.dur / 1000).toFixed(1) + 's</span>' +
-          '<div class="kd-hand l" data-edge="l"></div><div class="kd-hand r" data-edge="r"></div></div>';
+        if (p.freeze) {
+          // A pause takes no clip time, so it gets a marker at its instant —
+          // not a bar, which would imply it covers that much footage.
+          inner = '<div class="kd-frzmark' + (selected ? ' sel' : '') + '" data-row="' + i + '"' +
+            ' style="left:' + left.toFixed(1) + 'px;background:' + (p.color || '#B9E60C') + '"' +
+            ' title="Clip pauses ' + (p.dur / 1000).toFixed(1) + 's here — drag to move the moment">' +
+            '<b>&#9208; ' + (p.dur / 1000).toFixed(1) + 's</b></div>';
+        } else {
+          inner = '<div class="kd-bar' + (selected ? ' sel' : '') + '" data-row="' + i + '"' +
+            ' style="left:' + left.toFixed(1) + 'px;width:' + w.toFixed(1) + 'px;background:' +
+            (p.color || '#B9E60C') + '">' +
+            '<span class="kd-bt">' + (p.dur / 1000).toFixed(1) + 's</span>' +
+            '<div class="kd-hand l" data-edge="l"></div><div class="kd-hand r" data-edge="r"></div></div>';
+        }
       } else {
         r.piece.legs.forEach(function (l, li) {
           inner += '<div class="kd-key' + (selected ? ' sel' : '') + '" data-row="' + i + '" data-leg="' + li + '"' +
@@ -636,7 +645,21 @@
   grid.addEventListener('pointerdown', function (e) {
     var bar = e.target.closest ? e.target.closest('.kd-bar') : null;
     var key = e.target.closest ? e.target.closest('.kd-key') : null;
+    var frz = e.target.closest ? e.target.closest('.kd-frzmark') : null;
     var x = localX(e);
+
+    // a freeze marker only moves — its length is real time, not clip time,
+    // so there is no edge to stretch here
+    if (frz) {
+      var fr = rows[+frz.dataset.row];
+      pushUndo();
+      drag = { mode: 'move', path: fr.path, grabMs: xToMs(x) - fr.path.delay,
+               d0: fr.path.delay, u0: fr.path.dur };
+      selOne('path', fr.path.id); showPropsTab(); updateInspector();
+      grid.setPointerCapture(e.pointerId);
+      onDrag(e); e.preventDefault();
+      return;
+    }
 
     if (key) {
       var kr = rows[+key.dataset.row];
@@ -670,7 +693,10 @@
       tNow = clamp(ms, 0, T);
       syncScrub();
     } else if (drag.mode === 'move') {
-      drag.path.delay = Math.round(clamp(ms - drag.grabMs, 0, Math.max(0, T - drag.path.dur)) / 50) * 50;
+      // a freeze can sit anywhere in the clip — its duration costs no clip time,
+      // so the usual "must finish before the end" clamp doesn't apply
+      var hi = drag.path.freeze ? T : Math.max(0, T - drag.path.dur);
+      drag.path.delay = Math.round(clamp(ms - drag.grabMs, 0, hi) / 50) * 50;
     } else if (drag.mode === 'dur') {
       drag.path.dur = Math.round(clamp(ms - drag.path.delay, 300, T - drag.path.delay) / 50) * 50;
     } else if (drag.mode === 'lead') {
