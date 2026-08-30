@@ -125,6 +125,7 @@
     shot: 'Draws a shot line. Diagram only.',
     arrow: 'Draws a straight arrow. Diagram only.',
     web: 'Click each player (or each corner of a space), then Enter to close it. Joins every point to every other with hairlines over a faint blanket. <b>Dense mesh = bunched up. Sparse = space available.</b> Red for a problem, green for a chance.',
+    cover: 'Circle one player, then circle who they cover — a dashed arrow joins the two and follows them if you move either ring. Click a ring you already drew to link that one instead. <b>Esc</b> cancels a half-made pair.',
     ring: 'Drag a box to drop a hollow ring. Wide and short gives the flattened ellipse that sits right on the ice — put it under a player or on open space.',
     bar: 'Drag a short, thick straight segment. No arrowhead — for marking a gap, a line, or where someone stopped.',
     pen: 'Freehand draw anywhere — the fat lasso for circling an area of the ice.',
@@ -416,7 +417,7 @@
   function isMotion(p) { return !!(p.motion || p.owner); }
 
   var TYPE_LABEL = {
-    ring: 'Ring', web: 'Web', bar: 'Bar', pen: 'Freehand', arrow: 'Arrow',
+    ring: 'Ring', link: 'Cover', web: 'Web', bar: 'Bar', pen: 'Freehand', arrow: 'Arrow',
     pass: 'Pass', shot: 'Shot', skate: 'Skate', skateback: 'Puck carry',
     skaterev: 'Backwards', text: 'Text'
   };

@@ -44,7 +44,11 @@ function W2S(x,y){ return [x*cam.s+cam.tx, y*cam.s+cam.ty]; }
 function S2W(px,py){ return [(px-cam.tx)/cam.s, (py-cam.ty)/cam.s]; }
 function fitRect(r,pad=24){
   const cw=cv.clientWidth, ch=cv.clientHeight;
-  const s=Math.min((cw-pad*2)/r.w,(ch-pad*2)/r.h);
+  // A short stage can leave less room than the padding asks for, and the
+  // subtraction then goes negative — which flips the whole board through the
+  // origin and puts every mark off screen. Give up the padding first.
+  const p=Math.max(0, Math.min(pad, (Math.min(cw,ch)-24)/2));
+  const s=Math.max(0.05, Math.min((cw-p*2)/r.w, (ch-p*2)/r.h));
   cam.s=s; cam.tx=(cw - r.w*s)/2 - r.x*s; cam.ty=(ch - r.h*s)/2 - r.y*s;
 }
 
@@ -221,6 +225,13 @@ function markSpan(){
 // visibility — so only plain annotations are windowed.
 function markVisible(p){
   if(p.hidden) return false;
+  // A cover link has no timing of its own — it is on screen exactly when both
+  // of the rings it joins are. Giving it its own delay/dur would let the
+  // connector outlive a ring and hang off nothing.
+  if(p.type==='link'){
+    const a=getPath(p.a), b=getPath(p.b);
+    return !!(a && b && markVisible(a) && markVisible(b));
+  }
   if(p.motion||p.owner) return true;
   const d=p.delay||0, u=(p.dur==null?T:p.dur);
   if(p.freeze){
@@ -299,6 +310,7 @@ const TOOLS=[
   {k:'shot',   n:'Shot',   svg:'<path d="M3 12h14M7 8v8M10 8v8" fill="none" stroke="var(--accent)" stroke-width="2"/><path d="M16 8l5 4-5 4" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'},
   {k:'arrow',  n:'Arrow',  svg:'<path d="M3 12h14" fill="none" stroke="var(--accent)" stroke-width="2"/><path d="M16 8l5 4-5 4" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'},
   {k:'ring',   n:'Ring',   svg:'<ellipse cx="12" cy="13" rx="9" ry="5" fill="none" stroke="var(--accent)" stroke-width="2.6"/>'},
+  {k:'cover',  n:'Cover',  svg:'<ellipse cx="6" cy="16.5" rx="4.6" ry="3.4" fill="none" stroke="var(--accent)" stroke-width="2"/><ellipse cx="18" cy="7.5" rx="4.6" ry="3.4" fill="none" stroke="var(--accent)" stroke-width="2"/><path d="M9.4 14.2l4 -3" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-dasharray="2.4 2"/><path d="M12 13.4l2.6-2 .4 2.6" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>'},
   {k:'web',    n:'Web',    svg:'<path d="M12 3L4 10l3 10h10l3-10zM12 3l-5 17M12 3l5 17M4 10h16M4 10l13 10M20 10L7 20" fill="none" stroke="var(--accent)" stroke-width="1.1"/>'},
   {k:'bar',    n:'Bar',    svg:'<path d="M4 12h16" fill="none" stroke="var(--accent)" stroke-width="4" stroke-linecap="round"/>'},
   {k:'pen',    n:'Pen',    svg:'<path d="M4 20l3-1L19 7l-2-2L5 17z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>'},
@@ -315,7 +327,7 @@ function buildTools(){
     g.appendChild(b);
   });
 }
-function setTool(k){ if(building) finishBuilding(); tool=k; pendingType=null; pendingOpts=null; pendingStamp=false;
+function setTool(k){ if(building) finishBuilding(); if(k!=='cover') cancelCover(); tool=k; pendingType=null; pendingOpts=null; pendingStamp=false;
   [...document.querySelectorAll('#tools .tool')].forEach(b=>b.classList.toggle('on',b.dataset.k===k));
   cv.className = (k==='select'?'select':k==='pan'?'pan':''); cv.style.cursor=''; updateHint(); }
 
@@ -476,7 +488,7 @@ function addPiece(type, at, opts){
   selOne('piece',piece.id); updateInspector(); render(); toast(prettyType(piece.type)+' added');
 }
 function nextNum(){ const used=pieces.filter(p=>p.type==='player'&&p.color===COLORS[playerColor]).length; return used+1; }
-function prettyType(t){ return ({player:'Skater',goalie:'Goalie',coach:'Coach',puck:'Puck',puckstack:'Pucks',ball:'Ball',net:'Net',cone:'Cone',tire:'Tire',bumper:'Bumper',ring:'Ring',dot:'Dot',zone:'Zone',image:'Image',text:'Text'})[t]||t; }
+function prettyType(t){ return ({player:'Skater',goalie:'Goalie',coach:'Coach',puck:'Puck',puckstack:'Pucks',ball:'Ball',net:'Net',cone:'Cone',tire:'Tire',bumper:'Bumper',ring:'Ring',link:'Cover link',dot:'Dot',zone:'Zone',image:'Image',text:'Text'})[t]||t; }
 function defColor(t){ return ({cone:'#F2811D',net:'#D11C2C',bumper:'#E7B416',dot:'#D11C2C',tire:'#E7B416',puck:'#111418',puckstack:'#111418',ball:'#ffffff',ring:'#222831',coach:'#E7B416',zone:'#2FA866'})[t]||'#11181f'; }
 function isDark(hex){ if(!hex)return true; const c=(hex+'').replace('#',''); const r=parseInt(c.substr(0,2),16),g=parseInt(c.substr(2,2),16),b=parseInt(c.substr(4,2),16); return (0.299*r+0.587*g+0.114*b)<140; }
 function escapeHtml(s){ return (s||'').replace(/[&<>"\']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
@@ -1353,7 +1365,9 @@ function drawAnnotation(p){
   const scr=p.pts.map(pt=>W2S(pt.x,pt.y));
   const col=p.color||'#0C2233';
   ctx.globalAlpha=_opa;
-  ctx.lineWidth=Math.max(2,0.55*cam.s*_wmul); ctx.strokeStyle=col; ctx.fillStyle=col;
+  // Marks start fine and get heavier from the slider, rather than starting
+  // heavy — a thick ring hides the player it is meant to point at.
+  ctx.lineWidth=Math.max(1.2,0.4*cam.s*_wmul); ctx.strokeStyle=col; ctx.fillStyle=col;
   ctx.lineJoin='round'; ctx.lineCap='round';
   if(p.type==='skate'){
     const anc=p.anchors&&p.anchors.length>=2?p.anchors:p.pts;
@@ -1406,6 +1420,14 @@ function drawAnnotation(p){
     ctx.ellipse((ax+bx)/2,(ay+by)/2,Math.max(1,(bx-ax)/2),Math.max(1,(by-ay)/2),0,0,Math.PI*2);
     ctx.stroke();
   }
+  else if(p.type==='link'){
+    // A plain hairline, rim to rim. No arrowhead and no dashes: the pairing is
+    // the whole message, and any decoration on it starts to read as a pass.
+    ctx.save();
+    ctx.lineWidth=Math.max(1,0.22*cam.s*_wmul);
+    strokePoly(scr);
+    ctx.restore();
+  }
   else if(p.type==='pen'){ strokePoly(scr); }
   if(selContains('path',p.id)){
     ctx.save(); ctx.strokeStyle='#5BC2D6'; ctx.lineWidth=Math.max(2,0.55*cam.s*_wmul)+4; ctx.globalAlpha=.35;
@@ -1451,6 +1473,69 @@ function selectedRing(){
   if(selSet.length!==1 || selSet[0].kind!=='path') return null;
   const p=getPath(selSet[0].id);
   return (p && p.type==='ring') ? p : null;
+}
+
+// ---- cover links ---------------------------------------------------------
+// "Who has who": two rings joined by a dashed arrow. The link stores the two
+// ring ids rather than a pair of points, so moving or resizing either ring
+// carries the connector with it instead of leaving it behind.
+var coverFrom=null;    // id of the first ring of a pair being built
+function ringById(pid){ const p=getPath(pid); return (p && p.type==='ring') ? p : null; }
+function linkEnds(p){
+  const a=ringById(p.a), b=ringById(p.b);
+  if(!a||!b) return null;
+  const ga=ringGeom(a), gb=ringGeom(b);
+  const dx=gb.cx-ga.cx, dy=gb.cy-ga.cy, d=Math.hypot(dx,dy);
+  if(d<0.01) return null;
+  const ux=dx/d, uy=dy/d;
+  // where the centre line crosses each rim: on an axis-aligned ellipse the
+  // ray c + t·u leaves the outline at t = 1 / hypot(ux/rx, uy/ry)
+  const ta=1/Math.hypot(ux/ga.rx, uy/ga.ry);
+  const tb=1/Math.hypot(ux/gb.rx, uy/gb.ry);
+  if(ta+tb >= d-0.4) return null;   // rings touch or overlap: nothing to draw
+  return [{x:ga.cx+ux*ta, y:ga.cy+uy*ta}, {x:gb.cx-ux*tb, y:gb.cy-uy*tb}];
+}
+// Keep every link's endpoints current and drop any whose ring has gone. Run
+// once per frame, before anything is drawn, so hit-testing and drawing both
+// see the same geometry.
+function syncLinks(){
+  let orphan=false;
+  paths.forEach(p=>{
+    if(p.type!=='link') return;
+    const e=linkEnds(p);
+    if(e) p.pts=e;
+    else if(!ringById(p.a)||!ringById(p.b)) orphan=true;
+  });
+  if(orphan) paths=paths.filter(p=>p.type!=='link' || (ringById(p.a)&&ringById(p.b)));
+}
+function cancelCover(){
+  if(coverFrom==null) return;
+  coverFrom=null;
+  updateHint(); render();
+}
+// Called with each ring the Cover tool finishes or picks up. The first one
+// is held; the second closes the pair and the link appears between them.
+function coverPick(ring){
+  if(coverFrom==null){
+    coverFrom=ring.id;
+    selOne('path',ring.id); updateInspector(); updateHint(); render();
+    toast('Now circle who they cover');
+    return;
+  }
+  const from=coverFrom; coverFrom=null;
+  const a=ringById(from);
+  if(!a || from===ring.id){ updateHint(); render(); return; }
+  const dupe=paths.some(p=>p.type==='link' &&
+    ((p.a===from&&p.b===ring.id)||(p.a===ring.id&&p.b===from)));
+  if(!dupe){
+    paths.push({ id:id(), type:'link', a:from, b:ring.id,
+      color:(activeColor||'#0C2233'), pts:[], owner:null,
+      // the connector rides on its rings' timing; these only keep the
+      // timeline bar honest
+      delay:a.delay||0, dur:a.dur, w:markW, op:markOp, freeze:false, _lut:null });
+  }
+  selOne('path',ring.id); updateInspector(); updateHint(); render();
+  toast('Linked — circle another pair, or switch tools');
 }
 
 function strokePoly(scr){ ctx.beginPath(); ctx.moveTo(scr[0][0],scr[0][1]);
@@ -1704,11 +1789,18 @@ function stagger(){
 // =========================================================
 function render(){
   clear();
+  syncLinks();
   panels().forEach(p=>p.kind==='field'?drawFieldBg(p):p.kind==='iceplex'?drawIceplexBg(p):drawRinkBg(p));
   // zones under everything
   pieces.filter(p=>p.type==='zone').forEach(p=>drawPiece(p,null));
   // paths under pieces — each mark only shows inside its own time window
   paths.forEach(p=>{ if(markVisible(p)) drawPath(p); });
+  // The mark being dragged out right now. It has to be drawn from inside
+  // render(), not from the pointermove handler: render() runs on every
+  // animation frame whether or not anything is playing, so a preview painted
+  // after render() was wiped by the very next frame. The mark only appeared
+  // when the mouse came up and it joined paths[].
+  if(drawing && drawing.pts && drawing.pts.length>=2) drawPath(drawing);
   // pieces (animated positions if mid-play or scrubbed)
   const showAnim = playing || tNow>0;
   const map = showAnim? animatedPositions() : {};
@@ -1744,6 +1836,17 @@ function render(){
   // straight off the selection, so a hidden freeze mark still left its chrome
   // sitting on the ice for the rest of the clip — which read as the ring
   // lingering long after it had actually stopped being drawn.
+  // The first ring of a cover pair, waiting for its partner.
+  if(coverFrom!=null){
+    const cf=ringById(coverFrom);
+    if(cf && markVisible(cf)){
+      const g=ringGeom(cf), c=W2S(g.cx,g.cy);
+      ctx.save();
+      ctx.strokeStyle='#B9E60C'; ctx.globalAlpha=.85; ctx.lineWidth=2.5; ctx.setLineDash([7,5]);
+      ctx.beginPath(); ctx.ellipse(c[0],c[1],g.rx*cam.s+6,g.ry*cam.s+6,0,0,Math.PI*2); ctx.stroke();
+      ctx.restore();
+    }
+  }
   const ringSel=selectedRing();
   if(ringSel && markVisible(ringSel)){
     const g=ringGeom(ringSel), c=W2S(g.cx,g.cy);
@@ -1861,7 +1964,7 @@ let drag=null;       // {piece, ox,oy} or pan
 let rotDrag=null;    // {piece} — dragging the on-canvas rotation handle
 let zoneSizeDrag=null; // {piece} — dragging the zone size handle
 let ringDrag=null;     // {path, mode:'e'|'w'|'n'|'s'|'move'} — reshaping a ring
-let drawing=null;    // current annotation being drawn
+var drawing=null;    // current annotation being drawn
 let panStart=null;
 let building=null;   // motion route being built (multi-segment)
 let seg=null;        // current segment gesture within a build
@@ -2027,7 +2130,15 @@ cv.addEventListener('pointerdown',e=>{
   }
   // a drawing tool
   pushUndo();
-  drawing={ id:id(), type:tool, color:(activeColor||'#0C2233'), pts:[{x:wx,y:wy}], owner:null, delay:markStart(), dur:markSpan(), w:markW, op:markOp, freeze:markFreeze, _lut:null };
+  // Cover draws ordinary rings and pairs them up as each one is finished.
+  // Pressing on a ring that is already there picks that one up as an endpoint
+  // instead of drawing a new one, so marks made earlier can still be joined.
+  if(tool==='cover'){
+    const hit=paths.find(p=>p.type==='ring' && markVisible(p) && ringGrabAt(p,wx,wy,e.offsetX,e.offsetY)==='move');
+    if(hit){ coverPick(hit); return; }
+  }
+  drawing={ id:id(), type:(tool==='cover'?'ring':tool), color:(activeColor||'#0C2233'), pts:[{x:wx,y:wy}], owner:null, delay:markStart(), dur:markSpan(), w:markW, op:markOp, freeze:markFreeze, _lut:null };
+  if(tool==='cover') drawing._cover=true;
 });
 cv.addEventListener('pointermove',e=>{
   const [wx,wy]=S2W(e.offsetX,e.offsetY);
@@ -2069,11 +2180,16 @@ cv.addEventListener('pointermove',e=>{
     if(Math.hypot(wx-last.x,wy-last.y) > 0.8) seg.raw.push({x:wx,y:wy});
     const pv=building.path.anchors.concat(rdp(seg.raw,1.3).slice(1));
     building.path.pts=catmull(pv,14); building.path._lut=null; render(); return; }
-  if(drawing){ const last=drawing.pts[drawing.pts.length-1];
+  if(drawing){
+    // A ring is sized by its box, so it only ever needs the press point and
+    // the cursor. Keeping the whole mouse trail meant the box could grow but
+    // never shrink — pull back in and the ring stayed as wide as the widest
+    // point of the drag.
+    if(drawing.type==='ring'){ drawing.pts=[drawing.pts[0],{x:wx,y:wy}]; render(); return; }
+    const last=drawing.pts[drawing.pts.length-1];
     if(Math.hypot(wx-last.x,wy-last.y) > (drawing.type==='pen'?0.6:1.4)) drawing.pts.push({x:wx,y:wy});
-    render(); ctxPreview(drawing); }
+    render(); }
 });
-function ctxPreview(p){ drawPath(p); }
 cv.addEventListener('pointerup',e=>{
   if(panStart){ panStart=null; return; }
   if(zoneSizeDrag){ zoneSizeDrag=null; render(); return; }
@@ -2109,6 +2225,7 @@ cv.addEventListener('pointerup',e=>{
       }
       drawing.owner=null;            // annotation lines never animate
       paths.push(drawing); selOne('path',drawing.id); updateInspector();
+      if(drawing._cover){ const nr=drawing; drawing=null; coverPick(nr); return; }
     }
     drawing=null; render();
   }
@@ -2546,6 +2663,7 @@ document.getElementById('scrubber').oninput=e=>{ playing=false; setPlayUI(); tNo
 // keyboard
 window.addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT')return;
+  if(coverFrom!=null && e.key==='Escape'){ e.preventDefault(); cancelCover(); return; }
   if(building && (e.key==='Enter'||e.key==='Escape')){ e.preventDefault(); finishBuilding(); return; }
   if(skateBackBuilding && (e.key==='Enter'||e.key==='Escape')){ e.preventDefault(); skateBackBuilding=null; skateBackCursor=null; selOne(null); updateInspector(); render(); return; }
   if(skateRevBuilding && (e.key==='Enter'||e.key==='Escape')){ e.preventDefault(); skateRevBuilding=null; skateRevCursor=null; selOne(null); updateInspector(); render(); return; }
@@ -2571,15 +2689,33 @@ function updateHint(){
   const h=document.getElementById('hint'); if(!h) return;  // hint bar was removed from the HTML
   if(pendingPick){ h.textContent = pendingPick.kind==='carrier'?'Click the player who starts with the puck':'Click the receiver, or a spot, for the pass'; h.style.display='block'; return; }
   if(pendingType){ h.textContent=(pendingStamp?'Click to stamp ':'Click to place ')+prettyType(pendingType)+(pendingStamp?'  (Esc to stop)':'  (Esc to cancel)'); h.style.display='block'; return; }
-  if(pieces.length===0){ h.textContent='Click a skater on the left to drop it on the ice — then draw a path from it and press Play.'; h.style.display='block'; return; }
+  if(coverFrom!=null){ h.textContent='Now circle the player they cover — Esc to cancel'; h.style.display='block'; return; }
+  const onClip = (rinkConfig==='video');
+  // The "drop a skater on the ice" line is for the drill board. On a clip
+  // there is nothing to drop — the players are already in the footage.
+  if(pieces.length===0 && !onClip){ h.textContent='Click a skater on the left to drop it on the ice — then draw a path from it and press Play.'; h.style.display='block'; return; }
+  const clipTips={
+    select:'Click a mark to pick it up • drag inside a ring to move it, the corner dot to resize • Delete removes it',
+    ring:'Drag a box around a player — the ring shows as you drag and is fixed when you let go',
+    cover:'Circle a player, then circle who they cover — an arrow joins the two',
+    skate:'Draw the route you want them to take', arrow:'Point at what you want them to see',
+    pen:'Freehand — circle, underline, scribble on the play',
+    bar:'Drag a straight bar — a gap to close, a lane to seal',
+    web:'Click each player, then double-click to close the web',
+    text:'Click anywhere on the frame to drop a note',
+    erase:'Click a mark to delete it' };
   const tips={ select:'Drag pieces • drag a selected lane\'s dots to reshape • Delete to remove',
     motion:'From a piece: drag to curve, or click to add turns (S/U/zig-zag). Click the end of a route to extend it. Double-click or Enter to finish.',
     skate:'Draw a skating route (diagram only, does not move)',
     pass:'Click to start a pass — click again to add a redirect/bump — double-click or Enter to finish. Draw as many passes as needed.', shot:'Draw a shot from the puck',
     arrow:'Draw a straight arrow (diagram only)', pen:'Freehand draw (diagram only)',
     text:'Click anywhere, on or off the ice, to drop a label; double-click a label to edit',
+    ring:'Drag a box around what you want circled', bar:'Drag a straight bar',
+    cover:'Circle a player, then circle who they cover — an arrow joins the two',
+    web:'Click each player, then double-click to close the web',
     pan:'Drag to move the view', erase:'Click a piece or path to delete it' };
-  h.textContent=tips[tool]||''; h.style.display = tips[tool]? 'block':'none';
+  const line = (onClip && clipTips[tool]) || tips[tool] || '';
+  h.textContent=line; h.style.display = line ? 'block':'none';
 }
 
 // toast
