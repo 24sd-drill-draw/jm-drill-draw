@@ -2697,7 +2697,7 @@ function updateHint(){
   const clipTips={
     select:'Click a mark to pick it up • drag inside a ring to move it, the corner dot to resize • Delete removes it',
     ring:'Drag a box around a player — the ring shows as you drag and is fixed when you let go',
-    cover:'Circle a player, then circle who they cover — an arrow joins the two',
+    cover:'Circle a player, then circle who they cover — a line joins the two',
     skate:'Draw the route you want them to take', arrow:'Point at what you want them to see',
     pen:'Freehand — circle, underline, scribble on the play',
     bar:'Drag a straight bar — a gap to close, a lane to seal',
@@ -2711,7 +2711,7 @@ function updateHint(){
     arrow:'Draw a straight arrow (diagram only)', pen:'Freehand draw (diagram only)',
     text:'Click anywhere, on or off the ice, to drop a label; double-click a label to edit',
     ring:'Drag a box around what you want circled', bar:'Drag a straight bar',
-    cover:'Circle a player, then circle who they cover — an arrow joins the two',
+    cover:'Circle a player, then circle who they cover — a line joins the two',
     web:'Click each player, then double-click to close the web',
     pan:'Drag to move the view', erase:'Click a piece or path to delete it' };
   const line = (onClip && clipTips[tool]) || tips[tool] || '';
