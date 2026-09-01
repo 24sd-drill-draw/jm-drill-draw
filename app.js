@@ -199,6 +199,8 @@ function updateSceneTabs(){
 // burned over game footage need to be fat to read. Each annotation carries its
 // own `w` multiplier, applied while that annotation draws.
 let _wmul=1;
+let _headW=1;   // arrowhead size, kept off _wmul so the outline pass can fatten
+                // the stroke without ballooning the head into a black triangle
 let _opa=1;       // opacity of the annotation currently drawing
 let markW=1;      // weight applied to the next mark drawn
 let markOp=1;     // opacity applied to the next mark drawn
@@ -1267,7 +1269,7 @@ function drawMotionPath(p){
   const pc=getPiece(p.owner);
   const col=p.color || (pc&&pc.color) || '#2E8FA8';
   const seld = selContains('path',p.id);
-  _wmul = p.w||1;
+  _wmul = p.w||1; _headW = _wmul;
   const scr=p.pts.map(q=>W2S(q.x,q.y));
   ctx.save(); ctx.lineJoin='round'; ctx.lineCap='round';
   // solid line
@@ -1275,7 +1277,7 @@ function drawMotionPath(p){
   arrowHead(scr,col); ctx.restore();
   // ghost piece at destination
   if(pc){ ctx.save(); ctx.globalAlpha=0.42; drawPieceGhost(pc,p.pts[p.pts.length-1]); ctx.restore(); }
-  _wmul=1;
+  _wmul=1; _headW=1;
 }
 function drawScallops(ctx, pts, col, camScale){
   if(pts.length<2) return;
@@ -1368,6 +1370,39 @@ function drawAnnotation(p){
   _opa  = (p.op==null?1:p.op);
   const scr=p.pts.map(pt=>W2S(pt.x,pt.y));
   const col=p.color||'#0C2233';
+  // A light mark disappears on the ice — white on white is nothing, and gold
+  // and lime are not much better. Lay the mark down first with a tight dark
+  // shadow, which leaves an outline around every part of it: strokes, dashes,
+  // arrowheads, the web fill. The white player circles have carried an outline
+  // all along; the marks never did, so white was effectively unusable and a
+  // white line's arrows had to be drawn black instead.
+  if(!isDark(col)){
+    const keepW=_wmul;
+    // Every width in paintMark derives from _wmul, so fattening it and painting
+    // dark underneath gives a real outline rather than a blurred glow. A soft
+    // shadow alone spread the dark over ~7px and left nothing solid enough to
+    // see. The blur here only softens the edge of that fatter pass.
+    const grow=Math.min(6, Math.max(2.5, 0.55*cam.s));
+    _wmul = keepW + grow/Math.max(0.4*cam.s, 0.5);
+    // The head is a filled triangle, so scaling it with the stroke would put a
+    // small white one inside a much bigger black one and the arrow would read
+    // as black. It only needs a rim.
+    _headW = keepW + 2.2/Math.max(2.4*cam.s, 1);
+    ctx.save();
+    ctx.shadowColor='rgba(8,12,16,.55)'; ctx.shadowBlur=1.5;
+    paintMark(p,scr,'#0B0F14');
+    ctx.restore();
+    _wmul = keepW;
+  }
+  _headW = _wmul;
+  paintMark(p,scr,col);
+  if(selContains('path',p.id)){
+    ctx.save(); ctx.strokeStyle='#5BC2D6'; ctx.lineWidth=Math.max(2,0.55*cam.s*_wmul)+4; ctx.globalAlpha=.35;
+    strokePoly(scr); ctx.restore();
+  }
+  _wmul=1; _headW=1; _opa=1; ctx.globalAlpha=1;
+}
+function paintMark(p,scr,col){
   ctx.globalAlpha=_opa;
   // Marks start fine and get heavier from the slider, rather than starting
   // heavy — a thick ring hides the player it is meant to point at.
@@ -1433,11 +1468,6 @@ function drawAnnotation(p){
     ctx.restore();
   }
   else if(p.type==='pen'){ strokePoly(scr); }
-  if(selContains('path',p.id)){
-    ctx.save(); ctx.strokeStyle='#5BC2D6'; ctx.lineWidth=Math.max(2,0.55*cam.s*_wmul)+4; ctx.globalAlpha=.35;
-    strokePoly(scr); ctx.restore();
-  }
-  _wmul=1; _opa=1; ctx.globalAlpha=1;
 }
 // ---- ring geometry -------------------------------------------------------
 // A ring stores its outline as points so that hit-testing, selection and
@@ -1560,7 +1590,7 @@ function strokeWavy(scr){
 }
 function arrowHead(scr,col,open){
   const n=scr.length; let a=scr[n-2],b=scr[n-1];
-  const ang=Math.atan2(b[1]-a[1],b[0]-a[0]); const L=Math.max(8,2.4*cam.s*_wmul);
+  const ang=Math.atan2(b[1]-a[1],b[0]-a[0]); const L=Math.max(8,2.4*cam.s*_headW);
   ctx.fillStyle=col; ctx.strokeStyle=col;
   if(open){ ctx.lineWidth=Math.max(2,0.55*cam.s*_wmul);
     ctx.beginPath(); ctx.moveTo(b[0]-L*Math.cos(ang-0.4),b[1]-L*Math.sin(ang-0.4)); ctx.lineTo(b[0],b[1]);
