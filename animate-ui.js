@@ -1009,7 +1009,7 @@
       scenes[currentScene].rinkType = 'video';
       currentView = 'frame';
       buildLayoutSeg(); buildViewSeg();
-      fitRect(viewPresets()[0].r);
+      applyView(viewPresets()[0]);
       tNow = 0; playing = false; setPlayUI();
       lastT = 0;               // force the ruler to rebuild at the new length
       inMs = 0; outMs = T;     // trim spans the whole clip until you drag it in
@@ -1046,7 +1046,7 @@
       scenes[currentScene].rinkType = 'full';
       currentView = defaultView();
       buildLayoutSeg(); buildViewSeg();
-      fitRect(viewPresets()[0].r);
+      applyView(viewPresets()[0]);
     }
     T = 5000; $('speed').value = 9;
     tNow = 0; playing = false; setPlayUI();

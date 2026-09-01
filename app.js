@@ -40,15 +40,32 @@ function worldBounds(){ let mx=0,my=0; panels().forEach(p=>{mx=Math.max(mx,p.ox+
 
 // ---- camera ----
 let cam={s:4,tx:60,ty:40};
+// The stage can be turned a quarter turn so the net sits at the bottom. The
+// turn is applied to the canvas transform in clear(), which means every drawing
+// routine — rink lines, arcs, pieces, marks — carries on untouched. The only
+// thing that has to know about it is the mouse, which still arrives in screen
+// space: drawnXY puts a pointer back into the space everything is drawn in.
+let camRot=0;                       // 0 or 90
 function W2S(x,y){ return [x*cam.s+cam.tx, y*cam.s+cam.ty]; }
 function S2W(px,py){ return [(px-cam.tx)/cam.s, (py-cam.ty)/cam.s]; }
+function drawnXY(px,py){
+  if(!camRot) return [px,py];
+  const w=cv.clientWidth, h=cv.clientHeight;
+  const a=px-w/2, b=py-h/2;
+  return [w/2-b, h/2+a];            // inverse of ctx.rotate(-90°) about centre
+}
 function fitRect(r,pad=24){
   const cw=cv.clientWidth, ch=cv.clientHeight;
   // A short stage can leave less room than the padding asks for, and the
   // subtraction then goes negative — which flips the whole board through the
   // origin and puts every mark off screen. Give up the padding first.
   const p=Math.max(0, Math.min(pad, (Math.min(cw,ch)-24)/2));
-  const s=Math.max(0.05, Math.min((cw-p*2)/r.w, (ch-p*2)/r.h));
+  // Turned a quarter turn, the rink lands across the canvas the other way, so
+  // it has to be fitted against the swapped side. Rotation happens about the
+  // canvas centre, so anything centred before the turn is still centred after.
+  const availW = camRot ? (ch-p*2) : (cw-p*2);
+  const availH = camRot ? (cw-p*2) : (ch-p*2);
+  const s=Math.max(0.05, Math.min(availW/r.w, availH/r.h));
   cam.s=s; cam.tx=(cw - r.w*s)/2 - r.x*s; cam.ty=(ch - r.h*s)/2 - r.y*s;
 }
 
@@ -75,10 +92,14 @@ function viewPresets(){
     {k:'dz',  t:'D-Zone', r:{x:0,y:0,w:92,h:RH}},
     {k:'nz',  t:'Neutral',r:{x:54,y:0,w:92,h:RH}},
     {k:'oz',  t:'O-Zone', r:{x:108,y:0,w:92,h:RH}},
+    {k:'dzv', t:'D-Zone ↓', r:{x:0,y:0,w:92,h:RH}, rot:90},
+    {k:'ozv', t:'O-Zone ↓', r:{x:108,y:0,w:92,h:RH}, rot:90},
   ];
   if(rinkConfig==='half') return [
     {k:'zone', t:'Zone', r:{x:0,y:0,w:100,h:RH}},
     {k:'tight',t:'Slot', r:{x:0,y:0,w:62,h:RH}},
+    {k:'vert', t:'Net ↓', r:{x:0,y:0,w:100,h:RH}, rot:90},
+    {k:'vtight',t:'Slot ↓',r:{x:0,y:0,w:62,h:RH}, rot:90},
   ];
   if(rinkConfig==='halves') return [
     {k:'both', t:'Both', r:b},
@@ -92,12 +113,20 @@ function viewPresets(){
   ];
 }
 let currentView='full';
+// A view carries its own quarter-turn, so switching views is the only thing
+// that ever changes the stage's orientation.
+function applyView(p){
+  if(!p) return;
+  camRot = p.rot ? 90 : 0;
+  currentView = p.k;
+  fitRect(p.r);
+}
 function buildViewSeg(){
   const seg=document.getElementById('viewSeg'); seg.innerHTML='';
   viewPresets().forEach((p,i)=>{
     const b=document.createElement('button'); b.textContent=p.t; b.dataset.k=p.k;
     if(p.k===currentView) b.classList.add('on');
-    b.onclick=()=>{ currentView=p.k; fitRect(p.r); [...seg.children].forEach(c=>c.classList.toggle('on',c.dataset.k===p.k)); render(); };
+    b.onclick=()=>{ applyView(p); [...seg.children].forEach(c=>c.classList.toggle('on',c.dataset.k===p.k)); render(); };
     seg.appendChild(b);
   });
 }
@@ -140,7 +169,7 @@ function loadScene(idx){
   tNow=0; playing=false;
   try{setPlayUI();}catch(e){}
   currentView=defaultView(); buildLayoutSeg(); buildViewSeg();
-  fitRect(viewPresets()[0].r);
+  applyView(viewPresets()[0]);
   updateInspector(); updateSceneTabs(); render(); updateHint();
 }
 function addScene(){
@@ -161,7 +190,7 @@ function deleteScene(idx){
   rinkConfig=s.rinkType||'full';
   document.getElementById('rinkSel').value=rinkConfig;
   selOne(null); currentView=defaultView(); buildLayoutSeg(); buildViewSeg();
-  fitRect(viewPresets()[0].r);
+  applyView(viewPresets()[0]);
   updateInspector(); updateSceneTabs(); render();
 }
 function renameScene(idx){
@@ -504,7 +533,12 @@ function getPath(i){ return paths.find(p=>p.id===i); }
 // except during an export, where the canvas is resized to the clip's own
 // resolution and the CSS box stays put — clearing by the box would have left
 // most of every recorded frame stale.
-function clear(){ ctx.setTransform(DPR,0,0,DPR,0,0); ctx.clearRect(0,0,cv.width/DPR,cv.height/DPR); }
+function clear(){
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  const w=cv.width/DPR, h=cv.height/DPR;
+  ctx.clearRect(0,0,w,h);
+  if(camRot){ ctx.translate(w/2,h/2); ctx.rotate(-Math.PI/2); ctx.translate(-w/2,-h/2); }
+}
 
 function drawRinkBg(p){
   const s=cam.s, kind=p.kind, full=(kind==='full');
@@ -588,10 +622,18 @@ function drawRinkBg(p){
   // redraw board outline on top so line bleeds are covered
   ctx.lineWidth=board; ctx.strokeStyle=ink; ctx.lineJoin='round'; boardPath(); ctx.stroke();
 
-  if(full && centerLogo && LOGO_IMG[centerLogo] && LOGO_IMG[centerLogo].complete && LOGO_IMG[centerLogo].naturalWidth){
+  // Centre ice is the right-hand edge of a half sheet, so half the logo belongs
+  // there — cut off at the boards, the way it looks on the real sheet. It used
+  // to be drawn on a full sheet only, so choosing a logo on a half sheet did
+  // nothing at all.
+  if(centerLogo && LOGO_IMG[centerLogo] && LOGO_IMG[centerLogo].complete && LOGO_IMG[centerLogo].naturalWidth){
     const img=LOGO_IMG[centerLogo]; const ratio=img.naturalWidth/img.naturalHeight;
     let hh=22*s, ww=hh*ratio; const maxW=28*s; if(ww>maxW){ww=maxW; hh=ww/ratio;}
-    ctx.save(); ctx.globalAlpha=0.95; ctx.drawImage(img, X(100)-ww/2, Y(42.5)-hh/2, ww, hh); ctx.restore();
+    ctx.save();
+    ctx.beginPath(); boardPath(); ctx.clip();      // never bleed past the boards
+    ctx.globalAlpha=0.95;
+    ctx.drawImage(img, X(100)-ww/2, Y(42.5)-hh/2, ww, hh);
+    ctx.restore();
   }
 }
 function drawIceplexBg(p){
@@ -1083,6 +1125,10 @@ function roundRectPath(x,y,w,h,r){ r=Math.max(0,Math.min(r,Math.abs(w)/2,Math.ab
 function drawPiece(p, pos){
   const [sx,sy]= pos? W2S(pos.x,pos.y) : W2S(p.x,p.y);
   ctx.save(); ctx.translate(sx,sy);
+  // With the stage turned, a jersey number would come out lying on its side.
+  // Turn the piece back upright — except the ones whose shape means a
+  // direction (a net, a bumper), which have to stay square to the ice.
+  if(camRot && p.type!=='net' && p.type!=='bumper') ctx.rotate(Math.PI/2);
   if(p.type==='image') ctx.globalAlpha = p.opacity!=null? p.opacity : 1;
   const scale = cam.s;
   drawPieceShape(ctx, p, scale, false);
@@ -2009,22 +2055,23 @@ let seg=null;        // current segment gesture within a build
 
 cv.addEventListener('pointerdown',e=>{
   try{ cv.setPointerCapture(e.pointerId); }catch(err){}  // capture is a nicety; never abort the handler over it
-  const [wx,wy]=S2W(e.offsetX,e.offsetY);
+  const mxy=drawnXY(e.offsetX,e.offsetY);
+  const [wx,wy]=S2W(mxy[0],mxy[1]);
   if(playing){ playing=false; setPlayUI(); }
   // mid/right button = pan regardless of tool
-  if(e.button===1||e.button===2||tool==='pan'){ pendingType=null; pendingOpts=null; pendingStamp=false; cv.style.cursor=''; panStart={x:e.offsetX,y:e.offsetY,tx:cam.tx,ty:cam.ty}; return; }
+  if(e.button===1||e.button===2||tool==='pan'){ pendingType=null; pendingOpts=null; pendingStamp=false; cv.style.cursor=''; panStart={x:mxy[0],y:mxy[1],tx:cam.tx,ty:cam.ty}; return; }
 
   // rotation handle hit-test
   const rotPcDown = selSet.length===1 && selSet[0].kind==='piece' ? getPiece(selSet[0].id) : null;
   if(rotPcDown && (rotPcDown.type==='net'||rotPcDown.type==='bumper')){
     const [sx,sy]=W2S(rotPcDown.x,rotPcDown.y);
     const armLen=38, rad2=(rotPcDown.rot||0)*Math.PI/180, hx=sx+Math.sin(rad2)*armLen, hy=sy-Math.cos(rad2)*armLen;
-    if(Math.hypot(e.offsetX-hx,e.offsetY-hy)<12){ pushUndo(); rotDrag={piece:rotPcDown}; return; }
+    if(Math.hypot(mxy[0]-hx,mxy[1]-hy)<12){ pushUndo(); rotDrag={piece:rotPcDown}; return; }
   }
   if(rotPcDown && rotPcDown.type==='zone'){
     const [sx,sy]=W2S(rotPcDown.x,rotPcDown.y);
     const zr=10*cam.s*(rotPcDown.size||1), hx=sx, hy=sy-zr;
-    if(Math.hypot(e.offsetX-hx,e.offsetY-hy)<12){ pushUndo(); zoneSizeDrag={piece:rotPcDown}; return; }
+    if(Math.hypot(mxy[0]-hx,mxy[1]-hy)<12){ pushUndo(); zoneSizeDrag={piece:rotPcDown}; return; }
   }
   // Ring: grab an edge handle to resize, or the body to move it.
   // Select tool only — otherwise the ring you just drew swallows the next
@@ -2032,7 +2079,7 @@ cv.addEventListener('pointerdown',e=>{
   const ringDown = (tool==='select') ? selectedRing() : null;
   if(ringDown){
     const g=ringGeom(ringDown);
-    const m=ringGrabAt(ringDown,wx,wy,e.offsetX,e.offsetY);
+    const m=ringGrabAt(ringDown,wx,wy,mxy[0],mxy[1]);
     if(m){ pushUndo();
       ringDrag = m==='move' ? {path:ringDown, mode:'move', ox:wx-g.cx, oy:wy-g.cy}
                             : {path:ringDown, mode:m};
@@ -2172,22 +2219,23 @@ cv.addEventListener('pointerdown',e=>{
   // Pressing on a ring that is already there picks that one up as an endpoint
   // instead of drawing a new one, so marks made earlier can still be joined.
   if(tool==='cover'){
-    const hit=paths.find(p=>p.type==='ring' && markVisible(p) && ringGrabAt(p,wx,wy,e.offsetX,e.offsetY)==='move');
+    const hit=paths.find(p=>p.type==='ring' && markVisible(p) && ringGrabAt(p,wx,wy,mxy[0],mxy[1])==='move');
     if(hit){ coverPick(hit); return; }
   }
   drawing={ id:id(), type:(tool==='cover'?'ring':tool), color:(activeColor||'#0C2233'), pts:[{x:wx,y:wy}], owner:null, delay:markStart(), dur:markSpan(), w:markW, op:markOp, freeze:markFreeze, _lut:null };
   if(tool==='cover') drawing._cover=true;
 });
 cv.addEventListener('pointermove',e=>{
-  const [wx,wy]=S2W(e.offsetX,e.offsetY);
+  const mxy=drawnXY(e.offsetX,e.offsetY);
+  const [wx,wy]=S2W(mxy[0],mxy[1]);
   if(zoneSizeDrag){ const p=zoneSizeDrag.piece; const [sx,sy]=W2S(p.x,p.y);
-    const dist=Math.hypot(e.offsetX-sx,e.offsetY-sy);
+    const dist=Math.hypot(mxy[0]-sx,mxy[1]-sy);
     p.size=Math.max(0.2, dist/(10*cam.s)); updateInspector(); render(); return; }
   // cursor hint over a selected ring's handles
   if(!ringDrag && !drag && !drawing && !pendingType && tool==='select'){
     const rs=selectedRing();
     if(rs){
-      const m=ringGrabAt(rs,wx,wy,e.offsetX,e.offsetY);
+      const m=ringGrabAt(rs,wx,wy,mxy[0],mxy[1]);
       cv.style.cursor = m==='xy'?'nesw-resize' : m==='move'?'move' : '';
     }
   }
@@ -2198,14 +2246,14 @@ cv.addEventListener('pointermove',e=>{
     else                          setRing(p, g.cx, g.cy, Math.abs(wx-g.cx), Math.abs(wy-g.cy));
     render(); return; }
   if(rotDrag){ const p=rotDrag.piece; const [sx,sy]=W2S(p.x,p.y);
-    p.rot=Math.atan2(e.offsetX-sx,sy-e.offsetY)*180/Math.PI; render(); return; }
+    p.rot=Math.atan2(mxy[0]-sx,sy-mxy[1])*180/Math.PI; render(); return; }
   if(skateBuilding){ skateCursor={x:wx,y:wy}; render(); return; }
   if(skateBackBuilding){ skateBackCursor={x:wx,y:wy}; render(); return; }
   if(skateRevBuilding){ skateRevCursor={x:wx,y:wy}; render(); return; }
   if(passBuilding){ passCursor={x:wx,y:wy}; render(); return; }
   if(webBuilding){ webCursor={x:wx,y:wy}; render(); return; }
   if(shotBuilding){ shotCursor={x:wx,y:wy}; render(); return; }
-  if(panStart){ cam.tx=panStart.tx+(e.offsetX-panStart.x); cam.ty=panStart.ty+(e.offsetY-panStart.y); render(); return; }
+  if(panStart){ cam.tx=panStart.tx+(mxy[0]-panStart.x); cam.ty=panStart.ty+(mxy[1]-panStart.y); render(); return; }
   if(marquee){ marquee.x1=wx; marquee.y1=wy; render(); return; }
   if(drag && drag.group){ const dx=wx-drag.lastx, dy=wy-drag.lasty; drag.lastx=wx; drag.lasty=wy;
     selPieces().forEach(q=>{ q.x+=dx; q.y+=dy; movePiecePaths(q.id,dx,dy); }); render(); return; }
@@ -2292,7 +2340,8 @@ cv.addEventListener('dblclick',e=>{
     if(pts.length>1) pts.pop();
     shotBuilding=null; shotCursor=null; selOne(null); updateInspector(); render(); return;
   }
-  const [wx,wy]=S2W(e.offsetX,e.offsetY); const pc=pieceAt(wx,wy);
+  const mxy=drawnXY(e.offsetX,e.offsetY);
+  const [wx,wy]=S2W(mxy[0],mxy[1]); const pc=pieceAt(wx,wy);
   if(pc && pc.type==='text'){ const s=window.prompt('Edit text:', pc.text||''); if(s!==null){ pushUndo(); pc.text=s.trim(); render(); } }
 });
 cv.addEventListener('contextmenu',e=>{
@@ -2307,7 +2356,7 @@ cv.addEventListener('contextmenu',e=>{
   if(building){ finishBuilding(); return; }
 });
 cv.addEventListener('wheel',e=>{ e.preventDefault();
-  const f=e.deltaY<0?1.12:1/1.12; const mx=e.offsetX,my=e.offsetY;
+  const f=e.deltaY<0?1.12:1/1.12; const _m=drawnXY(e.offsetX,e.offsetY), mx=_m[0], my=_m[1];
   const [wx,wy]=S2W(mx,my); cam.s*=f; cam.tx=mx-wx*cam.s; cam.ty=my-wy*cam.s; render();
 },{passive:false});
 
@@ -2494,7 +2543,7 @@ function buildLayoutSeg(){
   const sel=document.getElementById('rinkSel'); if(!sel)return;
   sel.value=rinkConfig;
   sel.onchange=()=>{ pushUndo(); rinkConfig=sel.value; scenes[currentScene].rinkType=rinkConfig; currentView=defaultView(); buildViewSeg();
-    fitRect(viewPresets()[0].r); render(); };
+    applyView(viewPresets()[0]); render(); };
   const tc=document.getElementById('trapChk'); if(tc){ tc.checked=showTrap; tc.onchange=()=>{ showTrap=tc.checked; render(); }; }
 }
 document.getElementById('clearBtn').onclick=()=>{ if(pieces.length||paths.length){ pushUndo(); pieces=[]; paths=[]; scenes[currentScene].pieces=pieces; scenes[currentScene].paths=paths; selOne(null); updateInspector(); render(); toast('Cleared'); } };
@@ -2696,7 +2745,7 @@ function loadData(o){
   rinkConfig=s.rinkType||'full'; document.getElementById('rinkSel').value=rinkConfig;
   uid=Math.max(1,...scenes.flatMap(sc=>[...sc.pieces.map(p=>p.id||0),...sc.paths.map(p=>p.id||0)]))+1;
   selOne(null); currentView=defaultView(); buildLayoutSeg(); buildViewSeg();
-  fitRect(viewPresets()[0].r); updateInspector(); updateSceneTabs(); render();
+  applyView(viewPresets()[0]); updateInspector(); updateSceneTabs(); render();
   toast('Practice loaded — '+scenes.length+' drill'+(scenes.length>1?'s':'')); }
 
 // help
