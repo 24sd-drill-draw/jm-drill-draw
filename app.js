@@ -1087,8 +1087,12 @@ function drawPiece(p, pos){
     ctx.beginPath(); ctx.arc(sx,sy,r,0,7); ctx.stroke(); ctx.setLineDash([]);
   }
 }
+// Players are drawn deliberately larger than life. A real skater is about
+// 2.5ft across, which next to a 30ft face-off circle leaves a dot too small to
+// carry a jersey number. A board is read, not measured.
+const PLAYER_R=3.6, GOALIE_R=3.9;
 function pieceRadius(p){ // in feet
-  const b={player:2.6,goalie:3.0,coach:2.6,puck:1.0,puckstack:2.0,ball:1.6,net:3.4,cone:1.6,tire:2.0,bumper:7,ring:2.2,dot:1.2,image:8,zone:10}[p.type]||2;
+  const b={player:PLAYER_R,goalie:GOALIE_R,coach:PLAYER_R,puck:1.2,puckstack:2.2,ball:1.8,net:3.4,cone:1.8,tire:2.2,bumper:7,ring:2.2,dot:1.4,image:8,zone:10}[p.type]||2;
   return b*(p.size||1);
 }
 function drawPieceShape(c, p, scale, thumb){
@@ -1098,7 +1102,7 @@ function drawPieceShape(c, p, scale, thumb){
   if(p.rot) c.rotate(p.rot*Math.PI/180);
   switch(p.type){
     case 'player':{
-      const r=2.6*z*size;
+      const r=PLAYER_R*z*size;
       if(p.shape==='triangle'){
         c.fillStyle=col; c.beginPath(); c.moveTo(0,-r*1.15); c.lineTo(r,r*0.85); c.lineTo(-r,r*0.85); c.closePath(); c.fill();
         c.lineWidth=Math.max(1.5,r*0.13); c.strokeStyle='rgba(0,0,0,.35)'; c.stroke();
@@ -1110,7 +1114,7 @@ function drawPieceShape(c, p, scale, thumb){
       }
       break; }
     case 'goalie':{
-      const r=2.8*z*size;
+      const r=(GOALIE_R-0.2)*z*size;
       c.fillStyle=col; c.beginPath();
       c.moveTo(-r*1.15,r*0.2); c.lineTo(-r*1.15,r); c.lineTo(r*1.15,r); c.lineTo(r*1.15,r*0.2); c.closePath(); c.fill(); // pads
       c.beginPath(); c.arc(0,-r*0.1,r,0,7); c.fill();
@@ -1118,7 +1122,7 @@ function drawPieceShape(c, p, scale, thumb){
       label(c,'G',r,col,-r*0.1);
       break; }
     case 'coach':{
-      const r=2.6*z*size; const cc=p.color||'#E7B416';
+      const r=PLAYER_R*z*size; const cc=p.color||'#E7B416';
       c.fillStyle=cc; c.beginPath(); c.arc(0,0,r,0,7); c.fill();
       c.lineWidth=Math.max(1.5,r*0.12); c.strokeStyle='rgba(0,0,0,.4)'; c.stroke();
       label(c,'C',r,cc);
@@ -2551,13 +2555,20 @@ function exportImage(fmt){
   const ext=fmt==='jpg'?'jpg':'png';
   const a=document.createElement('a');
   a.href=off.toDataURL(mime,0.95);
-  a.download='drill-'+new Date().toISOString().slice(0,10)+'.'+ext;
+  a.download=safeFileName((scenes[currentScene]||{}).name)+'.'+ext;
   a.click();
   toast('Image saved to your downloads');
 }
 document.getElementById('imgExportBtn').onclick=()=>exportImage('jpg');
 
 // save / open
+// Windows rejects \ / : * ? " < > | in a filename; everything else a coach
+// might reasonably type — digits, hyphens, apostrophes, brackets, & — is fine
+// and should survive. "9-01 Power Plays" comes through untouched.
+function safeFileName(name){
+  const s=(name||'').replace(/[\\\/:*?"<>|]/g,'').replace(/\s+/g,' ').trim();
+  return s || ('drill-'+new Date().toISOString().slice(0,10));
+}
 async function doSaveDrill(name){
   syncScene();
   const data={v:2,showTrap,centerLogo,
@@ -2568,7 +2579,7 @@ async function doSaveDrill(name){
       pieces:s.pieces.map(p=>({...p,img:undefined,_src:p._src||null})),
       paths:s.paths.map(p=>({...p,_lut:undefined}))
     }))};
-  const safe=name.trim().replace(/[^a-zA-Z0-9 _\-]/g,'').trim()||('drill-'+new Date().toISOString().slice(0,10));
+  const safe=safeFileName(name);
   const json=JSON.stringify(data);
   // Preferred: File System Access API — saves straight into a folder you pick (it remembers your Drills
   // folder across saves). This is app-only; it does NOT change the browser's global download location.
@@ -2604,6 +2615,10 @@ document.getElementById('saveModalCancel').onclick=()=>document.getElementById('
 document.getElementById('saveModalConfirm').onclick=()=>{
   const name=document.getElementById('drillNameInput').value;
   document.getElementById('saveModal').classList.remove('show');
+  // The name you save under is the drill's name from now on, so the tab, the
+  // JPG filename and the printed heading all say the same thing.
+  const clean=name.trim();
+  if(clean && scenes[currentScene]){ scenes[currentScene].name=clean; updateSceneTabs(); }
   doSaveDrill(name);
 };
 document.getElementById('drillNameInput').addEventListener('keydown',e=>{

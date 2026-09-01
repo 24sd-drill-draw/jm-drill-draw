@@ -1262,6 +1262,71 @@
   window.addEventListener('resize', function () { syncTimeline(true); });
 
   // ---------------------------------------------------------
+  // 7b. Autosave — a reload should never cost you a board
+  // ---------------------------------------------------------
+  // The board lived only in the tab: a refresh, a crash, or a stray Ctrl-W and
+  // an hour of work was gone. This keeps the current state in localStorage and
+  // puts it back on the next load. It is a safety net, not a filing system —
+  // File ▸ Save is still how a drill gets a name and a home.
+  var AKEY = 'kd.autosave';
+  function boardData() {
+    syncScene();
+    return {
+      v: 2, showTrap: showTrap, centerLogo: centerLogo,
+      customLogo: LOGO_SRC.custom || null,
+      currentScene: currentScene,
+      scenes: scenes.map(function (s) {
+        return {
+          name: s.name, rinkType: s.rinkType || 'full',
+          pieces: s.pieces.map(function (p) {
+            var q = Object.assign({}, p); q.img = undefined; q._src = p._src || null; return q;
+          }),
+          paths: s.paths.map(function (p) {
+            var q = Object.assign({}, p); q._lut = undefined; return q;
+          })
+        };
+      })
+    };
+  }
+  var lastSaved = '';
+  function autosaveNow() {
+    try {
+      var d = boardData();
+      var empty = d.scenes.every(function (s) { return !s.pieces.length && !s.paths.length; });
+      if (empty) { localStorage.removeItem(AKEY); lastSaved = ''; return; }
+      var json = JSON.stringify(d);
+      if (json === lastSaved) return;
+      localStorage.setItem(AKEY, JSON.stringify({ at: Date.now(), data: d }));
+      lastSaved = json;
+    } catch (e) { /* private mode or quota — File ▸ Save still works */ }
+  }
+  var saveTimer = null;
+  function autosaveSoon() { clearTimeout(saveTimer); saveTimer = setTimeout(autosaveNow, 700); }
+
+  // pushUndo runs just before every change the engine considers undoable, and
+  // the debounce means the write happens after the change has landed.
+  var _pushUndo = pushUndo;
+  pushUndo = function () { _pushUndo.apply(this, arguments); autosaveSoon(); };
+  // A backstop for edits that never touch the undo stack — inspector sliders,
+  // retiming a bar on the timeline.
+  setInterval(autosaveNow, 4000);
+  window.addEventListener('beforeunload', autosaveNow);
+
+  function restoreAutosave() {
+    var raw = null;
+    try { raw = localStorage.getItem(AKEY); } catch (e) { return; }
+    if (!raw) return;
+    var o = null;
+    try { o = JSON.parse(raw); } catch (e) { return; }
+    if (!o || !o.data || !o.data.scenes) return;
+    if (pieces.length || paths.length) return;   // never clobber a live board
+    try {
+      loadData(o.data);
+      toast('Picked up where you left off — File ▸ New to start fresh');
+    } catch (e) { }
+  }
+
+  // ---------------------------------------------------------
   // 8. Boot
   // ---------------------------------------------------------
   // Speed slider 2..12 maps to T=(14-v)*1000, so 9 == the engine's default 5s.
@@ -1273,6 +1338,7 @@
   applyWeight(parseFloat(wSlider.value));
   applyOpacity(parseFloat(oSlider.value));
   paintRecent();
+  restoreAutosave();
   syncTimeline(true);
   setTimeout(function () { syncTimeline(true); }, 300);
 })();
