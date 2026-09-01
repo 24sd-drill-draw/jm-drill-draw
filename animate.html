@@ -272,6 +272,7 @@
       <button class="play" id="playBtn" title="Play / pause (Space)">&#9654;</button>
       <button class="kd-tp" id="kdNextF" title="Forward one frame (&rarr;)">&#8250;</button>
       <button class="kd-tp" id="kdToEnd" title="Go to end">&#9197;</button>
+      <span class="kd-tlbl">Step</span>
       <div class="kd-steps" id="kdStepSize" title="How far the &#8249; &#8250; buttons and the arrow keys jump">
         <button type="button" data-ms="0" class="on">1f</button>
         <button type="button" data-ms="250">&frac14;s</button>
@@ -287,7 +288,8 @@
       <input type="range" id="scrubber" min="0" max="1000" value="0" class="kd-hidden">
       <div class="kd-tsep"></div>
       <span class="kd-selinfo" id="kdSelInfo">Clip 0.0s</span>
-      <div class="kd-steps" id="kdZoom" title="Zoom the timeline (Ctrl+wheel over it, or +/−)">
+      <span class="kd-tlbl">Zoom</span>
+      <div class="kd-steps" id="kdZoom" title="Zoom the timeline. Ctrl+wheel over it zooms around the pointer; Shift+wheel scrolls.">
         <button type="button" data-z="out" title="Zoom out">&minus;</button>
         <button type="button" data-z="fit" title="Show the whole clip">Fit</button>
         <button type="button" data-z="in" title="Zoom in">+</button>

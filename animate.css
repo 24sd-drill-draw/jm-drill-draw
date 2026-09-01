@@ -394,3 +394,8 @@ body.light-theme .seg,body.light-theme .zoomctl button{background:rgba(255,255,2
   font:800 10px/1 system-ui,sans-serif;letter-spacing:.4px;padding:5px 7px;white-space:nowrap}
 .kd-steps button:hover{background:var(--panel2);color:var(--ink)}
 .kd-steps button.on{background:var(--accent);color:#12210a}
+
+/* Names the segmented controls in the transport. They were unlabelled icons
+   and the zoom went unfound — the same way the freeze checkbox did. */
+.kd-tlbl{font-size:9px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;
+  color:var(--muted);margin-left:8px;margin-right:1px;white-space:nowrap;align-self:center}
