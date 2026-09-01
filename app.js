@@ -2625,7 +2625,13 @@ async function doSaveDrill(name){
       toast('"'+safe+'" saved');
       return;
     }catch(err){
-      if(err && err.name==='AbortError') return;   // you cancelled the save dialog — do nothing
+      if(err && err.name==='AbortError'){
+        // Cancelling used to return in silence, which looks exactly like a
+        // successful save. A whole board was lost to that: the dialog got
+        // dismissed, nothing said otherwise, and the next reload took it.
+        toast('Save cancelled — nothing was written. Your work is still here.');
+        return;
+      }
       // any other error: fall through to the download fallback below
     }
   }
