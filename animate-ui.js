@@ -443,9 +443,33 @@
   var lastW = 0;
   var lastT = 0;
 
+  // A five-minute clip squeezed into one screen width is about 250ms per pixel,
+  // so isolating a few seconds means dragging a twelve-pixel gap and the two
+  // trim handles sit on top of each other. The timeline has its own zoom: the
+  // content is gridW() * tlZoom wide and the grid scrolls to it.
+  var tlZoom = 1;
   function gridW() { return grid.clientWidth || 1; }
-  function msToX(ms) { return (ms / T) * gridW(); }
-  function xToMs(x) { return (x / gridW()) * T; }
+  function contentW() { return Math.max(gridW(), Math.round(gridW() * tlZoom)); }
+  function maxZoom() { return Math.max(1, Math.min(120, 40000 / gridW())); }
+  function msToX(ms) { return (ms / T) * contentW(); }
+  function xToMs(x) { return (x / contentW()) * T; }
+  // x measured against the content, so it stays right once the grid is scrolled
+  function eventMs(e) {
+    var x = e.clientX - grid.getBoundingClientRect().left + grid.scrollLeft;
+    return xToMs(clamp(x, 0, contentW()));
+  }
+  function setZoom(z, anchorMs) {
+    z = clamp(z, 1, maxZoom());
+    if (Math.abs(z - tlZoom) < 0.001) return;
+    var W = gridW();
+    if (anchorMs == null) anchorMs = tNow;
+    var heldAt = msToX(anchorMs) - grid.scrollLeft;      // where it sits on screen
+    if (heldAt < 0 || heldAt > W) heldAt = W / 2;        // off screen: centre it
+    tlZoom = z;
+    syncTimeline(true);
+    grid.scrollLeft = clamp(msToX(anchorMs) - heldAt, 0, Math.max(0, contentW() - W));
+    movePlayhead(); layoutTrim();
+  }
 
   // Every path gets a track now, not just the moving ones: a motion bar means
   // "the piece travels here", a mark's bar means "this drawing is on screen".
@@ -499,7 +523,7 @@
   // tick spacing is chosen from the total length rather than hard-coded.
   var STEPS = [100, 250, 500, 1000, 2000, 5000, 10000, 15000, 30000, 60000, 120000, 300000];
   function niceStep() {
-    var want = clamp(Math.floor(gridW() / 110), 4, 12);
+    var want = clamp(Math.floor(contentW() / 110), 4, 400);
     var raw = T / want;
     for (var i = 0; i < STEPS.length; i++) if (STEPS[i] >= raw) return STEPS[i];
     return STEPS[STEPS.length - 1];
@@ -511,7 +535,8 @@
   }
 
   function buildRuler() {
-    var W = gridW();
+    var W = contentW();
+    ruler.style.width = W + 'px';
     var major = niceStep();
     var minor = major / 2;
     var h = '';
@@ -532,7 +557,8 @@
   }
 
   function buildTracks() {
-    var W = gridW();
+    var W = contentW();
+    tracksEl.style.width = W + 'px';
     rows = [];
     rows.push({ kind: 'clip' });                       // the clip itself, always on top
     motionPaths().forEach(function (p) { rows.push({ kind: 'path', path: p }); });
@@ -662,8 +688,48 @@
   }
 
   function movePlayhead() {
-    playhead.style.left = msToX(tNow).toFixed(1) + 'px';
+    var x = msToX(tNow);
+    playhead.style.left = x.toFixed(1) + 'px';
+    // Zoomed in, the playhead runs off the end of the view within a second or
+    // two. Keep it in frame without fighting a scroll the user is doing.
+    if (tlZoom > 1 && playing) {
+      var W = gridW(), L = grid.scrollLeft;
+      if (x < L + 40 || x > L + W - 40) {
+        grid.scrollLeft = clamp(x - W * 0.35, 0, Math.max(0, contentW() - W));
+      }
+    }
   }
+
+  // ---- timeline zoom controls ----
+  [].slice.call($('kdZoom').querySelectorAll('button')).forEach(function (b) {
+    b.addEventListener('click', function () {
+      var k = b.dataset.z;
+      if (k === 'fit') { setZoom(1, 0); grid.scrollLeft = 0; }
+      else setZoom(tlZoom * (k === 'in' ? 1.7 : 1 / 1.7), tNow);
+    });
+  });
+  grid.addEventListener('wheel', function (e) {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      setZoom(tlZoom * (e.deltaY < 0 ? 1.25 : 1 / 1.25), eventMs(e));
+    } else if (e.shiftKey && contentW() > gridW()) {
+      e.preventDefault();
+      grid.scrollLeft = clamp(grid.scrollLeft + e.deltaY, 0, contentW() - gridW());
+    }
+  }, { passive: false });
+
+  // Setting the in/out at the playhead beats dragging a handle to the pixel,
+  // and on a long clip it is the only practical way to cut a few seconds out.
+  function markIn() { inMs = clamp(tNow, 0, outMs - 200); syncTimeline(true); render(); }
+  function markOut() { outMs = clamp(tNow, inMs + 200, T); syncTimeline(true); render(); }
+  $('kdMarkIn').onclick = markIn;
+  $('kdMarkOut').onclick = markOut;
+  window.addEventListener('keydown', function (e) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === 'i' || e.key === 'I') { e.preventDefault(); markIn(); }
+    else if (e.key === 'o' || e.key === 'O') { e.preventDefault(); markOut(); }
+  });
 
   function syncTimeline(force) {
     var w = gridW();
@@ -687,7 +753,7 @@
   var drag = null;
 
   function localX(e) {
-    return clamp(e.clientX - grid.getBoundingClientRect().left, 0, gridW());
+    return clamp(e.clientX - grid.getBoundingClientRect().left + grid.scrollLeft, 0, contentW());
   }
 
   grid.addEventListener('pointerdown', function (e) {
@@ -1043,7 +1109,7 @@
 
   function layoutTrim() {
     clampTrim();
-    var W = gridW(), h = 22 + rows.length * ROW;
+    var W = contentW(), h = 22 + rows.length * ROW;
     var a = (inMs / T) * W, b = (outMs / T) * W;
     shadeL.style.left = '0px'; shadeL.style.width = a.toFixed(1) + 'px'; shadeL.style.height = h + 'px';
     shadeR.style.left = b.toFixed(1) + 'px'; shadeR.style.width = Math.max(0, W - b).toFixed(1) + 'px';
@@ -1060,7 +1126,7 @@
       // survives the pointer leaving the handle either way
       try { handle.setPointerCapture(e.pointerId); } catch (err) { }
       var move = function (ev) {
-        var ms = xToMs(clamp(ev.clientX - grid.getBoundingClientRect().left, 0, gridW()));
+        var ms = eventMs(ev);
         if (which === 'in') inMs = clamp(ms, 0, outMs - 200);
         else outMs = clamp(ms, inMs + 200, T);
         layoutTrim();

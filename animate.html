@@ -287,6 +287,13 @@
       <input type="range" id="scrubber" min="0" max="1000" value="0" class="kd-hidden">
       <div class="kd-tsep"></div>
       <span class="kd-selinfo" id="kdSelInfo">Clip 0.0s</span>
+      <div class="kd-steps" id="kdZoom" title="Zoom the timeline (Ctrl+wheel over it, or +/−)">
+        <button type="button" data-z="out" title="Zoom out">&minus;</button>
+        <button type="button" data-z="fit" title="Show the whole clip">Fit</button>
+        <button type="button" data-z="in" title="Zoom in">+</button>
+      </div>
+      <button class="tbtn" id="kdMarkIn" title="Set the start of the clip at the playhead (I)">Set in</button>
+      <button class="tbtn" id="kdMarkOut" title="Set the end of the clip at the playhead (O)">Set out</button>
       <button class="tbtn" id="kdSelAll" title="Reset the in/out points to the whole timeline">Reset</button>
       <button class="tbtn accent" id="kdExport" title="Export the trimmed clip with your marks burned in">&#11015; Export clip</button>
       <span class="kd-tinfo" id="kdTrackInfo">0 tracks</span>

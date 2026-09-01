@@ -293,7 +293,11 @@ select{font:inherit;color:inherit}
 .kd-del{font-size:14px}
 .kd-del:hover{color:#ff8a9a}
 
-.kd-grid{position:relative;overflow-y:auto;overflow-x:hidden}
+.kd-grid{position:relative;overflow:auto}
+.kd-grid::-webkit-scrollbar{height:9px;width:9px}
+.kd-grid::-webkit-scrollbar-thumb{background:#3d444e;border-radius:5px}
+.kd-grid::-webkit-scrollbar-thumb:hover{background:#4c545f}
+.kd-grid::-webkit-scrollbar-track{background:transparent}
 .kd-ruler{height:22px;position:sticky;top:0;background:var(--navy2);border-bottom:1px solid var(--line);z-index:3}
 .kd-tick{position:absolute;top:0;bottom:0;width:1px;background:var(--line)}
 .kd-tick.minor{top:13px;background:rgba(255,255,255,.10)}
