@@ -132,7 +132,7 @@
     text: 'Click anywhere — on or off the ice — to drop a label. Double-click a label to edit it.',
     pan: 'Drag to move the view around. Scroll or use the zoom buttons to change scale.',
     erase: 'Click any piece or line to delete it.',
-    players: 'Pick a team colour, then a skater or position. Click the ice to place it — it keeps stamping until you press Esc.',
+    players: 'Pick a team colour, then a skater or position. Click the ice to place it — it keeps stamping until you press Esc. Type a <b>jersey number</b> first to use your own numbers; retype it between clicks to number a whole line-up.',
     objects: 'Nets, pucks, cones, tires, bumpers, dots. Click one, then click the ice to place it.'
   };
   var LABELS = { players: 'Players', objects: 'Objects' };
@@ -143,6 +143,14 @@
     document.querySelectorAll('.kd-sec').forEach(function (s) {
       s.classList.toggle('on', s.dataset.sec === sec);
     });
+    // The marks footer is sticky to the bottom of the panel, so it sits on top
+    // of whatever is scrolled behind it — which was already burying Positions,
+    // and the jersey-number box made the squeeze worse. None of it (mark
+    // colour, weight, opacity, freeze) applies while you are placing players,
+    // who take their colour from Team colour above. Objects still need it for
+    // the mark palette, so it only steps aside here.
+    var pfoot = document.querySelector('.kd-pfoot');
+    if (pfoot) pfoot.style.display = (k === 'players') ? 'none' : '';
     panelTitle.textContent = LABELS[k] || 'Tool';
     if (sec === 'tool') {
       toolName.textContent = LABELS[k] || 'Tool';
@@ -159,6 +167,36 @@
   }
   bPlayers.addEventListener('click', function () { pickPalette('players'); });
   bObjects.addEventListener('click', function () { pickPalette('objects'); });
+
+  // ---------------------------------------------------------
+  // 3a. Jersey number — put a chosen number on the next skater
+  // ---------------------------------------------------------
+  // Read at placement time rather than when the tool is armed, so a number
+  // typed between two clicks applies to the second one. That means a line-up
+  // goes: click Skater once, then type 17 · click, type 9 · click, type 4 ·
+  // click — without re-arming anything.
+  var numBox = $('playerNum'), numRow = numBox.parentNode;
+  function numMark() { numRow.classList.toggle('set', !!numBox.value.trim()); }
+  numBox.addEventListener('input', numMark);
+  numBox.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { this.blur(); }
+    if (e.key === 'Escape') { this.value = ''; numMark(); this.blur(); }
+  });
+  $('playerNumAuto').addEventListener('click', function () {
+    numBox.value = ''; numMark(); numBox.focus();
+  });
+
+  var _addPiece = addPiece;
+  addPiece = function (type, at, opts) {
+    // Only a plain skater takes the typed number. The Positions buttons carry
+    // their own label (F, C, LD…) and a paste carries the number it copied —
+    // neither should be overwritten by whatever is sitting in the box.
+    if (type === 'player' && (!opts || opts.num == null)) {
+      var n = numBox.value.trim();
+      if (n) { opts = Object.assign({}, opts || {}); opts.num = n; }
+    }
+    return _addPiece(type, at, opts);
+  };
 
   // Wrap setTool so panel + rail stay in sync however the tool changed
   // (rail click, keyboard shortcut v/s/p/a, or the engine itself).

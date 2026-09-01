@@ -368,3 +368,17 @@ body.light-theme .seg,body.light-theme .zoomctl button{background:rgba(255,255,2
   .kd-main{grid-template-columns:var(--rail) var(--lpanel) minmax(0,1fr)}
   .kd-right{display:none}
 }
+
+/* Jersey number box in the Players panel. Typed at placement time, so you can
+   retype between clicks and keep stamping without re-arming the tool. */
+.kd-numrow{display:flex;gap:6px;align-items:stretch}
+.kd-numrow input{flex:1;min-width:0;background:var(--panel);border:1px solid var(--line);
+  border-radius:var(--r);color:var(--ink);font:800 15px/1 system-ui,sans-serif;
+  text-align:center;letter-spacing:.5px;padding:7px 6px}
+.kd-numrow input::placeholder{font-weight:600;letter-spacing:.6px;color:var(--muted);text-transform:uppercase;font-size:11px}
+.kd-numrow input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(185,230,12,.18)}
+.kd-numrow button{flex:0 0 auto;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+  color:var(--muted);font:800 10px/1 system-ui,sans-serif;letter-spacing:.7px;text-transform:uppercase;
+  padding:0 10px;cursor:pointer}
+.kd-numrow button:hover{background:var(--panel2);color:var(--ink)}
+.kd-numrow.set input{border-color:var(--accent);color:var(--accent)}

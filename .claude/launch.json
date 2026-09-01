@@ -11,6 +11,19 @@
       ],
       "port": 8765,
       "url": "http://127.0.0.1:8765"
+    },
+    {
+      "name": "kraken-lineup",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": [
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-File", ".claude/serve.ps1",
+        "-Port", "8790",
+        "-Root", "C:/Users/JoshMizerek/Claude/Projects/Team Workouts/18U-AAA-Kraken"
+      ],
+      "port": 8790,
+      "url": "http://127.0.0.1:8790"
     }
   ]
 }

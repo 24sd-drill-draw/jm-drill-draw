@@ -2350,7 +2350,7 @@ function updateInspector(){
     const teamColored=(p.type==='player'||p.type==='goalie');
     if(teamColored){
       h+=swatchHTML(p.color);
-      h+=field('Label','<input type="text" id="f_num" maxlength="3" value="'+escapeHtml(p.num||'')+'">');
+      h+=field(p.type==='player'?'Number':'Label','<input type="text" id="f_num" maxlength="3" value="'+escapeHtml(p.num||'')+'">');
     } else if(p.type==='text'){
       h+=field('Text','<input type="text" id="f_text" value="'+escapeHtml(p.text||'')+'">');
       h+=field('Colour', colorBtns(p.color||'#11181f'));
