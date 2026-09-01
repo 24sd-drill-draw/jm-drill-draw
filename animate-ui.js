@@ -783,17 +783,34 @@
   // Frame-step. Browsers don't expose a clip's real frame rate, so this assumes
   // 30fps — close enough to land on a moment, which is the whole point.
   var FRAME = 1000 / 30;
-  function step(n) {
+  var stepMs = FRAME;          // how far one press moves; 1f until you change it
+  function step(n, ms) {
     playing = false; setPlayUI();
-    tNow = clamp(tNow + n * FRAME, 0, T);
+    tNow = clamp(tNow + n * (ms || stepMs), 0, T);
     syncScrub(); render();
   }
   $('kdPrevF').onclick = function () { step(-1); };
   $('kdNextF').onclick = function () { step(1); };
+
+  // A single frame is right for finding the exact moment of a tip-in and far
+  // too slow for crossing a shift. The size is a choice, and it drives the
+  // buttons and the arrow keys together.
+  var stepBtns = [].slice.call($('kdStepSize').querySelectorAll('button'));
+  stepBtns.forEach(function (b) {
+    b.addEventListener('click', function () {
+      stepMs = parseFloat(b.dataset.ms) || FRAME;
+      stepBtns.forEach(function (x) { x.classList.toggle('on', x === b); });
+      var lbl = b.textContent.trim();
+      $('kdPrevF').title = 'Back ' + lbl + ' (←)';
+      $('kdNextF').title = 'Forward ' + lbl + ' (→)';
+    });
+  });
   window.addEventListener('keydown', function (e) {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-    if (e.key === 'ArrowLeft') { e.preventDefault(); step(e.shiftKey ? -10 : -1); }
-    else if (e.key === 'ArrowRight') { e.preventDefault(); step(e.shiftKey ? 10 : 1); }
+    // Shift always gives a single frame, whatever the step is set to, so you
+    // can jump close and then walk in without touching the control.
+    if (e.key === 'ArrowLeft') { e.preventDefault(); step(-1, e.shiftKey ? FRAME : 0); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); step(1, e.shiftKey ? FRAME : 0); }
   });
 
   // ---------------------------------------------------------

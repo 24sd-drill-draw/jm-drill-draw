@@ -382,3 +382,11 @@ body.light-theme .seg,body.light-theme .zoomctl button{background:rgba(255,255,2
   padding:0 10px;cursor:pointer}
 .kd-numrow button:hover{background:var(--panel2);color:var(--ink)}
 .kd-numrow.set input{border-color:var(--accent);color:var(--accent)}
+
+/* Step size for the transport's < > buttons and the arrow keys. */
+.kd-steps{display:flex;gap:2px;background:var(--panel);border:1px solid var(--line);
+  border-radius:var(--r);padding:2px;margin-left:4px}
+.kd-steps button{background:none;border:0;border-radius:5px;color:var(--muted);cursor:pointer;
+  font:800 10px/1 system-ui,sans-serif;letter-spacing:.4px;padding:5px 7px;white-space:nowrap}
+.kd-steps button:hover{background:var(--panel2);color:var(--ink)}
+.kd-steps button.on{background:var(--accent);color:#12210a}
