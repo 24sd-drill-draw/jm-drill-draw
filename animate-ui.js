@@ -1184,10 +1184,42 @@
     } catch (e) { return null; }
   }
 
+  // Recording the visible canvas meant the clip was re-encoded at whatever size
+  // the stage happened to be: a 1280x720 source came out 576x324, a fifth of
+  // the pixels, and every export looked soft. For the length of the recording
+  // the canvas backing store is resized to the clip's own resolution and the
+  // camera is pointed straight at the video panel, so what MediaRecorder sees
+  // is full size. The stage looks stretched while it records — the CSS box has
+  // not moved and the browser scales the bigger backing store into it — but the
+  // file is correct.
+  var savedView = null;
+  function useNativeView() {
+    if (!vid || !vid.videoWidth) return null;
+    var MAXW = 1920;                       // 4K would be a 33MP canvas per frame
+    var w = vid.videoWidth, h = vid.videoHeight;
+    if (w > MAXW) { h = Math.round(h * MAXW / w); w = MAXW; }
+    w -= w % 2; h -= h % 2;                // H.264 will not take odd dimensions
+    savedView = { dpr: DPR, s: cam.s, tx: cam.tx, ty: cam.ty };
+    cv.width = w; cv.height = h;
+    DPR = 1;
+    cam.s = w / VW; cam.tx = 0; cam.ty = 0;   // the panel spans VW world units
+    render();
+    return { w: w, h: h };
+  }
+  function restoreView() {
+    if (!savedView) return;
+    DPR = savedView.dpr;
+    cam.s = savedView.s; cam.tx = savedView.tx; cam.ty = savedView.ty;
+    savedView = null;
+    resize();                              // puts the backing store back
+    render();
+  }
+
   function exportClip() {
     if (exporting) return;
     if (trimSpan() < 200) { toast('Drag the in/out handles to pick a window first'); return; }
 
+    var native = useNativeView();
     var stream = cv.captureStream(30);
     var withAudio = false;
     var atrack = clipAudioTrack();
@@ -1196,13 +1228,18 @@
     var mime = pickMime();
     var ext = mime.indexOf('mp4') >= 0 ? 'mp4' : 'webm';
     var rec, chunks = [];
+    // Bitrate has to follow the resolution, or the extra pixels just get spent
+    // on compression artefacts.
+    var px = native ? native.w * native.h : cv.width * cv.height;
+    var rate = Math.max(8000000, Math.round(px * 30 * 0.15));
     try {
-      rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 8000000 });
-    } catch (e) { toast('This browser cannot record — try Chrome'); return; }
+      rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: rate });
+    } catch (e) { restoreView(); toast('This browser cannot record — try Chrome'); return; }
 
     rec.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
     rec.onstop = function () {
       var blob = new Blob(chunks, { type: 'video/' + ext });
+      restoreView();
       exporting = false;
       $('kdExport').classList.remove('rec');
       $('kdExport').textContent = '⬇ Export clip';
@@ -1219,6 +1256,7 @@
       a.click();
       setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
       toast('Saved ' + fmtT(trimSpan()) + ' ' + ext.toUpperCase() +
+        (native ? ' at ' + native.w + '×' + native.h : '') +
         (withAudio ? ' with audio' : ' (no audio)') + ' to your downloads');
     };
 

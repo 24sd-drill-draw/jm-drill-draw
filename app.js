@@ -500,7 +500,11 @@ function getPath(i){ return paths.find(p=>p.id===i); }
 // =========================================================
 //  RINK + PIECE RENDERING
 // =========================================================
-function clear(){ ctx.setTransform(DPR,0,0,DPR,0,0); ctx.clearRect(0,0,cv.clientWidth,cv.clientHeight); }
+// Clear the whole backing store, not the CSS box. The two match everywhere
+// except during an export, where the canvas is resized to the clip's own
+// resolution and the CSS box stays put — clearing by the box would have left
+// most of every recorded frame stale.
+function clear(){ ctx.setTransform(DPR,0,0,DPR,0,0); ctx.clearRect(0,0,cv.width/DPR,cv.height/DPR); }
 
 function drawRinkBg(p){
   const s=cam.s, kind=p.kind, full=(kind==='full');
