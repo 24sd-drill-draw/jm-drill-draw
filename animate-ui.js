@@ -1268,7 +1268,14 @@
     savedView = { dpr: DPR, s: cam.s, tx: cam.tx, ty: cam.ty };
     cv.width = w; cv.height = h;
     DPR = 1;
-    cam.s = w / VW; cam.tx = 0; cam.ty = 0;   // the panel spans VW world units
+    // Fit the panel inside the canvas rather than keying off the width alone.
+    // Rounding both sides down to even can leave the painted height a pixel
+    // over the canvas, and on a 2704x1520 clip that shaved the bottom row and
+    // shifted the aspect by 0.1%. Scaling to the tighter side keeps the shape
+    // exact and costs at most one row of black.
+    cam.s = Math.min(w / VW, h / VH);
+    cam.tx = (w - VW * cam.s) / 2;
+    cam.ty = (h - VH * cam.s) / 2;
     render();
     return { w: w, h: h };
   }
