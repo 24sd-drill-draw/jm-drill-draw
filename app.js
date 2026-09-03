@@ -1443,7 +1443,12 @@ function drawAnnotation(p){
     // The head is a filled triangle, so scaling it with the stroke would put a
     // small white one inside a much bigger black one and the arrow would read
     // as black. It only needs a rim.
-    _headW = keepW + 2.2/Math.max(2.4*cam.s, 1);
+    //
+    // Halved with the stroke on 2026-09-03. Thinning the line alone made the
+    // heads look HEAVIER than before by comparison - the tip was the darkest
+    // thing on the sheet and the eye went to it instead of to where the play
+    // goes. The two have to move together.
+    _headW = keepW + 1.1/Math.max(2.4*cam.s, 1);
     ctx.save();
     ctx.shadowColor='rgba(8,12,16,.55)'; ctx.shadowBlur=1.5;
     paintMark(p,scr,'#0B0F14');
