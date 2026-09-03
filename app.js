@@ -2557,7 +2557,10 @@ function buildLayoutSeg(){
     applyView(viewPresets()[0]); render(); };
   const tc=document.getElementById('trapChk'); if(tc){ tc.checked=showTrap; tc.onchange=()=>{ showTrap=tc.checked; render(); }; }
 }
-document.getElementById('clearBtn').onclick=()=>{ if(pieces.length||paths.length){ pushUndo(); pieces=[]; paths=[]; scenes[currentScene].pieces=pieces; scenes[currentScene].paths=paths; selOne(null); updateInspector(); render(); toast('Cleared'); } };
+document.getElementById('clearBtn').onclick=()=>{ if(pieces.length||paths.length){ pushUndo(); pieces=[]; paths=[]; scenes[currentScene].pieces=pieces; scenes[currentScene].paths=paths; selOne(null); updateInspector(); render();
+  // Names what it cleared AND what it did not. "Cleared" on a board with five
+  // drill tabs open reads as though all five went.
+  toast(scenes.length>1 ? 'Cleared this drill - the other '+(scenes.length-1)+' tab'+(scenes.length>2?'s are':' is')+' untouched' : 'Cleared'); } };
 document.getElementById('zin').onclick=()=>{ zoomBy(1.18); };
 document.getElementById('zout').onclick=()=>{ zoomBy(1/1.18); };
 document.getElementById('zfit').onclick=()=>{ const v=viewPresets().find(p=>p.k===currentView)||viewPresets()[0]; fitRect(v.r); render(); };

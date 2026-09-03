@@ -1156,6 +1156,10 @@
   // ---------------------------------------------------------
   var inMs = 0, outMs = 0;      // outMs 0 == "not set yet", filled from T
   var exporting = false;
+  // The live MediaRecorder, held where the button can reach it. Without this the
+  // only reference lived inside exportClip(), so once a capture started there was
+  // nothing in scope that could stop it.
+  var activeRec = null;
   var shadeL = $('kdShadeL'), shadeR = $('kdShadeR'), hIn = $('kdIn'), hOut = $('kdOut');
 
   function trimSpan() { return Math.max(0, outMs - inMs); }
@@ -1402,12 +1406,14 @@
       rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: rate });
     } catch (e) { restoreView(); toast('This browser cannot record — try Chrome'); return; }
 
+    activeRec = rec;
     rec.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
     rec.onstop = function () {
       var blob = new Blob(chunks, { type: 'video/' + ext });
       var secs = (Date.now() - capStarted) / 1000;
       var fps = (capTrack && secs > 0.2) ? Math.round(capFrames / secs) : 0;
       capTrack = null;
+      activeRec = null;
       restoreView();
       exporting = false;
       $('kdExport').classList.remove('rec');
@@ -1471,7 +1477,33 @@
     } else begin();
   }
 
-  $('kdExport').onclick = function () { exporting ? null : exportClip(); };
+  // The button says "Recording…" with a stop glyph, so it has to STOP. It used to
+  // evaluate to null while exporting - a control that looks like a stop button and
+  // does nothing when pressed. Jay found it stuck on "Recording…" with no way out
+  // of it but a reload.
+  $('kdExport').onclick = function () {
+    if (!exporting) { exportClip(); return; }
+
+    // Normal case: a capture is running. Stopping the clock lets the watcher
+    // clear itself, and rec.onstop does the rest - restore the view, reset the
+    // button, save what was captured.
+    if (activeRec && activeRec.state !== 'inactive') {
+      playing = false; setPlayUI();
+      try { activeRec.stop(); } catch (e) { }
+      toast('Stopped — saving what was recorded');
+      return;
+    }
+
+    // No live recorder but the flag is still set: the capture died without its
+    // onstop ever running. Nothing to save, so just give the button back rather
+    // than leaving the app looking busy forever.
+    exporting = false;
+    activeRec = null;
+    try { restoreView(); } catch (e) { }
+    $('kdExport').classList.remove('rec');
+    $('kdExport').textContent = '⬇ Export clip';
+    toast('That recording had already stopped — button reset');
+  };
 
   // ---------------------------------------------------------
   // 7. Hook the engine's render loop
