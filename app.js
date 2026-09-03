@@ -2971,10 +2971,55 @@ document.getElementById('drillNameInput').addEventListener('keydown',e=>{
   if(e.key==='Enter'){ document.getElementById('saveModalConfirm').click(); }
   if(e.key==='Escape'){ document.getElementById('saveModal').classList.remove('show'); }
 });
-document.getElementById('importBtn').onclick=()=>document.getElementById('jsonFile').click();
+// One file input, two jobs. 'replace' is Open drill... - the old behaviour, which
+// swaps the whole practice for the file. 'append' is Add drill from file..., which
+// brings the file's drills in as extra tabs and leaves what is open alone.
+let _importMode='replace';
+document.getElementById('importBtn').onclick=()=>{ _importMode='replace'; document.getElementById('jsonFile').click(); };
+const _addBtn=document.getElementById('addDrillBtn');
+if(_addBtn) _addBtn.onclick=()=>{ _importMode='append'; document.getElementById('jsonFile').click(); };
+
 document.getElementById('jsonFile').onchange=e=>{ const f=e.target.files[0]; if(!f)return;
-  const r=new FileReader(); r.onload=()=>{ try{ const o=JSON.parse(r.result); loadData(o); toast('Drill loaded'); }
-    catch(err){ toast('Could not read that file'); } }; r.readAsDataURL?r.readAsText(f):r.readAsText(f); e.target.value=''; };
+  const mode=_importMode;
+  const r=new FileReader();
+  r.onload=()=>{ try{ const o=JSON.parse(r.result);
+      if(mode==='append') appendData(o, f.name); else { loadData(o); toast('Drill loaded'); }
+    } catch(err){ toast('Could not read that file'); } };
+  r.readAsText(f); e.target.value=''; };
+
+// Bring a saved file's drills in as NEW TABS. Open drill... replaces everything,
+// which is right when you are loading a practice but wrong when you want two
+// systems side by side - and with five tabs open, "open" quietly costing you all
+// five is the kind of surprise that loses work.
+function appendData(o, fname){
+  syncScene();
+  const incoming = (o && o.scenes && o.scenes.length)
+    ? o.scenes
+    : [{ name:(fname||'Drill').replace(/\.json$/i,''), rinkType:o.rinkConfig||'full',
+         pieces:o.pieces||[], paths:o.paths||[] }];
+
+  // Ids are remapped rather than trusted. Two files saved separately both start
+  // numbering at 1, so pasting one beside the other would give two pieces the
+  // same id - and selection, deletion and the motion paths all key off id.
+  const added=[];
+  incoming.forEach(s=>{
+    const sc=makeScene(s.name||'Drill');
+    sc.rinkType=s.rinkType||'full';
+    const remap={};
+    sc.pieces=(s.pieces||[]).map(p=>{ const q={...p}; remap[p.id]=uid; q.id=uid++;
+      if(p._src){ const img=new Image(); img.src=p._src; q.img=img; } return q; });
+    sc.paths=(s.paths||[]).map(p=>{ const q={...p,_lut:null}; q.id=uid++;
+      if(q.owner!=null && remap[q.owner]!=null) q.owner=remap[q.owner];   // keep routes on their skater
+      return q; });
+    sc.notes=s.notes||'';
+    scenes.push(sc); added.push(sc);
+  });
+
+  if(!added.length){ toast('Nothing in that file to add'); return; }
+  loadScene(scenes.length-added.length);      // land on the first one added
+  updateSceneTabs();
+  toast('Added '+added.length+' drill'+(added.length>1?'s':'')+' — now '+scenes.length+' tabs');
+}
 function loadData(o){
   if(o.showTrap!==undefined) showTrap=o.showTrap;
   if(o.customLogo){ LOGO_SRC.custom=o.customLogo; const im=new Image(); im.src=o.customLogo; im.onload=()=>{try{render();}catch(e){}}; LOGO_IMG.custom=im; ensureLogoOption('custom','Custom'); }

@@ -38,6 +38,7 @@
   }
   relay('mFileNew', 'clearBtn');
   relay('mFileOpen', 'importBtn');
+  relay('mFileAdd',  'addDrillBtn');
   relay('mFileSave', 'exportBtn');
   relay('mFileJpg', 'imgExportBtn');
   relay('mFileRec', 'recBtn');
