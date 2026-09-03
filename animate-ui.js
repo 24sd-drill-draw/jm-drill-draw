@@ -724,6 +724,24 @@
   function markOut() { outMs = clamp(tNow, inMs + 200, T); syncTimeline(true); render(); }
   $('kdMarkIn').onclick = markIn;
   $('kdMarkOut').onclick = markOut;
+  // The still and the video belong beside each other. The image export was
+  // buried in the File menu while the video export was the big button in the
+  // transport, so there was nothing to suggest the still existed at all.
+  $('kdImage').onclick = function () { $('imgExportBtn').click(); };
+
+  // A still off a clip has the same problem the video export had: it was
+  // grabbing the stage, so the picture came out at whatever size the window
+  // happened to be, with black around the frame. Borrow the export's native
+  // view for the one frame, and name the file after the clip and the moment.
+  var _exportImage = exportImage;
+  exportImage = function (fmt) {
+    if (!vid || !vid.videoWidth) return _exportImage(fmt);
+    var restore = !!useNativeView();
+    imgNameHint = (vidName ? vidName.replace(/\.[^.]+$/, '') : 'clip') +
+                  '_' + (tNow / 1000).toFixed(1) + 's';
+    try { _exportImage(fmt); }
+    finally { imgNameHint = null; if (restore) restoreView(); }
+  };
   window.addEventListener('keydown', function (e) {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -1081,10 +1099,14 @@
       : 'MP4 (H.264) or WebM';
     $('vidRemove').disabled = !vid;
     $('vidMute').checked = vid ? !!vid.muted : false;
-    // While a clip is loaded the timeline length IS the clip length.
+    // While a clip is loaded the timeline length IS the clip length, and
+    // Stagger only means something for pieces travelling on a drill board.
+    // Taking both out of the way also buys back the width the transport needs
+    // for Step, Zoom, Set in/out, Image and Export on a 1280 screen.
+    $('kdSpeedWrap').style.display = loaded ? 'none' : '';
+    $('staggerBtn').style.display = loaded ? 'none' : '';
     var sp = $('speed');
     sp.disabled = loaded;
-    sp.parentNode.style.opacity = loaded ? 0.4 : 1;
     sp.parentNode.title = loaded ? 'Length is set by the video clip' : '';
   }
 

@@ -2623,9 +2623,12 @@ function updateRecBtn(){ const b=document.getElementById('recBtn');
 document.getElementById('recBtn').onclick=()=>{ mediaRec? stopRec() : startRec(); };
 
 // image export
+let imgNameHint=null;   // set by the UI layer when a clip supplies a better name
 function exportImage(fmt){
-  // render at 2x resolution for sharpness
-  const scale=2;
+  // 2x on a drill board, where the canvas is only as big as the stage. On a
+  // clip the canvas has already been set to the clip's own resolution, and
+  // doubling that would just be an upscale.
+  const scale = (rinkConfig==='video') ? 1 : 2;
   const W=cv.width, H=cv.height;
   const off=document.createElement('canvas'); off.width=W*scale; off.height=H*scale;
   const octx=off.getContext('2d');
@@ -2638,9 +2641,9 @@ function exportImage(fmt){
   const ext=fmt==='jpg'?'jpg':'png';
   const a=document.createElement('a');
   a.href=off.toDataURL(mime,0.95);
-  a.download=safeFileName((scenes[currentScene]||{}).name)+'.'+ext;
+  a.download=safeFileName(imgNameHint || (scenes[currentScene]||{}).name)+'.'+ext;
   a.click();
-  toast('Image saved to your downloads');
+  toast('Picture saved to your downloads — '+off.width+'×'+off.height);
 }
 document.getElementById('imgExportBtn').onclick=()=>exportImage('jpg');
 

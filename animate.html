@@ -21,9 +21,9 @@
         <button type="button" id="mFileVideo">&#127909;&nbsp; Open video&hellip;</button>
         <button type="button" id="mFileVideoOff">&#9723;&nbsp; Remove video</button>
         <hr>
-        <button type="button" id="mFileJpg">&#128247;&nbsp; Export image (JPG)</button>
-        <button type="button" id="mFileRec">&#9210;&nbsp; Record video (WebM)</button>
-        <button type="button" id="mFilePrint">&#128424;&nbsp; Print drill</button>
+        <button type="button" id="mFileJpg">&#128247;&nbsp; Save this frame as a picture (JPG)</button>
+        <button type="button" id="mFileRec">&#9210;&nbsp; Record the animation (WebM)</button>
+        <button type="button" id="mFilePrint">&#128424;&nbsp; Print, or save as PDF&hellip;</button>
         <hr>
         <button type="button" id="mFileDemo">&#9654;&nbsp; Load demo drill</button>
       </div>
@@ -284,7 +284,7 @@
       <label class="tchk"><input type="checkbox" id="loopChk"> Loop</label>
       <div class="kd-tsep"></div>
       <button class="tbtn" id="staggerBtn" title="Space out start times so pieces move one after another">&#8677; Stagger</button>
-      <label class="tchk">Speed <input type="range" id="speed" min="2" max="12" step="0.5" value="9"></label>
+      <label class="tchk" id="kdSpeedWrap">Speed <input type="range" id="speed" min="2" max="12" step="0.5" value="9"></label>
       <input type="range" id="scrubber" min="0" max="1000" value="0" class="kd-hidden">
       <div class="kd-tsep"></div>
       <span class="kd-selinfo" id="kdSelInfo">Clip 0.0s</span>
@@ -297,7 +297,8 @@
       <button class="tbtn" id="kdMarkIn" title="Set the start of the clip at the playhead (I)">Set in</button>
       <button class="tbtn" id="kdMarkOut" title="Set the end of the clip at the playhead (O)">Set out</button>
       <button class="tbtn" id="kdSelAll" title="Reset the in/out points to the whole timeline">Reset</button>
-      <button class="tbtn accent" id="kdExport" title="Export the trimmed clip with your marks burned in">&#11015; Export clip</button>
+      <button class="tbtn" id="kdImage" title="Save the frame you are looking at right now as a JPG picture">&#128247; Image</button>
+      <button class="tbtn accent" id="kdExport" title="Export the trimmed window as a video (MP4) with your marks burned in">&#11015; Export clip</button>
       <span class="kd-tinfo" id="kdTrackInfo">0 tracks</span>
     </div>
 

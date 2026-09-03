@@ -399,3 +399,8 @@ body.light-theme .seg,body.light-theme .zoomctl button{background:rgba(255,255,2
    and the zoom went unfound — the same way the freeze checkbox did. */
 .kd-tlbl{font-size:9px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;
   color:var(--muted);margin-left:8px;margin-right:1px;white-space:nowrap;align-self:center}
+
+/* The transport gained Step, Zoom, Set in/out, Image and Export, which
+   together overflow a 1280-wide screen. Let it wrap rather than push the
+   export button off the edge. */
+.kd-transport{flex-wrap:wrap;row-gap:5px}
