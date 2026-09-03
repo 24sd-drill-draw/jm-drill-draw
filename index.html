@@ -134,10 +134,14 @@
       <label>Drill name</label>
       <input type="text" id="drillNameInput" placeholder="e.g. 2v1 Breakout" maxlength="80" style="font-size:14px">
     </div>
-    <p style="font-size:11px;color:var(--muted);margin:8px 0">File will download — save it to your <strong>Drills</strong> folder.</p>
+    <!-- This used to read "File will download - save it to your Drills folder",
+         which is the FALLBACK path. In Chrome the app opens a folder picker and
+         writes straight there, so the label was describing something that does
+         not happen and hid the fact that you get to choose. -->
+    <p style="font-size:11px;color:var(--muted);margin:8px 0">You pick the folder — the browser remembers it for next time.</p>
     <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
       <button class="tbtn ghost" id="saveModalCancel">Cancel</button>
-      <button class="tbtn" id="saveModalConfirm" style="background:var(--accent);color:#04141c;border-color:var(--accent)">Download</button>
+      <button class="tbtn" id="saveModalConfirm" style="background:var(--accent);color:#04141c;border-color:var(--accent)">Choose folder &amp; save</button>
     </div>
   </div>
 </div>
@@ -175,7 +179,7 @@
     </ol>
 
     <h3>Keep your work</h3>
-    <p><b>Save</b> downloads the drill as a file; <b>Open</b> loads it back. <kbd>Space</kbd> play, <kbd>Esc</kbd> deselect, <kbd>Ctrl/⌘ Z</kbd> undo.</p>
+    <p><b>Save</b> writes the drill into a folder you choose; <b>Open</b> loads it back. <b>Image</b> does the same for the picture, and remembers its own folder separately &mdash; point it at your Systems &amp; Drills folder on Drive and the picture goes up on the team site by itself. <kbd>Space</kbd> play, <kbd>Esc</kbd> deselect, <kbd>Ctrl/⌘ Z</kbd> undo.</p>
 
     <div class="closerow"><button class="tbtn" id="helpClose">Got it</button></div>
   </div>

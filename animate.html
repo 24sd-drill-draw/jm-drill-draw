@@ -331,10 +331,14 @@
       <label>Drill name</label>
       <input type="text" id="drillNameInput" placeholder="e.g. 2v1 Breakout" maxlength="80" style="font-size:14px">
     </div>
-    <p style="font-size:11px;color:var(--muted);margin:8px 0">File will download &mdash; save it to your <strong>Drills</strong> folder.</p>
+    <!-- Was "File will download - save it to your Drills folder", which describes
+         the FALLBACK path. Chrome opens a folder picker and writes straight
+         there, so the old label described something that does not happen and hid
+         the fact that you get to choose. Same fix in index.html. -->
+    <p style="font-size:11px;color:var(--muted);margin:8px 0">You pick the folder &mdash; the browser remembers it for next time.</p>
     <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
       <button class="tbtn ghost" id="saveModalCancel">Cancel</button>
-      <button class="tbtn accent" id="saveModalConfirm">Download</button>
+      <button class="tbtn accent" id="saveModalConfirm">Choose folder &amp; save</button>
     </div>
   </div>
 </div>

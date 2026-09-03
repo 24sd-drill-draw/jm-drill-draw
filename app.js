@@ -2643,11 +2643,48 @@ function exportImage(fmt){
   octx.drawImage(cv,0,0,W,H);
   const mime=fmt==='jpg'?'image/jpeg':'image/png';
   const ext=fmt==='jpg'?'jpg':'png';
+  const safe=safeFileName(imgNameHint || (scenes[currentScene]||{}).name);
+  const dims=off.width+'×'+off.height;
+
+  // Pick the folder, same as Save does. A picture that always lands in Downloads
+  // has to be moved by hand every time, and the whole point of these is that they
+  // go somewhere - a Drive folder that syncs to the team site. Its own picker id,
+  // separate from 'drillsDir', so the browser remembers where PICTURES go without
+  // dragging the .json saves there too.
+  if(window.showSaveFilePicker){
+    off.toBlob(async (blob)=>{
+      if(!blob){ toast('Could not build the picture'); return; }
+      try{
+        const handle=await window.showSaveFilePicker({
+          id:'picturesDir',
+          suggestedName:safe+'.'+ext,
+          types:[{description:'Picture', accept:{[mime]:['.'+ext]}}]
+        });
+        const w=await handle.createWritable();
+        await w.write(blob); await w.close();
+        toast('"'+safe+'" saved — '+dims);
+      }catch(err){
+        if(err && err.name==='AbortError'){
+          // Same trap the drill save already learned: a silent return after a
+          // cancelled dialog looks exactly like a successful save.
+          toast('Export cancelled — nothing was written.');
+          return;
+        }
+        downloadImage(off,mime,ext,safe,dims);
+      }
+    }, mime, 0.95);
+    return;
+  }
+  downloadImage(off,mime,ext,safe,dims);
+}
+// Fallback for browsers without the File System Access API, and for when the
+// picker itself fails.
+function downloadImage(off,mime,ext,safe,dims){
   const a=document.createElement('a');
   a.href=off.toDataURL(mime,0.95);
-  a.download=safeFileName(imgNameHint || (scenes[currentScene]||{}).name)+'.'+ext;
+  a.download=safe+'.'+ext;
   a.click();
-  toast('Picture saved to your downloads — '+off.width+'×'+off.height);
+  toast('Picture saved to your downloads — '+dims);
 }
 document.getElementById('imgExportBtn').onclick=()=>exportImage('jpg');
 
