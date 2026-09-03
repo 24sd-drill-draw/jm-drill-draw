@@ -309,6 +309,10 @@ let _wmul=1;
 let _headW=1;   // arrowhead size, kept off _wmul so the outline pass can fatten
                 // the stroke without ballooning the head into a black triangle
 let _opa=1;       // opacity of the annotation currently drawing
+// null means "whatever the tool says", so picking the Pass tool still gives a
+// dotted line with an arrow until you deliberately choose otherwise.
+let markLine=null;  // line style for the next mark
+let markEnd=null;   // end style for the next mark
 let markW=1;      // weight applied to the next mark drawn
 let markOp=1;     // opacity applied to the next mark drawn
 
@@ -1580,45 +1584,10 @@ function paintMark(p,scr,col){
   // heavy — a thick ring hides the player it is meant to point at.
   ctx.lineWidth=Math.max(1.2,0.4*cam.s*_wmul); ctx.strokeStyle=col; ctx.fillStyle=col;
   ctx.lineJoin='round'; ctx.lineCap='round';
-  if(p.type==='skate'){
-    const anc=p.anchors&&p.anchors.length>=2?p.anchors:p.pts;
-    const smooth=anc.length>=2?catmull(anc,16).map(q=>W2S(q.x,q.y)):scr;
-    strokePoly(smooth); arrowHead(smooth,col);
-  }
-  else if(p.type==='skateback'){
-    const anc=p.anchors&&p.anchors.length>=2?p.anchors:p.pts;
-    const smooth=anc.length>=2?catmull(anc,48).map(q=>W2S(q.x,q.y)):scr;
-    drawScallops(ctx, smooth, col, cam.s);
-    // place arrowhead beyond the last scallop
-    ctx.globalAlpha=_opa;
-    const _n=smooth.length, _a=smooth[_n-2]||smooth[0], _b=smooth[_n-1];
-    const _ang=Math.atan2(_b[1]-_a[1],_b[0]-_a[0]), _L=Math.max(8,2.4*cam.s*_wmul);
-    const _tip=[_b[0]+_L*Math.cos(_ang), _b[1]+_L*Math.sin(_ang)];
-    arrowHead([_a, _tip], col);
-  }
-  else if(p.type==='skaterev'){
-    const anc=p.anchors&&p.anchors.length>=2?p.anchors:p.pts;
-    const smooth=anc.length>=2?catmull(anc,48).map(q=>W2S(q.x,q.y)):scr;
-    drawBackSkate(ctx, smooth, col, cam.s);
-    ctx.globalAlpha=_opa;
-    const _n=smooth.length, _a=smooth[_n-2]||smooth[0], _b=smooth[_n-1];
-    const _ang=Math.atan2(_b[1]-_a[1],_b[0]-_a[0]), _L=Math.max(8,2.4*cam.s*_wmul);
-    const _tip=[_b[0]+_L*Math.cos(_ang), _b[1]+_L*Math.sin(_ang)];
-    arrowHead([_a, _tip], col);
-  }
-  else if(p.type==='pass'){
-    // round dots, not dashes: a zero-length dash with a round cap paints a dot.
-    // Spacing tracks the stroke weight so fat lines don't close up into a solid.
-    const dw=Math.max(2,0.55*cam.s*_wmul);
-    ctx.lineCap='round'; ctx.setLineDash([0, dw*2.2]);
-    strokePoly(scr);
-    ctx.setLineDash([]);
-    arrowHead(scr,col);            // solid head
-  }
-  else if(p.type==='shot'){ shotDouble(scr,col); }
-  else if(p.type==='arrow'){ strokePoly(scr); arrowHead(scr,col); }
+  // One branch for every mark that is "a line with an end". Which line and which
+  // end comes from lineOf/endOf, so the type only supplies the default pair.
+  if(LINE_FAMILY.indexOf(p.type)>=0){ paintLineEnd(p,scr,col); }
   else if(p.type==='web'){ drawWeb(scr,col); }
-  else if(p.type==='bar'){ strokePoly(scr); }               // plain segment, no head
   else if(p.type==='ring'){
     // Always draw the ellipse that BOUNDS the points, never the points
     // themselves. Mid-drag those points are the raw mouse trail, so this shows
@@ -1639,7 +1608,6 @@ function paintMark(p,scr,col){
     strokePoly(scr);
     ctx.restore();
   }
-  else if(p.type==='pen'){ strokePoly(scr); }
 }
 // ---- ring geometry -------------------------------------------------------
 // A ring stores its outline as points so that hit-testing, selection and
@@ -1760,6 +1728,124 @@ function strokeWavy(scr){
   ctx.beginPath(); ctx.moveTo(out[0][0],out[0][1]);
   for(let i=1;i<out.length;i++) ctx.lineTo(out[i][0],out[i][1]); ctx.stroke();
 }
+/* =========================================================================
+   LINE STYLE and END STYLE, kept apart.
+
+   Every mark used to bake its ending into its type: Pass was always dotted with
+   a filled head, Shot was always a double line with an open triangle, and there
+   was no way to ask for a dotted line that ends in a tee, or a backwards route
+   that ends in nothing. Two axes instead of eight fixed combinations.
+
+   `type` still exists and still decides the DEFAULT pair, so every drill saved
+   before today draws exactly as it did. `line` and `end` only override it.
+   ========================================================================= */
+const MARK_LINE = { skate:'solid', skateback:'scallop', skaterev:'coil',
+                    pass:'dots', shot:'double', arrow:'solid', bar:'solid', pen:'solid' };
+const MARK_END  = { skate:'arrow', skateback:'arrow', skaterev:'arrow',
+                    pass:'arrow', shot:'open', arrow:'arrow', bar:'none', pen:'none' };
+const LINE_FAMILY = Object.keys(MARK_LINE);
+function lineOf(p){ return p.line || MARK_LINE[p.type] || 'solid'; }
+function endOf(p){  return p.end  || MARK_END[p.type]  || 'none'; }
+
+// Walk back from the tip and cut the last `d` pixels off, so a head sits at the
+// end of a line instead of on top of it. Straight truncation of the last point
+// would swing the line's direction; this keeps the geometry and moves the point.
+function trimEnd(pts, d){
+  if(d<=0 || pts.length<2) return pts;
+  const out=pts.slice(); let left=d;
+  for(let i=out.length-1;i>0 && left>0;i--){
+    const ax=out[i-1][0], ay=out[i-1][1], bx=out[i][0], by=out[i][1];
+    const seg=Math.hypot(bx-ax,by-ay);
+    if(seg<=left){ out.pop(); left-=seg; }
+    else{ const t=(seg-left)/seg; out[i]=[ax+(bx-ax)*t, ay+(by-ay)*t]; left=0; }
+  }
+  return out.length>=2?out:pts.slice(0,2);
+}
+
+function strokeDouble(pts,col){
+  if(pts.length<2) return;
+  const a=pts[pts.length-2], b=pts[pts.length-1];
+  const ang=Math.atan2(b[1]-a[1],b[0]-a[0]);
+  const nx=-Math.sin(ang), ny=Math.cos(ang);
+  const spread=Math.max(3,0.85*cam.s*_wmul);
+  ctx.strokeStyle=col; ctx.lineWidth=Math.max(1.5,0.4*cam.s*_wmul); ctx.lineCap='round';
+  for(const side of [-1,1]){
+    ctx.beginPath();
+    pts.forEach((pt,i)=>{ const x=pt[0]+nx*spread*side, y=pt[1]+ny*spread*side;
+      i?ctx.lineTo(x,y):ctx.moveTo(x,y); });
+    ctx.stroke();
+  }
+}
+
+// A tee: the bar across the end that says "stop here" - a lane, a gap, a wall.
+function teeEnd(pts,col){
+  const b=pts[pts.length-1], a=pts[pts.length-2]||b;
+  const ang=Math.atan2(b[1]-a[1],b[0]-a[0]);
+  const nx=-Math.sin(ang), ny=Math.cos(ang);
+  const L=Math.max(6,1.6*cam.s*_headW);
+  ctx.strokeStyle=col; ctx.lineWidth=Math.max(2,0.5*cam.s*_wmul); ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(b[0]+nx*L,b[1]+ny*L); ctx.lineTo(b[0]-nx*L,b[1]-ny*L); ctx.stroke();
+}
+
+// A CLOSED triangle, outlined - not the open chevron arrowHead(open) draws.
+// This is the head a shot has always had, and delegating to the chevron quietly
+// restyled every shot in every saved drill.
+function openHead(pts,col){
+  const b=pts[pts.length-1], a=pts[pts.length-2]||b;
+  const ang=Math.atan2(b[1]-a[1],b[0]-a[0]);
+  const L=Math.max(9,2.8*cam.s*_headW);
+  const nx=-Math.sin(ang), ny=Math.cos(ang);
+  const baseX=b[0]-L*Math.cos(ang), baseY=b[1]-L*Math.sin(ang);
+  ctx.strokeStyle=col; ctx.lineWidth=Math.max(1.5,0.4*cam.s*_wmul);
+  ctx.lineJoin='round'; ctx.lineCap='round';
+  ctx.beginPath();
+  ctx.moveTo(b[0],b[1]);
+  ctx.lineTo(baseX+nx*L*0.42, baseY+ny*L*0.42);
+  ctx.lineTo(baseX-nx*L*0.42, baseY-ny*L*0.42);
+  ctx.closePath(); ctx.stroke();
+}
+function drawEnd(style,pts,col){
+  if(style==='none'||pts.length<2) return;
+  if(style==='arrow') return arrowHead(pts,col,false);
+  if(style==='open')  return openHead(pts,col);
+  if(style==='tee')   return teeEnd(pts,col);
+}
+
+function paintLineEnd(p,scr,col){
+  const ls=lineOf(p), es=endOf(p);
+  const anc=(p.anchors&&p.anchors.length>=2)?p.anchors:null;
+  const dense=(ls==='scallop'||ls==='coil');
+  const pts=anc?catmull(anc,dense?48:16).map(q=>W2S(q.x,q.y)):scr;
+  if(pts.length<2) return;
+  const headL=Math.max(8,2.4*cam.s*_headW);
+
+  // The scallop and coil decorations run all the way to the last point, so their
+  // head goes BEYOND it - dropping it on the end would bury it in the curls.
+  if(dense){
+    if(ls==='scallop') drawScallops(ctx,pts,col,cam.s); else drawBackSkate(ctx,pts,col,cam.s);
+    ctx.globalAlpha=_opa;
+    const a=pts[pts.length-2], b=pts[pts.length-1];
+    const ang=Math.atan2(b[1]-a[1],b[0]-a[0]);
+    drawEnd(es,[a,[b[0]+headL*Math.cos(ang), b[1]+headL*Math.sin(ang)]],col);
+    return;
+  }
+
+  // A double line has to stop short: its two rails would otherwise run straight
+  // through an open triangle and out the other side.
+  const trim=(es==='none')?0:(ls==='double'?headL+Math.max(4,1.4*cam.s):0);
+  const body=trimEnd(pts,trim);
+
+  if(ls==='dots'){
+    const dw=Math.max(2,0.55*cam.s*_wmul);
+    ctx.lineCap='round'; ctx.setLineDash([0,dw*2.2]); strokePoly(body); ctx.setLineDash([]);
+  } else if(ls==='double'){
+    strokeDouble(body,col);
+  } else {
+    strokePoly(body);
+  }
+  drawEnd(es,pts,col);
+}
+
 function arrowHead(scr,col,open){
   const n=scr.length; let a=scr[n-2],b=scr[n-1];
   const ang=Math.atan2(b[1]-a[1],b[0]-a[0]); const L=Math.max(8,2.4*cam.s*_headW);
@@ -2258,7 +2344,7 @@ cv.addEventListener('pointerdown',e=>{
   if(tool==='skate' && !building){
     if(!skateBuilding){
       pushUndo();
-      const np={id:id(),type:'skate',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],anchors:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,freeze:markFreeze,_lut:null};
+      const np={id:id(),type:'skate',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],anchors:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,line:markLine,end:markEnd,freeze:markFreeze,_lut:null};
       paths.push(np); skateBuilding={path:np}; selOne('path',np.id);
       toast('Click waypoints for a smooth curve — right-click or Enter to finish');
     } else {
@@ -2270,7 +2356,7 @@ cv.addEventListener('pointerdown',e=>{
   if(tool==='skateback' && !building){
     if(!skateBackBuilding){
       pushUndo();
-      const np={id:id(),type:'skateback',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],anchors:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,freeze:markFreeze,_lut:null};
+      const np={id:id(),type:'skateback',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],anchors:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,line:markLine,end:markEnd,freeze:markFreeze,_lut:null};
       paths.push(np); skateBackBuilding={path:np}; selOne('path',np.id);
       toast('Click waypoints for backwards skating — right-click to finish');
     } else {
@@ -2282,7 +2368,7 @@ cv.addEventListener('pointerdown',e=>{
   if(tool==='skaterev' && !building){
     if(!skateRevBuilding){
       pushUndo();
-      const np={id:id(),type:'skaterev',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],anchors:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,freeze:markFreeze,_lut:null};
+      const np={id:id(),type:'skaterev',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],anchors:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,line:markLine,end:markEnd,freeze:markFreeze,_lut:null};
       paths.push(np); skateRevBuilding={path:np}; selOne('path',np.id);
       toast('Click waypoints for backwards skating — right-click to finish');
     } else {
@@ -2294,7 +2380,7 @@ cv.addEventListener('pointerdown',e=>{
   if(tool==='web'){
     if(!webBuilding){
       pushUndo();
-      const np={id:id(),type:'web',color:(activeColor||'#E8313A'),pts:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,freeze:markFreeze,_lut:null};
+      const np={id:id(),type:'web',color:(activeColor||'#E8313A'),pts:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,line:markLine,end:markEnd,freeze:markFreeze,_lut:null};
       paths.push(np); webBuilding={path:np}; selOne('path',np.id);
       toast('Click each player or corner — double-click or Enter to close the web');
     } else {
@@ -2305,7 +2391,7 @@ cv.addEventListener('pointerdown',e=>{
   if(tool==='pass'){
     if(!passBuilding){
       pushUndo();
-      const np={id:id(),type:'pass',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,freeze:markFreeze,_lut:null};
+      const np={id:id(),type:'pass',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,line:markLine,end:markEnd,freeze:markFreeze,_lut:null};
       paths.push(np); passBuilding={path:np}; selOne('path',np.id);
       toast('Click to add bend points — double-click or Enter to finish');
     } else {
@@ -2316,7 +2402,7 @@ cv.addEventListener('pointerdown',e=>{
   if(tool==='shot'){
     if(!shotBuilding){
       pushUndo();
-      const np={id:id(),type:'shot',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,freeze:markFreeze,_lut:null};
+      const np={id:id(),type:'shot',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,line:markLine,end:markEnd,freeze:markFreeze,_lut:null};
       paths.push(np); shotBuilding={path:np}; selOne('path',np.id);
       toast('Click to add deflection points — right-click or Enter to finish');
     } else {
@@ -2344,7 +2430,7 @@ cv.addEventListener('pointerdown',e=>{
     const hit=paths.find(p=>p.type==='ring' && markVisible(p) && ringGrabAt(p,wx,wy,mxy[0],mxy[1])==='move');
     if(hit){ coverPick(hit); return; }
   }
-  drawing={ id:id(), type:(tool==='cover'?'ring':tool), color:(activeColor||'#0C2233'), pts:[{x:wx,y:wy}], owner:null, delay:markStart(), dur:markSpan(), w:markW, op:markOp, freeze:markFreeze, _lut:null };
+  drawing={ id:id(), type:(tool==='cover'?'ring':tool), color:(activeColor||'#0C2233'), pts:[{x:wx,y:wy}], owner:null, delay:markStart(), dur:markSpan(), w:markW, op:markOp, line:markLine, end:markEnd, freeze:markFreeze, _lut:null };
   if(tool==='cover') drawing._cover=true;
 });
 cv.addEventListener('pointermove',e=>{
@@ -3185,3 +3271,65 @@ function offerRestore(){
   document.body.appendChild(bar);
 }
 offerRestore();
+
+// =========================================================
+//  LINE / END PICKERS
+// =========================================================
+// Drawn as tiny pictures of the mark itself, not words. "Dots" and "Scallop"
+// mean nothing on a rail at 10px; a picture of the line you are about to draw
+// means everything. Same reason the tool rail uses glyphs.
+const LINE_SWATCH = {
+  tool:    '<path d="M2 9h20" stroke="currentColor" stroke-width="1.6" fill="none" stroke-dasharray="1 3"/>',
+  solid:   '<path d="M2 9h20" stroke="currentColor" stroke-width="2" fill="none"/>',
+  dots:    '<path d="M2 9h20" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-dasharray="0 4.5"/>',
+  double:  '<path d="M2 7h20M2 11h20" stroke="currentColor" stroke-width="1.5" fill="none"/>',
+  scallop: '<path d="M2 11q2.5-5 5 0t5 0 5 0 5 0" stroke="currentColor" stroke-width="1.6" fill="none"/>',
+  coil:    '<path d="M2 9q1.6-4 3.2 0t3.2 0 3.2 0 3.2 0 3.2 0" stroke="currentColor" stroke-width="1.4" fill="none"/>'
+};
+const END_SWATCH = {
+  tool: '<path d="M2 9h14" stroke="currentColor" stroke-width="1.6" fill="none" stroke-dasharray="1 3"/><path d="M16 5l5 4-5 4" stroke="currentColor" stroke-width="1.4" fill="none" stroke-dasharray="1 2"/>',
+  arrow:'<path d="M2 9h13" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M14 5l7 4-7 4z" fill="currentColor"/>',
+  open: '<path d="M2 9h13" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M14 5l7 4-7 4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
+  tee:  '<path d="M2 9h17" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M19 4v10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  none: '<path d="M2 9h20" stroke="currentColor" stroke-width="1.8" fill="none"/>'
+};
+const LINE_NAMES = { tool:'Tool default', solid:'Solid', dots:'Dotted (pass)',
+                     double:'Double (shot)', scallop:'Scallops (with the puck)', coil:'Backwards' };
+const END_NAMES  = { tool:'Tool default', arrow:'Filled arrow', open:'Open arrow',
+                     tee:'Tee - stop here', none:'No end' };
+
+function svgBtn(inner){
+  return '<svg viewBox="0 0 24 18" width="26" height="18" style="display:block">'+inner+'</svg>';
+}
+// Changing a style with something selected RESTYLES it, exactly like the colour
+// and weight controls. Changing it with nothing selected sets the next mark.
+function applyStyle(which, val){
+  const v = (val==='tool') ? null : val;
+  if(which==='line') markLine=v; else markEnd=v;
+  const hit = paths.filter(p=>selContains('path',p.id) && LINE_FAMILY.indexOf(p.type)>=0);
+  if(hit.length){
+    pushUndo();
+    hit.forEach(p=>{ if(which==='line') p.line=v; else p.end=v; });
+    render();
+    toast('Restyled '+hit.length+' mark'+(hit.length>1?'s':''));
+  }
+  buildStylePickers();
+}
+function buildStylePickers(){
+  [['line',LINE_SWATCH,LINE_NAMES,'lineStyles',markLine],
+   ['end', END_SWATCH, END_NAMES, 'endStyles', markEnd]].forEach(([which,sw,names,host,cur])=>{
+    const bar=document.getElementById(host); if(!bar) return;
+    bar.innerHTML='';
+    Object.keys(sw).forEach(k=>{
+      const b=document.createElement('button');
+      b.type='button';
+      b.className=((cur||'tool')===k)?'on':'';
+      b.title=names[k];
+      b.innerHTML=svgBtn(sw[k]);
+      b.style.cssText='display:inline-flex;align-items:center;justify-content:center;padding:3px 5px';
+      b.onclick=()=>applyStyle(which,k);
+      bar.appendChild(b);
+    });
+  });
+}
+buildStylePickers();
