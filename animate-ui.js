@@ -1281,6 +1281,7 @@
   // not moved and the browser scales the bigger backing store into it — but the
   // file is correct.
   var savedView = null;
+  var capTrack = null, capFrames = 0, capStarted = 0;
   function useNativeView() {
     if (!vid || !vid.videoWidth) return null;
     var MAXW = 1920;                       // 4K would be a 33MP canvas per frame
@@ -1315,7 +1316,17 @@
     if (trimSpan() < 200) { toast('Drag the in/out handles to pick a window first'); return; }
 
     var native = useNativeView();
-    var stream = cv.captureStream(30);
+    // captureStream(0) emits a frame only when asked, so the recording follows
+    // the render loop instead of a fixed 30 — a 60fps clip kept every second
+    // frame before this. If a browser will not give a requestFrame track, fall
+    // back to a timed capture at 60 rather than the old 30.
+    var stream = null, vtrack = null;
+    try {
+      stream = cv.captureStream(0);
+      vtrack = stream.getVideoTracks()[0];
+      if (!vtrack || typeof vtrack.requestFrame !== 'function') vtrack = null;
+    } catch (e) { stream = null; }
+    if (!stream || !vtrack) { stream = cv.captureStream(60); vtrack = null; }
     var withAudio = false;
     var atrack = clipAudioTrack();
     if (atrack) { stream.addTrack(atrack); withAudio = true; }
@@ -1324,9 +1335,11 @@
     var ext = mime.indexOf('mp4') >= 0 ? 'mp4' : 'webm';
     var rec, chunks = [];
     // Bitrate has to follow the resolution, or the extra pixels just get spent
-    // on compression artefacts.
+    // on compression artefacts. Budget for 60fps: a 30fps source repeats each
+    // frame, and a repeated frame costs the encoder almost nothing, so the
+    // headroom is close to free on the way down.
     var px = native ? native.w * native.h : cv.width * cv.height;
-    var rate = Math.max(8000000, Math.round(px * 30 * 0.15));
+    var rate = Math.max(8000000, Math.round(px * 60 * 0.12));
     try {
       rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: rate });
     } catch (e) { restoreView(); toast('This browser cannot record — try Chrome'); return; }
@@ -1334,6 +1347,9 @@
     rec.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
     rec.onstop = function () {
       var blob = new Blob(chunks, { type: 'video/' + ext });
+      var secs = (Date.now() - capStarted) / 1000;
+      var fps = (capTrack && secs > 0.2) ? Math.round(capFrames / secs) : 0;
+      capTrack = null;
       restoreView();
       exporting = false;
       $('kdExport').classList.remove('rec');
@@ -1352,6 +1368,7 @@
       setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
       toast('Saved ' + fmtT(trimSpan()) + ' ' + ext.toUpperCase() +
         (native ? ' at ' + native.w + '×' + native.h : '') +
+        (fps ? ' · ' + fps + 'fps' : '') +
         (withAudio ? ' with audio' : ' (no audio)') + ' to your downloads');
     };
 
@@ -1367,6 +1384,7 @@
 
     var begin = function () {
       rec.start(100);
+      capFrames = 0; capStarted = Date.now(); capTrack = vtrack;
       playing = true; lastTs = 0; setPlayUI();
       if (vid) { try { vid.currentTime = inMs / 1000; } catch (e) { } vid.play().catch(function () { }); }
       // Read the clip's own clock rather than tNow: tNow is advanced by the
@@ -1404,6 +1422,11 @@
   render = function () {
     _render.apply(this, arguments);
     syncTimeline(false);
+    // While recording, hand the freshly painted canvas to the encoder. Driving
+    // the capture from the render loop rather than a fixed rate is what lets a
+    // 60fps clip keep all of its frames — and it keeps frames flowing during a
+    // freeze hold, when the video is paused and would otherwise emit none.
+    if (capTrack) { try { capTrack.requestFrame(); capFrames++; } catch (e) { } }
   };
 
   if (window.ResizeObserver) {
