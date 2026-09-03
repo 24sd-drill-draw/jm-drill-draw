@@ -207,13 +207,90 @@ function duplicateScene(idx){
   scenes.splice(idx+1,0,ns);
   loadScene(idx+1);
 }
+/* Drag a tab to reorder the drills.
+
+   POINTER events, not HTML5 drag-and-drop: dragstart/drop do not fire on iOS
+   Safari at all, and the iPad is half of where this gets used. Pointer events
+   cover mouse, pen and touch with one path.
+
+   A drag has to not eat the click. Nothing happens until the pointer has moved
+   DRAG_SLOP pixels, so a tap still selects the drill and a double-tap still
+   renames it. */
+const DRAG_SLOP = 6;
+let _dragTab = null;   // { el, from, startX, live }
+
+function tabDragStart(e, el, from){
+  // Ignore the ⧉ and × spans - they have their own jobs, and starting a drag
+  // from "delete" would be a nasty way to lose a drill.
+  if (e.target !== el) return;
+  if (e.button != null && e.button !== 0) return;
+  _dragTab = { el, from, startX: e.clientX, live: false };
+  el.setPointerCapture && el.setPointerCapture(e.pointerId);
+}
+
+function tabDragMove(e){
+  if (!_dragTab) return;
+  if (!_dragTab.live) {
+    if (Math.abs(e.clientX - _dragTab.startX) < DRAG_SLOP) return;
+    _dragTab.live = true;
+    _dragTab.el.style.opacity = '.55';
+    _dragTab.el.style.cursor  = 'grabbing';
+  }
+  // Reorder the DOM live so the gap follows the finger. The array is not touched
+  // until the drop - an abandoned drag must leave the drills exactly as they were.
+  const bar = _dragTab.el.parentNode; if (!bar) return;
+  const tabs = Array.prototype.filter.call(bar.children,
+                 n => n.classList.contains('scenetab') && !n.classList.contains('scenetab-add'));
+  for (const other of tabs) {
+    if (other === _dragTab.el) continue;
+    const r = other.getBoundingClientRect();
+    const mid = r.left + r.width / 2;
+    if (e.clientX < mid && other.compareDocumentPosition(_dragTab.el) & Node.DOCUMENT_POSITION_FOLLOWING) {
+      bar.insertBefore(_dragTab.el, other); break;
+    }
+    if (e.clientX > mid && other.compareDocumentPosition(_dragTab.el) & Node.DOCUMENT_POSITION_PRECEDING) {
+      bar.insertBefore(_dragTab.el, other.nextSibling); break;
+    }
+  }
+}
+
+function tabDragEnd(){
+  if (!_dragTab) return;
+  const d = _dragTab; _dragTab = null;
+  d.el.style.opacity = ''; d.el.style.cursor = '';
+  if (!d.live) return;                       // never passed the slop: it was a click
+
+  const bar = d.el.parentNode; if (!bar) { updateSceneTabs(); return; }
+  const tabs = Array.prototype.filter.call(bar.children,
+                 n => n.classList.contains('scenetab') && !n.classList.contains('scenetab-add'));
+  const to = tabs.indexOf(d.el);
+  if (to < 0 || to === d.from) { updateSceneTabs(); return; }
+
+  // Write the live board back before touching the array, then follow the CURRENT
+  // drill by identity rather than by index - moving a tab past the one you are on
+  // changes its index, and tracking the number would silently switch which drill
+  // is open.
+  syncScene();
+  const open = scenes[currentScene];
+  scenes.splice(to, 0, scenes.splice(d.from, 1)[0]);
+  currentScene = scenes.indexOf(open);
+  updateSceneTabs();
+  toast('Moved "' + d.el.firstChild.textContent + '" to ' + (to + 1) + ' of ' + scenes.length);
+}
+
 function updateSceneTabs(){
   const bar=document.getElementById('scenebar'); if(!bar)return; bar.innerHTML='';
   scenes.forEach((s,i)=>{
     const t=document.createElement('button'); t.className='scenetab'+(i===currentScene?' on':'');
     t.textContent=s.name;
+    t.title='Click to open. Drag to reorder. Double-click to rename.';
+    t.style.touchAction='none';       // or the browser pans the tab strip instead
     t.onclick=()=>loadScene(i);
     t.ondblclick=(e)=>{ e.stopPropagation(); renameScene(i); };
+    t.onpointerdown=(e)=>tabDragStart(e,t,i);
+    t.onpointermove=tabDragMove;
+    t.onpointerup=tabDragEnd;
+    t.onpointercancel=tabDragEnd;
     const dup=document.createElement('span'); dup.textContent='⧉'; dup.className='scenetab-x';
     dup.title='Duplicate drill'; dup.onclick=(e)=>{ e.stopPropagation(); duplicateScene(i); };
     const x=document.createElement('span'); x.textContent='×'; x.className='scenetab-x';
@@ -221,6 +298,7 @@ function updateSceneTabs(){
     t.appendChild(dup); t.appendChild(x); bar.appendChild(t);
   });
   const add=document.createElement('button'); add.className='scenetab scenetab-add'; add.textContent='+ Drill';
+  add.title='Add an empty drill as a new tab';
   add.onclick=addScene; bar.appendChild(add);
 }
 
