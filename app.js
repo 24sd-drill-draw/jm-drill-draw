@@ -318,7 +318,9 @@ const COLORS={
 // undo — per-scene stacks
 let undoStack=scenes[0].undoStack, redoStack=scenes[0].redoStack;
 function snapshot(){ return JSON.stringify({pieces,paths,rinkConfig,uid}); }
-function pushUndo(){ undoStack.push(snapshot()); if(undoStack.length>60)undoStack.shift(); redoStack.length=0; }
+function pushUndo(){ undoStack.push(snapshot()); if(undoStack.length>60)undoStack.shift(); redoStack.length=0;
+  // Every mutation goes through here, so this is the one hook autosave needs.
+  if(typeof autosave==="function") autosave(); }
 function restore(s){ const o=JSON.parse(s); pieces=o.pieces; paths=o.paths; rinkConfig=o.rinkConfig||'full'; uid=o.uid;
   paths.forEach(p=>p._lut=null);
   scenes[currentScene].pieces=pieces; scenes[currentScene].paths=paths; scenes[currentScene].rinkType=rinkConfig;
@@ -2696,9 +2698,12 @@ function safeFileName(name){
   const s=(name||'').replace(/[\\\/:*?"<>|]/g,'').replace(/\s+/g,' ').trim();
   return s || ('drill-'+new Date().toISOString().slice(0,10));
 }
-async function doSaveDrill(name){
+// The saved shape, in one place. Save writes it to a file; autosave writes the
+// same thing to browser storage, so a restored board is byte-for-byte what a
+// saved one would have been.
+function buildDrillData(){
   syncScene();
-  const data={v:2,showTrap,centerLogo,
+  return {v:2,showTrap,centerLogo,
     customLogo: LOGO_SRC.custom||null,
     currentScene,
     scenes: scenes.map(s=>({
@@ -2706,6 +2711,9 @@ async function doSaveDrill(name){
       pieces:s.pieces.map(p=>({...p,img:undefined,_src:p._src||null})),
       paths:s.paths.map(p=>({...p,_lut:undefined}))
     }))};
+}
+async function doSaveDrill(name){
+  const data=buildDrillData();
   const safe=safeFileName(name);
   const json=JSON.stringify(data);
   // Preferred: File System Access API — saves straight into a folder you pick (it remembers your Drills
@@ -2971,3 +2979,90 @@ document.querySelectorAll('.tray-toggle').forEach(h=>{
     sec.style.maxHeight=collapsed?'0':'600px';
   });
 });
+
+// =========================================================
+//  AUTOSAVE
+// =========================================================
+// A board lived only in the tab until someone remembered to Save. Close it,
+// reload it, or let the machine sleep it away and the work was gone - which is
+// exactly what happened to the first DZ faceoff board on 2026-09-03.
+//
+// This is a SAFETY NET, not a filing system. It keeps ONE board - whatever was
+// last on screen - in browser storage, and offers it back on the next load. It
+// is not a substitute for Save: browser storage is per-browser, per-machine, and
+// is cleared by anything that clears site data. The offer says so.
+const AUTOSAVE_KEY='jmdd.autosave.v1';
+let _autosaveT=null;
+
+function autosaveNow(){
+  // Telestration over a clip is skipped. The video is not stored, so restoring
+  // the marks alone would drop a set of arrows onto an empty stage and look
+  // like the app had lost the clip.
+  if(rinkConfig==='video') return;
+  try{
+    const d=buildDrillData();
+    const hasWork=d.scenes.some(s=>(s.pieces&&s.pieces.length)||(s.paths&&s.paths.length));
+    // An empty board must CLEAR the snapshot, not preserve the last one. Otherwise
+    // clearing the ice and starting fresh would still offer yesterday's board back
+    // on the next load, which reads as the app ignoring you.
+    if(!hasWork){ localStorage.removeItem(AUTOSAVE_KEY); return; }
+    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({at:Date.now(), data:d}));
+  }catch(e){
+    // Private windows and a full quota both throw. An autosave that cannot write
+    // must never interrupt the drawing - it is the backup, not the work.
+  }
+}
+// Debounced, because pushUndo fires on every drag of every piece.
+function autosave(){ clearTimeout(_autosaveT); _autosaveT=setTimeout(autosaveNow, 2000); }
+// Last chance on the way out, ahead of the debounce.
+window.addEventListener('beforeunload', autosaveNow);
+// A tab hidden on a phone or iPad may never get beforeunload at all.
+document.addEventListener('visibilitychange', ()=>{ if(document.hidden) autosaveNow(); });
+
+function _agoText(ms){
+  const m=Math.round((Date.now()-ms)/60000);
+  if(m<1) return 'a moment ago';
+  if(m<60) return m+' minute'+(m===1?'':'s')+' ago';
+  const h=Math.round(m/60);
+  if(h<24) return h+' hour'+(h===1?'':'s')+' ago';
+  return new Date(ms).toLocaleString();
+}
+
+// Offered, never applied silently. Restoring over a board someone had just
+// started would be a second way to lose work, and the whole point here is to
+// stop losing work.
+function offerRestore(){
+  let raw=null;
+  try{ raw=localStorage.getItem(AUTOSAVE_KEY); }catch(e){ return; }
+  if(!raw) return;
+  let snap=null;
+  try{ snap=JSON.parse(raw); }catch(e){ try{ localStorage.removeItem(AUTOSAVE_KEY); }catch(_){} return; }
+  if(!snap || !snap.data || !snap.data.scenes) return;
+
+  const n=snap.data.scenes.length;
+  const names=snap.data.scenes.map(s=>s.name).filter(Boolean).slice(0,3).join(', ');
+
+  const bar=document.createElement('div');
+  bar.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:9999;'+
+    'background:#0C2233;border:1px solid #2A6E86;border-radius:10px;padding:10px 14px;'+
+    'display:flex;gap:12px;align-items:center;flex-wrap:wrap;max-width:min(680px,94vw);'+
+    'box-shadow:0 12px 34px rgba(0,0,0,.45);color:#E8F3F6;'+
+    'font:13px/1.35 "Segoe UI",system-ui,-apple-system,Arial,sans-serif';
+  const txt=document.createElement('div');
+  txt.innerHTML='<b>You have an unsaved board</b> from '+_agoText(snap.at)+
+    ' &mdash; '+n+' drill'+(n===1?'':'s')+(names?' ('+names+')':'')+
+    '<div style="opacity:.7;font-size:11px;margin-top:2px">Kept in this browser only. Save it to a file to keep it properly.</div>';
+  const yes=document.createElement('button');
+  yes.textContent='Restore it';
+  yes.style.cssText='background:#5BC2D6;color:#04141c;border:0;border-radius:999px;'+
+    'padding:.45em 1.1em;font-weight:700;cursor:pointer;font:inherit;font-weight:700';
+  const no=document.createElement('button');
+  no.textContent='Discard';
+  no.style.cssText='background:none;color:#9DBCCB;border:1px solid #2A6E86;border-radius:999px;'+
+    'padding:.45em 1em;cursor:pointer;font:inherit';
+  yes.onclick=()=>{ bar.remove(); try{ loadData(snap.data); }catch(e){ toast('Could not restore that board'); } };
+  no.onclick =()=>{ bar.remove(); try{ localStorage.removeItem(AUTOSAVE_KEY); }catch(e){} };
+  bar.appendChild(txt); bar.appendChild(yes); bar.appendChild(no);
+  document.body.appendChild(bar);
+}
+offerRestore();
