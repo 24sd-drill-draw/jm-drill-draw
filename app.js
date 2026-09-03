@@ -1497,8 +1497,14 @@ function drawBackSkate(ctx, pts, col, camScale){
   const T_=(typeof window!=='undefined'&&window.__bsTune)||null;
   // 6px floor keeps the loops legible when zoomed out; the stroke is capped at
   // R/3.5 so a heavy weight thickens the line without filling the loops in.
-  const R=T_?T_.R:Math.max(6, 1.3*camScale*(1+(_wmul-1)*0.18));
-  const pitch=R*(T_?T_.pitchK:1.45);             // < 2R -> loops
+  // Retuned 2026-09-03 against a DrillChange board Jay called the best backwards
+  // skating he had seen. Ours was right in kind and wrong in degree: at 1.3x the
+  // scale with a pitch of 1.45R the turns overlapped so hard the mark filled in
+  // and read as a black rope laid on the ice, not a skater. Smaller loops, and a
+  // pitch of 2R so consecutive turns touch instead of piling up - each curl stays
+  // a curl, which is the whole thing that says "backwards".
+  const R=T_?T_.R:Math.max(3.5, 0.85*camScale*(1+(_wmul-1)*0.18));
+  const pitch=R*(T_?T_.pitchK:2.0);              // ~2R -> curls touch, do not merge
   const lw=T_?T_.lw:Math.min(Math.max(1,0.28*camScale*_wmul), R/3.5);
   const PER=16;                                  // samples per turn
 
