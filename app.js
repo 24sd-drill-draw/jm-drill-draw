@@ -1222,11 +1222,38 @@ function drawPiece(p, pos){
 // Players are drawn deliberately larger than life. A real skater is about
 // 2.5ft across, which next to a 30ft face-off circle leaves a dot too small to
 // carry a jersey number. A board is read, not measured.
-const PLAYER_R=3.6, GOALIE_R=3.9;
-function pieceRadius(p){ // in feet
-  const b={player:PLAYER_R,goalie:GOALIE_R,coach:PLAYER_R,puck:1.2,puckstack:2.2,ball:1.8,net:3.4,cone:1.8,tire:2.2,bumper:7,ring:2.2,dot:1.4,image:8,zone:10}[p.type]||2;
-  return b*(p.size||1);
-}
+//
+// Rescaled 2026-09-03. The old numbers were not one scale but several: players
+// at 7.2ft across were near 3x life, nets at 6.8ft were life size, and cones at
+// 3.6ft were more than 3x. Everything was oversized by a different amount, so
+// nothing sat right next to anything else - a cone read as big as a puck stack
+// and players crowded the face-off circles.
+//
+// One rule now: PEOPLE are magnified so a jersey number stays legible, and
+// EQUIPMENT is close to life size, because the whole point of a cone or a net on
+// a board is where it is and how much ice it takes up. Players came down 17%,
+// which is enough to give the circles back without losing the number.
+// ONE table. Every size in feet lives here and nowhere else.
+//
+// It used to be two: this lookup fed hit-testing and the selection ring, while
+// drawPieceShape carried its own literals - a cone drawn at 1.7 but grabbed at
+// 1.8, a puck drawn at 1.1 and grabbed at 1.2. They were never quite the same
+// object, and changing a size in one place moved the picture without moving the
+// target, or the target without moving the picture.
+const PIECE_R = {
+  // Measured off the DrillChange board Jay pointed at and said he liked: their
+  // player sits about 2.2ft radius against a 30ft face-off circle. That is close
+  // to life size and it is why their sheets read as a rink rather than as a
+  // crowd of counters. A touch over it here, so a two-digit number still fits.
+  player:2.3, goalie:2.5, coach:2.3,
+  puck:0.8, puckstack:1.6, ball:1.2,   // a puck is 3in - these stay symbols
+  net:3.0,                             // 6ft wide, life size
+  cone:1.1, tire:1.5,                  // a cone is ~1ft, a tire ~2.5ft
+  bumper:7, ring:2.0, dot:1.1, image:8, zone:10
+};
+const PLAYER_R=PIECE_R.player, GOALIE_R=PIECE_R.goalie;
+function pieceBaseR(t){ return PIECE_R[t]||2; }
+function pieceRadius(p){ return pieceBaseR(p.type)*(p.size||1); }   // in feet
 function drawPieceShape(c, p, scale, thumb){
   const z=scale, size=p.size||1;
   const col=p.color||'#1E7FA0';
@@ -1260,10 +1287,10 @@ function drawPieceShape(c, p, scale, thumb){
       label(c,'C',r,cc);
       break; }
     case 'puck':{
-      const r=1.1*z*size; c.fillStyle=p.color||'#111'; c.beginPath(); c.ellipse(0,0,r,r*0.6,0,0,7); c.fill();
+      const r=pieceBaseR("puck")*z*size; c.fillStyle=p.color||"#111"; c.beginPath(); c.ellipse(0,0,r,r*0.6,0,0,7); c.fill();
       c.strokeStyle='#444'; c.lineWidth=1; c.stroke(); break; }
-    case 'ball':{
-      const r=1.6*z*size;
+    case "ball":{
+      const r=pieceBaseR("ball")*z*size;
       // white sphere
       c.fillStyle=p.color||'#fff'; c.beginPath(); c.arc(0,0,r,0,7); c.fill();
       c.strokeStyle='#222'; c.lineWidth=Math.max(0.8,r*0.1); c.stroke();
@@ -1274,7 +1301,7 @@ function drawPieceShape(c, p, scale, thumb){
       break; }
     case 'net':{
       // Top-down hockey net: wide opening at top, rounded back corners
-      const W=6*z*size, D=4*z*size, r=1.2*z*size;
+      const NR=pieceBaseR("net")*z*size, W=2*NR, D=NR*1.333, r=NR*0.4;
       const lw=Math.max(1.8,0.6*z);
       const L=-W/2, R=W/2, T=-D/2, B=D/2;
       c.strokeStyle=p.color||'#D11C2C'; c.fillStyle='rgba(209,28,44,.10)';
@@ -1294,21 +1321,21 @@ function drawPieceShape(c, p, scale, thumb){
       c.stroke();
       break; }
     case 'cone':{
-      const r=1.7*z*size; c.fillStyle=p.color||'#F2811D'; c.beginPath();
+      const r=pieceBaseR("cone")*z*size; c.fillStyle=p.color||"#F2811D"; c.beginPath();
       c.moveTo(0,-r*1.3); c.lineTo(r,r); c.lineTo(-r,r); c.closePath(); c.fill();
       c.strokeStyle='#9c4f0a'; c.lineWidth=1; c.stroke(); break; }
     case 'tire':{
-      const r=2.0*z*size; c.fillStyle='#222'; c.beginPath(); c.arc(0,0,r,0,7); c.fill();
+      const r=pieceBaseR("tire")*z*size; c.fillStyle="#222"; c.beginPath(); c.arc(0,0,r,0,7); c.fill();
       c.fillStyle=thumb?'#EAF6FB':'#E2F1F8'; c.beginPath(); c.arc(0,0,r*0.5,0,7); c.fill();
       c.strokeStyle=p.color||'#E7B416'; c.lineWidth=Math.max(1.5,r*0.18); c.beginPath(); c.arc(0,0,r*0.75,0,7); c.stroke(); break; }
     case 'bumper':{
-      const L=7*z*size, h=1.4*z*size; c.fillStyle=p.color||'#E7B416';
+      const L=pieceBaseR("bumper")*z*size, h=L*0.2; c.fillStyle=p.color||'#E7B416';
       roundRectShape(c,-L,-h,2*L,2*h,h*0.7); c.fill();
       c.strokeStyle='#8a6a00'; c.lineWidth=1; c.stroke(); break; }
     case 'dot':{
-      const r=1.2*z*size; c.fillStyle=p.color||'#D11C2C'; c.beginPath(); c.arc(0,0,r,0,7); c.fill(); break; }
+      const r=pieceBaseR("dot")*z*size; c.fillStyle=p.color||"#D11C2C"; c.beginPath(); c.arc(0,0,r,0,7); c.fill(); break; }
     case 'ring':{
-      const r=2.2*z*size; c.strokeStyle=p.color||'#222831'; c.lineWidth=Math.max(2,r*0.28);
+      const r=pieceBaseR("ring")*z*size; c.strokeStyle=p.color||"#222831"; c.lineWidth=Math.max(2,r*0.28);
       c.beginPath(); c.arc(0,0,r,0,7); c.stroke(); break; }
     case 'zone':{
       // highlighted area circle — size maps to radius in feet (default ~10ft)
