@@ -139,11 +139,33 @@
   var LABELS = { players: 'Players', objects: 'Objects' };
   TOOLS.forEach(function (t) { LABELS[t.k] = t.n; });
 
+  // The palette you last picked STAYS UP while you use a tool. It used to be
+  // replaced by the tool's own section, so choosing Arrow made the whole
+  // equipment grid vanish - and the panel still said OBJECTS at the top, which
+  // reads as "your objects are gone" rather than "you are on a tool now". Jay
+  // lost the cones exactly that way.
+  //
+  // The tool section is appended BELOW rather than instead of, so the panel
+  // shows what you are placing and what you are drawing with at the same time,
+  // the way DrillChange stacks Players / Move / Objects / Tools.
+  var lastPalette = 'players';
   function showPanel(k) {
-    var sec = (k === 'players' || k === 'objects') ? k : 'tool';
+    var isPalette = (k === 'players' || k === 'objects');
+    if (isPalette) lastPalette = k;
     document.querySelectorAll('.kd-sec').forEach(function (s) {
-      s.classList.toggle('on', s.dataset.sec === sec);
+      var d = s.dataset.sec;
+      s.classList.toggle('on', d === lastPalette || (!isPalette && d === 'tool'));
     });
+    // Safety net for the other half of the problem: the panel scrolls, so even a
+    // visible section can be below the fold. Picking a palette brings it back
+    // into view rather than leaving you to find it.
+    if (isPalette) {
+      var panel = document.querySelector('.kd-panel');
+      var target = document.querySelector('.kd-sec[data-sec="' + k + '"]');
+      if (panel && target) {
+        try { panel.scrollTop = Math.max(0, target.offsetTop - panel.offsetTop - 8); } catch (e) {}
+      }
+    }
     // The marks footer is sticky to the bottom of the panel, so it sits on top
     // of whatever is scrolled behind it — which was already burying Positions,
     // and the jersey-number box made the squeeze worse. None of it (mark
@@ -152,8 +174,12 @@
     // the mark palette, so it only steps aside here.
     var pfoot = document.querySelector('.kd-pfoot');
     if (pfoot) pfoot.style.display = (k === 'players') ? 'none' : '';
-    panelTitle.textContent = LABELS[k] || 'Tool';
-    if (sec === 'tool') {
+    // Name BOTH when they differ, so the header stops claiming you are on
+    // Objects when you are actually drawing an arrow.
+    panelTitle.textContent = isPalette
+      ? (LABELS[k] || 'Tool')
+      : ((LABELS[lastPalette] || '') + '  ·  ' + (LABELS[k] || 'Tool'));
+    if (!isPalette) {
       toolName.textContent = LABELS[k] || 'Tool';
       toolTip.innerHTML = TIPS[k] || '';
     }

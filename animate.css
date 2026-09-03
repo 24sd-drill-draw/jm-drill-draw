@@ -114,8 +114,13 @@ select{font:inherit;color:inherit}
 .kd-tip{font-size:11.5px;line-height:1.5;color:var(--muted);background:var(--panel);border:1px solid var(--line);
   border-radius:var(--r);padding:8px 9px}
 .kd-tip b{color:var(--accent)}
-.kd-pfoot{margin-top:auto;padding:9px 10px 12px;border-top:1px solid var(--line);position:sticky;bottom:0;
-  background:var(--navy2)}
+/* NOT sticky, and no margin-top:auto. Pinned to the bottom it occupied whatever
+   height it needed and the sections above were squeezed into the gap - with the
+   Line and End rows added it grew tall enough to cover the equipment grid
+   entirely, so clicking Objects changed the header and showed no objects. It now
+   flows after the sections: scroll and you get Objects, then New marks, in the
+   order they are written. */
+.kd-pfoot{padding:9px 10px 12px;border-top:1px solid var(--line);background:var(--navy2)}
 /* Says whether these controls set the default for the NEXT mark or are editing
    what's selected — the two are easy to confuse, and one silently retimes work. */
 .kd-edithead{font-size:9.5px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;
