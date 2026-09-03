@@ -735,13 +735,50 @@
   // view for the one frame, and name the file after the clip and the moment.
   var _exportImage = exportImage;
   exportImage = function (fmt) {
-    if (!vid || !vid.videoWidth) return _exportImage(fmt);
-    var restore = !!useNativeView();
-    imgNameHint = (vidName ? vidName.replace(/\.[^.]+$/, '') : 'clip') +
-                  '_' + (tNow / 1000).toFixed(1) + 's';
-    try { _exportImage(fmt); }
-    finally { imgNameHint = null; if (restore) restoreView(); }
+    if (vid && vid.videoWidth) {
+      // A frame off a clip is photographic: JPG, at the clip's own resolution.
+      var restore = !!useNativeView();
+      imgNameHint = (vidName ? vidName.replace(/\.[^.]+$/, '') : 'clip') +
+                    '_' + (tNow / 1000).toFixed(1) + 's';
+      try { _exportImage(fmt); }
+      finally { imgNameHint = null; if (restore) restoreView(); }
+      return;
+    }
+    // A drill board is line art: PNG, cropped to the boards, transparent
+    // around them, so it drops into a practice plan without a white slab.
+    var r = useBoundsView();
+    if (!r) return _exportImage(fmt);
+    try {
+      var a = document.createElement('a');
+      a.href = cv.toDataURL('image/png');
+      a.download = safeFileName((scenes[currentScene] || {}).name) + '.png';
+      a.click();
+      toast('Saved ' + r.w + '×' + r.h + ' PNG, see-through background');
+    } finally { restoreView(); }
   };
+
+  // Straight to the clipboard, so it can be pasted rather than saved first.
+  function copyStill() {
+    if (!cv.toBlob || !navigator.clipboard || !window.ClipboardItem) {
+      toast('This browser cannot copy pictures — use Image to save one');
+      return;
+    }
+    var onClip = !!(vid && vid.videoWidth);
+    var r = onClip ? useNativeView() : useBoundsView();
+    // ClipboardItem accepts a promise, and write() has to be called inside the
+    // click's activation window. Building the blob first and writing after the
+    // callback loses that window and the paste is refused.
+    var blobP = new Promise(function (res, rej) {
+      cv.toBlob(function (b) { b ? res(b) : rej(new Error('no image')); }, 'image/png');
+    });
+    var putBack = function () { if (r) restoreView(); };
+    blobP.then(putBack, putBack);          // only once the canvas has been read
+    navigator.clipboard.write([new ClipboardItem({ 'image/png': blobP })]).then(
+      function () { toast('Copied — paste it straight into your plan'); },
+      function () { toast('Copy was blocked — use Image to save a file instead'); }
+    );
+  }
+  $('kdCopy').onclick = copyStill;
   window.addEventListener('keydown', function (e) {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -1288,9 +1325,9 @@
     var w = vid.videoWidth, h = vid.videoHeight;
     if (w > MAXW) { h = Math.round(h * MAXW / w); w = MAXW; }
     w -= w % 2; h -= h % 2;                // H.264 will not take odd dimensions
-    savedView = { dpr: DPR, s: cam.s, tx: cam.tx, ty: cam.ty };
+    savedView = { dpr: DPR, s: cam.s, tx: cam.tx, ty: cam.ty, rot: camRot };
     cv.width = w; cv.height = h;
-    DPR = 1;
+    DPR = 1; camRot = 0;
     // Fit the panel inside the canvas rather than keying off the width alone.
     // Rounding both sides down to even can leave the painted height a pixel
     // over the canvas, and on a 2704x1520 clip that shaved the bottom row and
@@ -1304,11 +1341,32 @@
   }
   function restoreView() {
     if (!savedView) return;
-    DPR = savedView.dpr;
+    DPR = savedView.dpr; camRot = savedView.rot || 0;
     cam.s = savedView.s; cam.tx = savedView.tx; cam.ty = savedView.ty;
     savedView = null;
     resize();                              // puts the backing store back
     render();
+  }
+
+  // A still of a drill board framed to the boards rather than to the window.
+  // Exporting the stage gave a near-square picture with 300px of white above
+  // and below a 2.35:1 rink — which reads as stretched even though the rink
+  // itself is true. Sizing the canvas to the rink crops it, and since clear()
+  // starts transparent and nothing paints outside the boards, a PNG comes out
+  // with the surround already see-through.
+  function useBoundsView() {
+    var b = worldBounds();
+    if (!b || !b.w || !b.h) return null;
+    var pad = 1.5;                                    // room for the board stroke
+    var x = b.x - pad, y = b.y - pad, w = b.w + pad * 2, h = b.h + pad * 2;
+    var scale = Math.min(8, Math.max(2, 2400 / w));   // ~2400px on the long side
+    var W = Math.round(w * scale), H = Math.round(h * scale);
+    savedView = { dpr: DPR, s: cam.s, tx: cam.tx, ty: cam.ty, rot: camRot };
+    cv.width = W; cv.height = H;
+    DPR = 1; camRot = 0;
+    cam.s = scale; cam.tx = -x * scale; cam.ty = -y * scale;
+    render();
+    return { w: W, h: H };
   }
 
   function exportClip() {
