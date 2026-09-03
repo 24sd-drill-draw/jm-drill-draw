@@ -1432,7 +1432,11 @@ function drawAnnotation(p){
     // dark underneath gives a real outline rather than a blurred glow. A soft
     // shadow alone spread the dark over ~7px and left nothing solid enough to
     // see. The blur here only softens the edge of that fatter pass.
-    const grow=Math.min(6, Math.max(2.5, 0.55*cam.s));
+    // Halved 2026-09-03. At the old weight (2.5-6px) the outline read as a black
+    // line with a yellow core rather than a yellow line with an edge - Jay
+    // spotted it on an exported DZ faceoff sheet. A rim is enough to hold the
+    // colour against white ice; anything more competes with it.
+    const grow=Math.min(3, Math.max(1.25, 0.275*cam.s));
     _wmul = keepW + grow/Math.max(0.4*cam.s, 0.5);
     // The head is a filled triangle, so scaling it with the stroke would put a
     // small white one inside a much bigger black one and the arrow would read
