@@ -370,6 +370,11 @@ let activeColor=null;   // null = each object's own default; otherwise applies t
 let clip=null;          // copied piece/path
 let pendingStamp=false; // keep placing copies until Esc
 let playerColor='blue';
+// Circle or triangle, applied to every position you stamp. DrillChange shows
+// both shapes in three colours as a grid of 24 buttons; one shape switch over a
+// grid of positions says the same thing without the wall of buttons, and the
+// thumbnails redraw so you can see what you are about to place.
+let playerShape='circle';
 let passBuilding=null;  // {path} click-based pass being built
 let webBuilding=null;   // {path} click-based coverage web being built
 let webCursor=null;
@@ -475,7 +480,11 @@ function buildSwatches(){
   const s=document.getElementById('swatches'); s.innerHTML='';
   Object.entries(COLORS).forEach(([k,v])=>{
     const d=document.createElement('div'); d.className='sw'+(playerColor===k?' on':''); d.style.background=v; d.dataset.k=k;
-    d.onclick=()=>{ playerColor=k; [...s.children].forEach(c=>c.classList.toggle('on',c.dataset.k===k)); fillTray('skaters',SKATERS); };
+    // Positions redraw too, not just Skaters. The whole point of the palette is
+    // that a thumbnail shows what you are about to place, and a red team with
+    // blue position buttons is a palette telling you the wrong thing.
+    d.onclick=()=>{ playerColor=k; [...s.children].forEach(c=>c.classList.toggle('on',c.dataset.k===k));
+      fillTray('skaters',SKATERS); fillTray('positions',POSITIONS); };
     s.appendChild(d);
   });
 }
@@ -506,7 +515,6 @@ const POSITIONS=[
   {type:'player',n:'LD',opts:{num:'LD'}},
   {type:'player',n:'RD',opts:{num:'RD'}},
   {type:'goalie',n:'G', opts:{}},
-  {type:'player',n:'△ D',opts:{num:'D',shape:'triangle'}},
 ];
 function buildPieceTray(){
   fillTray('skaters', SKATERS);
@@ -531,6 +539,7 @@ function drawThumb(c,type,opts){
   const base={type, size:1, color:undefined, num:''};
   if(type==='player'||type==='goalie') base.color=COLORS[playerColor];
   if(type==='player') base.num='7';
+  if((type==='player') && playerShape==='triangle') base.shape='triangle';
   if(activeColor && type!=='player' && type!=='goalie') base.color=activeColor;
   Object.assign(base, opts||{});
   const thumbScale={net:3.2, bumper:2.2, tire:3.5, ring:3.5, zone:1.2}[type]||4.5;
@@ -598,6 +607,9 @@ function addPiece(type, at, opts){
   const piece={ id:id(), type, x:pt.x, y:pt.y, size:1, rot:0,
     color: (type==='player'||type==='goalie') ? COLORS[playerColor] : (activeColor||undefined),
     num: type==='player'? String(nextNum()) : '', label:'', img:null };
+  // The shape switch applies to skaters, before opts - so a palette entry that
+  // names its own shape still wins.
+  if(type==='player' && playerShape==='triangle') piece.shape='triangle';
   Object.assign(piece, opts||{});
   pieces.push(piece);
   selOne('piece',piece.id); updateInspector(); render(); toast(prettyType(piece.type)+' added');
@@ -3378,3 +3390,26 @@ function buildStylePickers(){
   });
 }
 buildStylePickers();
+
+// Circle or triangle for skaters. Two buttons over one grid of positions rather
+// than DrillChange's 24 - shape x colour x position is a lot of buttons, and the
+// thumbnails already redraw so you can see the pairing you have chosen.
+function buildShapeSwitch(){
+  const host=document.getElementById('playerShapes');
+  if(!host) return;
+  host.innerHTML='';
+  [['circle','Circle','<circle cx="12" cy="12" r="7.5" fill="currentColor"/>'],
+   ['triangle','Triangle','<path d="M12 3.5l8.5 15h-17z" fill="currentColor"/>']
+  ].forEach(([k,name,svg])=>{
+    const b=document.createElement('button');
+    b.type='button';
+    b.className=(playerShape===k)?'on':'';
+    b.title=name+' skaters';
+    b.innerHTML='<svg viewBox="0 0 24 24" width="18" height="18" style="display:block">'+svg+'</svg>';
+    b.style.cssText='display:inline-flex;align-items:center;justify-content:center;padding:4px 9px';
+    b.onclick=()=>{ playerShape=k; buildShapeSwitch();
+      fillTray('skaters',SKATERS); fillTray('positions',POSITIONS); };
+    host.appendChild(b);
+  });
+}
+buildShapeSwitch();
