@@ -409,3 +409,27 @@ body.light-theme .seg,body.light-theme .zoomctl button{background:rgba(255,255,2
    together overflow a 1280-wide screen. Let it wrap rather than push the
    export button off the edge. */
 .kd-transport{flex-wrap:wrap;row-gap:5px}
+
+/* =====================================================================
+   CHROME THAT FOLLOWS THE MODE
+   =====================================================================
+   This app is a hybrid: DrillChange when you are drawing a board, Klipdraw
+   when you are marking up a clip. It was paying Klipdraw's rent while doing
+   DrillChange's job - on a 1280x720 window the ice got 640x422, under 30% of
+   the screen, while a 196px timeline sat under it showing "0 tracks".
+
+   With no clip loaded and no marks to lay out, the timeline strip collapses and
+   the ice takes the room. The TRANSPORT stays: play and scrub drive the drill
+   animation too, not just video. Load a clip or draw a mark and the strip
+   comes back on its own.
+   ===================================================================== */
+.kd-app.no-tl{ --tl:52px; }
+.kd-app.no-tl .kd-tl{ display:none; }
+
+/* Klipdraw's rail is two narrow columns of small glyphs and it costs almost
+   nothing. Ours was 66x60 buttons carrying words that are gone now, so the
+   width was paying for text that is not there. */
+:root{ --rail:82px; }
+.tool{ width:34px; height:34px; border-radius:8px; padding:0; }
+.tool svg{ width:19px; height:19px; }
+@media (min-width:1440px){ :root{ --rail:82px; } }
