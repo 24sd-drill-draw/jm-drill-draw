@@ -465,12 +465,7 @@ document.getElementById('redoBtn').onclick=()=>redo();
 const TOOLS=[
   {k:'select', n:'Select', svg:'<path d="M5 3l14 7-6 2-2 6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>'},
   {k:'motion', n:'Move',   svg:'<circle cx="5" cy="18" r="2.5" fill="var(--accent)"/><path d="M6 16q3-9 9-9" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="2 2"/><path d="M12 4l5 3-5 3" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'},
-  {k:'skate',    n:'Skate (solid, arrow)', svg:'<path d="M2 12h14" fill="none" stroke="var(--accent)" stroke-width="2"/><path d="M15 8l6 4-6 4z" fill="var(--accent)"/>'},
-  {k:'skateback',n:'With the puck (scallops)', svg:'<path d="M2 14q3-6 6 0t6 0 6 0" fill="none" stroke="var(--accent)" stroke-width="1.8"/><path d="M19 8l4 3-4 3z" fill="var(--accent)"/>'},
-  {k:'skaterev', n:'Back',  svg:'<path d="M3 16q1-4 2.5 0t2 2 2.5-2 2 2 2.5-2" fill="none" stroke="var(--accent)" stroke-width="2"/><path d="M19 13l3 3-3 3" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'},
-  {k:'pass',   n:'Pass (dotted, arrow)', svg:'<path d="M2 12h13" fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="0 5"/><path d="M15 8l6 4-6 4z" fill="var(--accent)"/>'},
-  {k:'shot',   n:'Shot (double, open head)', svg:'<path d="M2 10h11M2 14h11" fill="none" stroke="var(--accent)" stroke-width="1.6"/><path d="M14 8l7 4-7 4z" fill="none" stroke="var(--accent)" stroke-width="1.7" stroke-linejoin="round"/>'},
-  {k:'arrow',  n:'Arrow (solid, arrow)', svg:'<path d="M2 12h14" fill="none" stroke="var(--accent)" stroke-width="2"/><path d="M15 8l6 4-6 4z" fill="var(--accent)"/>'},
+  {k:'line',   n:'Line - shape it with Curves and Ends', svg:'<path d="M3 18L15 6" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/><path d="M14 4l7 2-2 7z" fill="var(--accent)"/>'},
   {k:'ring',   n:'Ring',   svg:'<ellipse cx="12" cy="13" rx="9" ry="5" fill="none" stroke="var(--accent)" stroke-width="2.6"/>'},
   {k:'cover',  n:'Cover',  svg:'<ellipse cx="6" cy="16.5" rx="4.6" ry="3.4" fill="none" stroke="var(--accent)" stroke-width="2"/><ellipse cx="18" cy="7.5" rx="4.6" ry="3.4" fill="none" stroke="var(--accent)" stroke-width="2"/><path d="M9.4 14.2l4 -3" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-dasharray="2.4 2"/><path d="M12 13.4l2.6-2 .4 2.6" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>'},
   {k:'web',    n:'Web',    svg:'<path d="M12 3L4 10l3 10h10l3-10zM12 3l-5 17M12 3l5 17M4 10h16M4 10l13 10M20 10L7 20" fill="none" stroke="var(--accent)" stroke-width="1.1"/>'},
@@ -1806,9 +1801,15 @@ function strokeWavy(scr){
    `type` still exists and still decides the DEFAULT pair, so every drill saved
    before today draws exactly as it did. `line` and `end` only override it.
    ========================================================================= */
-const MARK_LINE = { skate:'solid', skateback:'scallop', skaterev:'coil',
+// `line` is what the one tool makes now. The other six are RETIRED as tools but
+// stay in this table for ever: every drill saved before today has paths typed
+// skate, pass, shot and the rest, and dropping them here would redraw someone's
+// season as plain lines. A type costs nothing to keep and a file is for ever.
+const MARK_LINE = { line:'solid',
+                    skate:'solid', skateback:'scallop', skaterev:'coil',
                     pass:'dots', shot:'double', arrow:'solid', bar:'solid', pen:'solid' };
-const MARK_END  = { skate:'arrow', skateback:'arrow', skaterev:'arrow',
+const MARK_END  = { line:'arrow',
+                    skate:'arrow', skateback:'arrow', skaterev:'arrow',
                     pass:'arrow', shot:'open', arrow:'arrow', bar:'none', pen:'none' };
 const LINE_FAMILY = Object.keys(MARK_LINE);
 function lineOf(p){ return p.line || MARK_LINE[p.type] || 'solid'; }
@@ -1854,22 +1855,24 @@ function teeEnd(pts,col){
   ctx.beginPath(); ctx.moveTo(b[0]+nx*L,b[1]+ny*L); ctx.lineTo(b[0]-nx*L,b[1]-ny*L); ctx.stroke();
 }
 
-// A CLOSED triangle, outlined - not the open chevron arrowHead(open) draws.
-// This is the head a shot has always had, and delegating to the chevron quietly
-// restyled every shot in every saved drill.
+// A V - two strokes meeting at the tip, and NO base across the back.
+//
+// It was a closed triangle. Jay, marking up a screenshot: "just use a V at the
+// end of the double line." He is right, and the icon in the End row has been
+// drawing a V all along, so the button and the mark disagreed. Closing the shape
+// also fights the double line running into it: three heavy strokes converge on
+// the same spot and the tip turns into a blob.
 function openHead(pts,col){
   const b=pts[pts.length-1], a=pts[pts.length-2]||b;
   const ang=Math.atan2(b[1]-a[1],b[0]-a[0]);
   const L=Math.max(9,2.8*cam.s*_headW);
-  const nx=-Math.sin(ang), ny=Math.cos(ang);
-  const baseX=b[0]-L*Math.cos(ang), baseY=b[1]-L*Math.sin(ang);
-  ctx.strokeStyle=col; ctx.lineWidth=Math.max(1.5,0.4*cam.s*_wmul);
+  ctx.strokeStyle=col; ctx.lineWidth=Math.max(1.6,0.42*cam.s*_wmul);
   ctx.lineJoin='round'; ctx.lineCap='round';
   ctx.beginPath();
-  ctx.moveTo(b[0],b[1]);
-  ctx.lineTo(baseX+nx*L*0.42, baseY+ny*L*0.42);
-  ctx.lineTo(baseX-nx*L*0.42, baseY-ny*L*0.42);
-  ctx.closePath(); ctx.stroke();
+  ctx.moveTo(b[0]-L*Math.cos(ang-0.42), b[1]-L*Math.sin(ang-0.42));
+  ctx.lineTo(b[0], b[1]);
+  ctx.lineTo(b[0]-L*Math.cos(ang+0.42), b[1]-L*Math.sin(ang+0.42));
+  ctx.stroke();
 }
 // Two bars instead of one. On a board a single tee is "stop"; a double is the
 // stronger version of the same idea - a gate, a wall, a hard stop.
@@ -2436,10 +2439,18 @@ cv.addEventListener('pointerdown',e=>{
     seg={raw:[{x:la.x,y:la.y}]};
     updateInspector(); render(); return;
   }
-  if(tool==='skate' && !building){
+  // ONE line tool. Skate, Puck, Back, Pass, Shot and Arrow were six buttons for
+  // six fixed pairs of line-and-end. Now that those are two rows of their own,
+  // the buttons were the same choice offered twice. Everything routes through
+  // here and takes its shape from the Curves rows.
+  //
+  // Click-to-place, which is what the curve tools already used: two clicks give
+  // a straight line, more give a curve. The drag tools could not do the second
+  // thing at all, so this is the input mode that loses nothing.
+  if((tool==='line' || tool==='skate') && !building){
     if(!skateBuilding){
       pushUndo();
-      const np={id:id(),type:'skate',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],anchors:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,line:markLine,end:markEnd,freeze:markFreeze,_lut:null};
+      const np={id:id(),type:'line',color:(activeColor||'#0C2233'),pts:[{x:wx,y:wy}],anchors:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,line:markLine,end:markEnd,freeze:markFreeze,_lut:null};
       paths.push(np); skateBuilding={path:np}; selOne('path',np.id);
       toast('Click waypoints for a smooth curve — right-click or Enter to finish');
     } else {
