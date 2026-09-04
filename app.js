@@ -71,6 +71,17 @@ function fitRect(r,pad=24){
 
 // view presets depend on the rink configuration
 function defaultView(){ return rinkConfig==='full'?'full': rinkConfig==='half'?'zone': rinkConfig==='field'?'full':'both'; }
+// Both ends, because a coach setting up a goalie drill is at whichever end has
+// the ice, not always the left one. Vertical as well: net-front work reads better
+// with the net at the bottom and the play coming up the screen, which is how the
+// D-Zone ↓ views already work.
+function creaseViews(){
+  return [
+    {k:'crease',  t:'Crease',   r:{x:-4,  y:14, w:48, h:57}},
+    {k:'creasev', t:'Crease ↓', r:{x:-4,  y:14, w:48, h:57}, rot:90},
+    {k:'crease2', t:'Crease R', r:{x:156, y:14, w:48, h:57}},
+  ];
+}
 function viewPresets(){
   const b=worldBounds();
   if(rinkConfig==='iceplex') return [
@@ -94,12 +105,22 @@ function viewPresets(){
     {k:'oz',  t:'O-Zone', r:{x:108,y:0,w:92,h:RH}},
     {k:'dzv', t:'D-Zone ↓', r:{x:0,y:0,w:92,h:RH}, rot:90},
     {k:'ozv', t:'O-Zone ↓', r:{x:108,y:0,w:92,h:RH}, rot:90},
+    // Goal-line close-up, for goalie work and net-front battles. A VIEW, not a
+    // new surface: it frames the real rink, so the crease, the net, the goal
+    // line and the trapezoid keep the dimensions they already have. Drawing a
+    // separate close-up would be a second set of numbers to get wrong.
+    // Goal line is at x=11, crease is a 6ft arc off it, net 6ft x 3.4ft, and the
+    // end boards curve away behind - so from -4 to 44 holds all of it with the
+    // low slot and both end-zone dots.
+    ...creaseViews(),
   ];
   if(rinkConfig==='half') return [
     {k:'zone', t:'Zone', r:{x:0,y:0,w:100,h:RH}},
     {k:'tight',t:'Slot', r:{x:0,y:0,w:62,h:RH}},
     {k:'vert', t:'Net ↓', r:{x:0,y:0,w:100,h:RH}, rot:90},
     {k:'vtight',t:'Slot ↓',r:{x:0,y:0,w:62,h:RH}, rot:90},
+    // A half sheet only has the one net, so only the left pair applies.
+    ...creaseViews().slice(0,2),
   ];
   if(rinkConfig==='halves') return [
     {k:'both', t:'Both', r:b},
