@@ -462,12 +462,12 @@ document.getElementById('redoBtn').onclick=()=>redo();
 const TOOLS=[
   {k:'select', n:'Select', svg:'<path d="M5 3l14 7-6 2-2 6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>'},
   {k:'motion', n:'Move',   svg:'<circle cx="5" cy="18" r="2.5" fill="var(--accent)"/><path d="M6 16q3-9 9-9" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="2 2"/><path d="M12 4l5 3-5 3" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'},
-  {k:'skate',    n:'Skate', svg:'<path d="M3 16q3-6 5 0t5 0 5 0" fill="none" stroke="var(--accent)" stroke-width="2"/><path d="M19 13l3 3-3 3" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'},
-  {k:'skateback',n:'Puck',  svg:'<path d="M3 16q1.5-3 2.5 0t2.5 0 2.5 0 2.5 0 2.5 0" fill="none" stroke="var(--accent)" stroke-width="2"/><circle cx="21" cy="16" r="2.5" fill="var(--accent)"/>'},
+  {k:'skate',    n:'Skate (solid, arrow)', svg:'<path d="M2 12h14" fill="none" stroke="var(--accent)" stroke-width="2"/><path d="M15 8l6 4-6 4z" fill="var(--accent)"/>'},
+  {k:'skateback',n:'With the puck (scallops)', svg:'<path d="M2 14q3-6 6 0t6 0 6 0" fill="none" stroke="var(--accent)" stroke-width="1.8"/><path d="M19 8l4 3-4 3z" fill="var(--accent)"/>'},
   {k:'skaterev', n:'Back',  svg:'<path d="M3 16q1-4 2.5 0t2 2 2.5-2 2 2 2.5-2" fill="none" stroke="var(--accent)" stroke-width="2"/><path d="M19 13l3 3-3 3" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'},
-  {k:'pass',   n:'Pass',   svg:'<path d="M3 12h14" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="3 3"/><path d="M16 8l5 4-5 4" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'},
-  {k:'shot',   n:'Shot',   svg:'<path d="M3 12h14M7 8v8M10 8v8" fill="none" stroke="var(--accent)" stroke-width="2"/><path d="M16 8l5 4-5 4" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'},
-  {k:'arrow',  n:'Arrow',  svg:'<path d="M3 12h14" fill="none" stroke="var(--accent)" stroke-width="2"/><path d="M16 8l5 4-5 4" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'},
+  {k:'pass',   n:'Pass (dotted, arrow)', svg:'<path d="M2 12h13" fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="0 5"/><path d="M15 8l6 4-6 4z" fill="var(--accent)"/>'},
+  {k:'shot',   n:'Shot (double, open head)', svg:'<path d="M2 10h11M2 14h11" fill="none" stroke="var(--accent)" stroke-width="1.6"/><path d="M14 8l7 4-7 4z" fill="none" stroke="var(--accent)" stroke-width="1.7" stroke-linejoin="round"/>'},
+  {k:'arrow',  n:'Arrow (solid, arrow)', svg:'<path d="M2 12h14" fill="none" stroke="var(--accent)" stroke-width="2"/><path d="M15 8l6 4-6 4z" fill="var(--accent)"/>'},
   {k:'ring',   n:'Ring',   svg:'<ellipse cx="12" cy="13" rx="9" ry="5" fill="none" stroke="var(--accent)" stroke-width="2.6"/>'},
   {k:'cover',  n:'Cover',  svg:'<ellipse cx="6" cy="16.5" rx="4.6" ry="3.4" fill="none" stroke="var(--accent)" stroke-width="2"/><ellipse cx="18" cy="7.5" rx="4.6" ry="3.4" fill="none" stroke="var(--accent)" stroke-width="2"/><path d="M9.4 14.2l4 -3" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-dasharray="2.4 2"/><path d="M12 13.4l2.6-2 .4 2.6" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>'},
   {k:'web',    n:'Web',    svg:'<path d="M12 3L4 10l3 10h10l3-10zM12 3l-5 17M12 3l5 17M4 10h16M4 10l13 10M20 10L7 20" fill="none" stroke="var(--accent)" stroke-width="1.1"/>'},
@@ -481,7 +481,11 @@ function buildTools(){
   const g=document.getElementById('tools'); g.innerHTML='';
   TOOLS.forEach(t=>{
     const b=document.createElement('button'); b.className='tool'+(tool===t.k?' on':'');
-    b.dataset.k=t.k; b.innerHTML=`<svg viewBox="0 0 24 24">${t.svg}</svg>${t.n}`;
+    // Picture only. Jay: "I know what each one stands for" - and he is the only
+    // person who uses the rail. The name moves to the tooltip, where it is there
+    // for anyone else without taking a third of the button.
+    b.dataset.k=t.k; b.title=t.n;
+    b.innerHTML=`<svg viewBox="0 0 24 24">${t.svg}</svg>`;
     b.onclick=()=>setTool(t.k);
     g.appendChild(b);
   });
@@ -1558,9 +1562,18 @@ function drawBackSkate(ctx, pts, col, camScale){
   // and read as a black rope laid on the ice, not a skater. Smaller loops, and a
   // pitch of 2R so consecutive turns touch instead of piling up - each curl stays
   // a curl, which is the whole thing that says "backwards".
-  const R=T_?T_.R:Math.max(3.5, 0.85*camScale*(1+(_wmul-1)*0.18));
-  const pitch=R*(T_?T_.pitchK:2.0);              // ~2R -> curls touch, do not merge
-  const lw=T_?T_.lw:Math.min(Math.max(1,0.28*camScale*_wmul), R/3.5);
+  // Retuned twice. The first attempt shrank the loops and kept the pitch tight,
+  // which was the wrong lever: SIZE was never the problem, OVERLAP was. Turns
+  // spaced under 2R pile on top of each other and the mark fills in solid, so it
+  // reads as a black rope laid on the ice however small you make it.
+  //
+  // Pitch slightly OVER 2R leaves a hair of white between consecutive turns, and
+  // that gap is the whole thing - it is what makes the eye see a coil rather than
+  // a thick line. The stroke is capped at R/5 for the same reason: a fat pen
+  // closes the gap back up.
+  const R=T_?T_.R:Math.max(4.5, 1.2*camScale*(1+(_wmul-1)*0.18));
+  const pitch=R*(T_?T_.pitchK:2.1);
+  const lw=T_?T_.lw:Math.min(Math.max(0.9,0.22*camScale*_wmul), R/5);
   const PER=16;                                  // samples per turn
 
   ctx.save(); ctx.strokeStyle=col; ctx.globalAlpha=_opa;
