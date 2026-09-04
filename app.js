@@ -19,7 +19,25 @@ const ctx = cv.getContext('2d');
 let DPR = Math.min(window.devicePixelRatio||1, 2);
 
 // ---- world / rink geometry (feet) ----
-const RW=200, RH=85, GAP=24;           // full-sheet size + gap between sheets
+// Sheet size. LET, not const - the surface changes size, the MARKINGS do not.
+// A goal line is 11ft off the boards and a centre circle is 15ft on every sheet
+// in the world; what changes is how much ice sits around them. So every feature
+// below is written as a real distance from a real edge, and only RW/RH move.
+let RW=200, RH=85;
+const GAP=24;                            // gap between sheets when two are drawn
+const RINK_SIZES={
+  nhl:      {w:200, h:85,  t:'NHL 200 x 85'},
+  olympic:  {w:200, h:100, t:'Olympic 200 x 100'},
+  hybrid:   {w:200, h:90,  t:'Hybrid 200 x 90'},
+  small:    {w:185, h:85,  t:'Small sheet 185 x 85'}
+};
+let rinkSize='nhl';
+function setRinkSize(k){
+  const d=RINK_SIZES[k]; if(!d) return;
+  rinkSize=k; RW=d.w; RH=d.h;
+  currentView=defaultView(); buildViewSeg(); applyView(viewPresets()[0]);
+  render();
+}
 const FW=210, FH=120;                  // grass field (dryland) dimensions in feet
 // KCI Iceplex floor plan (feet, scaled to match piece scale)
 const IW=520, IH=290;                  // total facility footprint
@@ -681,14 +699,14 @@ function drawRinkBg(p){
     ctx.fillStyle=red; ctx.beginPath(); ctx.arc(X(fx),Y(fy),1.0*s,0,7); ctx.fill(); };
   const nzdot=(fx,fy)=>{ ctx.fillStyle=red; ctx.beginPath(); ctx.arc(X(fx),Y(fy),0.95*s,0,7); ctx.fill(); };
   const crease=(gx,dir)=>{ ctx.fillStyle='rgba(120,180,235,.18)'; ctx.strokeStyle=red; ctx.lineWidth=thin;
-    ctx.beginPath(); ctx.arc(X(gx),Y(42.5),6*s, dir>0?-Math.PI/2:Math.PI/2, dir>0?Math.PI/2:3*Math.PI/2, false); ctx.closePath(); ctx.fill(); ctx.stroke(); };
+    ctx.beginPath(); ctx.arc(X(gx),Y(RH/2),6*s, dir>0?-Math.PI/2:Math.PI/2, dir>0?Math.PI/2:3*Math.PI/2, false); ctx.closePath(); ctx.fill(); ctx.stroke(); };
   const netbox=(gx,dir)=>{
     // dir=1: left net (goal line at X(gx), net extends LEFT toward end boards)
     // dir=-1: right net (goal line at X(gx), net extends RIGHT toward end boards)
     const d=3.4*s, w=6*s, r=0.8*s;
     const gl=X(gx), bk=gl-dir*d;  // goal line x, back-of-net x
     const L=Math.min(gl,bk), R=Math.max(gl,bk);
-    const T=Y(42.5)-w/2, B=Y(42.5)+w/2;
+    const T=Y(RH/2)-w/2, B=Y(RH/2)+w/2;
     ctx.fillStyle=greyfill; ctx.strokeStyle=red;
     // filled interior
     ctx.beginPath();
@@ -715,24 +733,24 @@ function drawRinkBg(p){
     }
     ctx.stroke(); };
   const trapezoid=(gx,boardx)=>{ if(!showTrap)return; ctx.strokeStyle=red; ctx.lineWidth=thin;
-    ctx.beginPath(); ctx.moveTo(X(gx),Y(42.5-11)); ctx.lineTo(X(boardx),Y(42.5-14)); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(X(gx),Y(42.5+11)); ctx.lineTo(X(boardx),Y(42.5+14)); ctx.stroke(); };
+    ctx.beginPath(); ctx.moveTo(X(gx),Y(RH/2-11)); ctx.lineTo(X(boardx),Y(RH/2-14)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(X(gx),Y(RH/2+11)); ctx.lineTo(X(boardx),Y(RH/2+14)); ctx.stroke(); };
 
   if(full){
-    V(11,red,thin); V(189,red,thin);
-    V(75,blue,thick); V(125,blue,thick); V(100,red,thick);
-    [[31,20.5],[31,64.5],[169,20.5],[169,64.5]].forEach(([a,b])=>faceoff(a,b));
-    [[80,20.5],[80,64.5],[120,20.5],[120,64.5]].forEach(([a,b])=>nzdot(a,b));
-    ctx.strokeStyle=blue; ctx.lineWidth=thin; ctx.beginPath(); ctx.arc(X(100),Y(42.5),15*s,0,7); ctx.stroke();
-    ctx.fillStyle=red; ctx.beginPath(); ctx.arc(X(100),Y(42.5),0.95*s,0,7); ctx.fill();
-    trapezoid(11,0); trapezoid(189,200);
-    netbox(11,1); netbox(189,-1); crease(11,1); crease(189,-1);
+    V(11,red,thin); V(RW-11,red,thin);
+    V(RW/2-25,blue,thick); V(RW/2+25,blue,thick); V(RW/2,red,thick);
+    [[31,RH/2-22],[31,RH/2+22],[RW-31,RH/2-22],[RW-31,RH/2+22]].forEach(([a,b])=>faceoff(a,b));
+    [[RW/2-20,RH/2-22],[RW/2-20,RH/2+22],[RW/2+20,RH/2-22],[RW/2+20,RH/2+22]].forEach(([a,b])=>nzdot(a,b));
+    ctx.strokeStyle=blue; ctx.lineWidth=thin; ctx.beginPath(); ctx.arc(X(RW/2),Y(RH/2),15*s,0,7); ctx.stroke();
+    ctx.fillStyle=red; ctx.beginPath(); ctx.arc(X(RW/2),Y(RH/2),0.95*s,0,7); ctx.fill();
+    trapezoid(11,0); trapezoid(RW-11,RW);
+    netbox(11,1); netbox(RW-11,-1); crease(11,1); crease(RW-11,-1);
   } else {
-    V(11,red,thin); V(75,blue,thick); V(100,red,thick);
-    [[31,20.5],[31,64.5]].forEach(([a,b])=>faceoff(a,b));
-    [[80,20.5],[80,64.5]].forEach(([a,b])=>nzdot(a,b));
-    ctx.strokeStyle=blue; ctx.lineWidth=thin; ctx.beginPath(); ctx.arc(X(100),Y(42.5),15*s,0,7); ctx.stroke();
-    ctx.fillStyle=red; ctx.beginPath(); ctx.arc(X(100),Y(42.5),0.95*s,0,7); ctx.fill();
+    V(11,red,thin); V(RW/2-25,blue,thick); V(RW/2,red,thick);
+    [[31,RH/2-22],[31,RH/2+22]].forEach(([a,b])=>faceoff(a,b));
+    [[RW/2-20,RH/2-22],[RW/2-20,RH/2+22]].forEach(([a,b])=>nzdot(a,b));
+    ctx.strokeStyle=blue; ctx.lineWidth=thin; ctx.beginPath(); ctx.arc(X(RW/2),Y(RH/2),15*s,0,7); ctx.stroke();
+    ctx.fillStyle=red; ctx.beginPath(); ctx.arc(X(RW/2),Y(RH/2),0.95*s,0,7); ctx.fill();
     trapezoid(11,0); netbox(11,1); crease(11,1);
   }
   ctx.restore();
@@ -749,7 +767,7 @@ function drawRinkBg(p){
     ctx.save();
     ctx.beginPath(); boardPath(); ctx.clip();      // never bleed past the boards
     ctx.globalAlpha=0.95;
-    ctx.drawImage(img, X(100)-ww/2, Y(42.5)-hh/2, ww, hh);
+    ctx.drawImage(img, X(RW/2)-ww/2, Y(RH/2)-hh/2, ww, hh);
     ctx.restore();
   }
 }
@@ -2941,7 +2959,7 @@ function safeFileName(name){
 // saved one would have been.
 function buildDrillData(){
   syncScene();
-  return {v:2,showTrap,centerLogo,
+  return {v:2,showTrap,centerLogo,rinkSize,
     customLogo: LOGO_SRC.custom||null,
     currentScene,
     scenes: scenes.map(s=>({
@@ -3054,6 +3072,10 @@ function appendData(o, fname){
   toast('Added '+added.length+' drill'+(added.length>1?'s':'')+' — now '+scenes.length+' tabs');
 }
 function loadData(o){
+  // Sheet size before anything else: the views and the piece positions are all
+  // read against it, and loading a 200x100 drill onto an 85ft sheet puts every
+  // piece in the wrong place without saying so.
+  if(o.rinkSize && RINK_SIZES[o.rinkSize]){ rinkSize=o.rinkSize; RW=RINK_SIZES[rinkSize].w; RH=RINK_SIZES[rinkSize].h; buildRinkSizeSel(); }
   if(o.showTrap!==undefined) showTrap=o.showTrap;
   if(o.customLogo){ LOGO_SRC.custom=o.customLogo; const im=new Image(); im.src=o.customLogo; im.onload=()=>{try{render();}catch(e){}}; LOGO_IMG.custom=im; ensureLogoOption('custom','Custom'); }
   centerLogo=(o.centerLogo!==undefined)?o.centerLogo:centerLogo; syncLogoSel();
@@ -3438,3 +3460,18 @@ function buildShapeSwitch(){
   });
 }
 buildShapeSwitch();
+
+// Sheet-size picker. Built from RINK_SIZES so adding a size is one line there.
+function buildRinkSizeSel(){
+  const sel=document.getElementById('rinkSizeSel');
+  if(!sel) return;
+  sel.innerHTML='';
+  Object.entries(RINK_SIZES).forEach(([k,d])=>{
+    const o=document.createElement('option'); o.value=k; o.textContent=d.t;
+    if(k===rinkSize) o.selected=true;
+    sel.appendChild(o);
+  });
+  sel.onchange=()=>{ pushUndo(); setRinkSize(sel.value);
+    toast(RINK_SIZES[rinkSize].t); };
+}
+buildRinkSizeSel();
