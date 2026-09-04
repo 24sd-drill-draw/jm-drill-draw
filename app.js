@@ -3350,10 +3350,14 @@ const END_SWATCH = {
   tee:  '<path d="M2 9h17" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M19 4v10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
   none: '<path d="M2 9h20" stroke="currentColor" stroke-width="1.8" fill="none"/>'
 };
-const LINE_NAMES = { tool:'Tool default', solid:'Solid', dots:'Dotted (pass)',
-                     double:'Double (shot)', scallop:'Scallops (with the puck)', coil:'Backwards' };
-const END_NAMES  = { tool:'Tool default', arrow:'Filled arrow', open:'Open arrow',
-                     tee:'Tee - stop here', none:'No end' };
+// Shapes, named as shapes. They used to read "Dotted (pass)", "Scallops (with
+// the puck)", "Tee - stop here" - the app telling a coach what his own marks
+// mean. A dotted line is a pass, or a puck, or a player, or whatever he says it
+// is on the ice. Name the shape and get out of the way.
+const LINE_NAMES = { tool:'Tool default', solid:'Straight', dots:'Dotted',
+                     double:'Double', scallop:'Scallop', coil:'Coil' };
+const END_NAMES  = { tool:'Tool default', arrow:'Filled', open:'Open',
+                     tee:'Tee', none:'None' };
 
 function svgBtn(inner){
   return '<svg viewBox="0 0 24 18" width="26" height="18" style="display:block">'+inner+'</svg>';
