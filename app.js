@@ -350,8 +350,11 @@ let _headW=1;   // arrowhead size, kept off _wmul so the outline pass can fatten
 let _opa=1;       // opacity of the annotation currently drawing
 // null means "whatever the tool says", so picking the Pass tool still gives a
 // dotted line with an arrow until you deliberately choose otherwise.
-let markLine=null;  // line style for the next mark
-let markEnd=null;   // end style for the next mark
+// Seeded to the default tool's pair. Never null now - the pickers always show
+// what the next mark will look like, so there is no third "whatever the tool
+// says" state to reason about.
+let markLine='solid';
+let markEnd='arrow';
 let markW=1;      // weight applied to the next mark drawn
 let markOp=1;     // opacity applied to the next mark drawn
 
@@ -490,7 +493,7 @@ function buildTools(){
     g.appendChild(b);
   });
 }
-function setTool(k){ if(building) finishBuilding(); if(k!=='cover') cancelCover(); tool=k; pendingType=null; pendingOpts=null; pendingStamp=false;
+function setTool(k){ if(building) finishBuilding(); if(k!=='cover') cancelCover(); tool=k; if(typeof syncStyleToTool==='function') syncStyleToTool(k); pendingType=null; pendingOpts=null; pendingStamp=false;
   [...document.querySelectorAll('#tools .tool')].forEach(b=>b.classList.toggle('on',b.dataset.k===k));
   cv.className = (k==='select'?'select':k==='pan'?'pan':''); cv.style.cursor=''; updateHint(); }
 
@@ -1868,18 +1871,38 @@ function openHead(pts,col){
   ctx.lineTo(baseX-nx*L*0.42, baseY-ny*L*0.42);
   ctx.closePath(); ctx.stroke();
 }
+// Two bars instead of one. On a board a single tee is "stop"; a double is the
+// stronger version of the same idea - a gate, a wall, a hard stop.
+function tee2End(pts,col){
+  const b=pts[pts.length-1], a=pts[pts.length-2]||b;
+  const ang=Math.atan2(b[1]-a[1],b[0]-a[0]);
+  const nx=-Math.sin(ang), ny=Math.cos(ang);
+  const L=Math.max(6,1.6*cam.s*_headW), gap=Math.max(3,0.8*cam.s*_headW);
+  ctx.strokeStyle=col; ctx.lineWidth=Math.max(2,0.5*cam.s*_wmul); ctx.lineCap='round';
+  for(const k of [0,1]){
+    const cx=b[0]-Math.cos(ang)*gap*k, cy=b[1]-Math.sin(ang)*gap*k;
+    ctx.beginPath(); ctx.moveTo(cx+nx*L,cy+ny*L); ctx.lineTo(cx-nx*L,cy-ny*L); ctx.stroke();
+  }
+}
 function drawEnd(style,pts,col){
   if(style==='none'||pts.length<2) return;
   if(style==='arrow') return arrowHead(pts,col,false);
   if(style==='open')  return openHead(pts,col);
   if(style==='tee')   return teeEnd(pts,col);
+  if(style==='tee2')  return tee2End(pts,col);
 }
 
 function paintLineEnd(p,scr,col){
   const ls=lineOf(p), es=endOf(p);
   const anc=(p.anchors&&p.anchors.length>=2)?p.anchors:null;
   const dense=(ls==='scallop'||ls==='coil');
-  const pts=anc?catmull(anc,dense?48:16).map(q=>W2S(q.x,q.y)):scr;
+  let pts=anc?catmull(anc,dense?48:16).map(q=>W2S(q.x,q.y)):scr;
+  // Curved smooths the points it was given. Without this the Curved button drew
+  // a straight line - an icon promising something the renderer never delivered,
+  // which is worse than not offering it.
+  if(ls==='curve' && !anc && p.pts && p.pts.length>=3){
+    pts=catmull(p.pts,16).map(q=>W2S(q.x,q.y));
+  }
   if(pts.length<2) return;
   const headL=Math.max(8,2.4*cam.s*_headW);
 
@@ -1900,8 +1923,16 @@ function paintLineEnd(p,scr,col){
   const body=trimEnd(pts,trim);
 
   if(ls==='dots'){
+    // Zero-length dashes with a round cap paint DOTS. Spacing tracks the weight
+    // so a fat line does not close up into a solid.
     const dw=Math.max(2,0.55*cam.s*_wmul);
     ctx.lineCap='round'; ctx.setLineDash([0,dw*2.2]); strokePoly(body); ctx.setLineDash([]);
+  } else if(ls==='dashed'){
+    // Real dashes, distinct from dots at a glance and at a distance - which is
+    // the only test that matters on a wall.
+    const dw=Math.max(2,0.5*cam.s*_wmul);
+    ctx.lineCap='butt'; ctx.setLineDash([dw*2.6,dw*2]); strokePoly(body);
+    ctx.setLineDash([]); ctx.lineCap='round';
   } else if(ls==='double'){
     strokeDouble(body,col);
   } else {
@@ -3392,28 +3423,28 @@ offerRestore();
 // mean nothing on a rail at 10px; a picture of the line you are about to draw
 // means everything. Same reason the tool rail uses glyphs.
 const LINE_SWATCH = {
-  tool:    '<path d="M2 9h20" stroke="currentColor" stroke-width="1.6" fill="none" stroke-dasharray="1 3"/>',
-  solid:   '<path d="M2 9h20" stroke="currentColor" stroke-width="2" fill="none"/>',
-  dots:    '<path d="M2 9h20" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-dasharray="0 4.5"/>',
-  double:  '<path d="M2 7h20M2 11h20" stroke="currentColor" stroke-width="1.5" fill="none"/>',
-  scallop: '<path d="M2 11q2.5-5 5 0t5 0 5 0 5 0" stroke="currentColor" stroke-width="1.6" fill="none"/>',
-  coil:    '<path d="M2 9q1.6-4 3.2 0t3.2 0 3.2 0 3.2 0 3.2 0" stroke="currentColor" stroke-width="1.4" fill="none"/>'
+  solid:   '<path d="M3 15L21 3" stroke="currentColor" stroke-width="1.9" fill="none" stroke-linecap="round"/>',
+  curve:   '<path d="M3 15q6 2 8-3t8-3" stroke="currentColor" stroke-width="1.9" fill="none" stroke-linecap="round"/>',
+  dashed:  '<path d="M3 15L21 3" stroke="currentColor" stroke-width="1.9" fill="none" stroke-linecap="round" stroke-dasharray="3.5 3"/>',
+  dots:    '<path d="M3 15L21 3" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-dasharray="0 4.5"/>',
+  double:  '<path d="M2 13L18 1M6 17L22 5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>',
+  scallop: '<path d="M2 13q2.5-5 5 0t5 0 5 0 5 0" stroke="currentColor" stroke-width="1.6" fill="none"/>',
+  coil:    '<path d="M2 10q1.7-4.5 3.4 0t3.4 0 3.4 0 3.4 0 3.4 0" stroke="currentColor" stroke-width="1.3" fill="none"/>'
 };
 const END_SWATCH = {
-  tool: '<path d="M2 9h14" stroke="currentColor" stroke-width="1.6" fill="none" stroke-dasharray="1 3"/><path d="M16 5l5 4-5 4" stroke="currentColor" stroke-width="1.4" fill="none" stroke-dasharray="1 2"/>',
   arrow:'<path d="M2 9h13" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M14 5l7 4-7 4z" fill="currentColor"/>',
-  open: '<path d="M2 9h13" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M14 5l7 4-7 4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
-  tee:  '<path d="M2 9h17" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M19 4v10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
-  none: '<path d="M2 9h20" stroke="currentColor" stroke-width="1.8" fill="none"/>'
+  open: '<path d="M2 9h14" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M15 4.5l6 4.5-6 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+  tee:  '<path d="M2 9h17" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M19 3.5v11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  tee2: '<path d="M2 9h14" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M16 3.5v11M20 3.5v11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  none: '<path d="M2 9h20" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/>'
 };
 // Shapes, named as shapes. They used to read "Dotted (pass)", "Scallops (with
 // the puck)", "Tee - stop here" - the app telling a coach what his own marks
 // mean. A dotted line is a pass, or a puck, or a player, or whatever he says it
 // is on the ice. Name the shape and get out of the way.
-const LINE_NAMES = { tool:'Tool default', solid:'Straight', dots:'Dotted',
+const LINE_NAMES = { solid:'Straight', curve:'Curved', dashed:'Dashed', dots:'Dotted',
                      double:'Double', scallop:'Scallop', coil:'Coil' };
-const END_NAMES  = { tool:'Tool default', arrow:'Filled', open:'Open',
-                     tee:'Tee', none:'None' };
+const END_NAMES  = { arrow:'Filled', open:'Open', tee:'Tee', tee2:'Double tee', none:'None' };
 
 function svgBtn(inner){
   return '<svg viewBox="0 0 24 18" width="26" height="18" style="display:block">'+inner+'</svg>';
@@ -3421,7 +3452,7 @@ function svgBtn(inner){
 // Changing a style with something selected RESTYLES it, exactly like the colour
 // and weight controls. Changing it with nothing selected sets the next mark.
 function applyStyle(which, val){
-  const v = (val==='tool') ? null : val;
+  const v = val;
   if(which==='line') markLine=v; else markEnd=v;
   const hit = paths.filter(p=>selContains('path',p.id) && LINE_FAMILY.indexOf(p.type)>=0);
   if(hit.length){
@@ -3432,6 +3463,16 @@ function applyStyle(which, val){
   }
   buildStylePickers();
 }
+// Choosing a tool SETS the two pickers instead of leaving them on an abstract
+// "Tool default". DrillChange has no such concept and it was one idea too many:
+// three states (this style / that style / whatever the tool says) where two do.
+// Now the rows always show what the next mark will actually look like.
+function syncStyleToTool(k){
+  if(MARK_LINE[k]===undefined) return;
+  markLine = MARK_LINE[k];
+  markEnd  = MARK_END[k];
+  buildStylePickers();
+}
 function buildStylePickers(){
   [['line',LINE_SWATCH,LINE_NAMES,'lineStyles',markLine],
    ['end', END_SWATCH, END_NAMES, 'endStyles', markEnd]].forEach(([which,sw,names,host,cur])=>{
@@ -3440,7 +3481,7 @@ function buildStylePickers(){
     Object.keys(sw).forEach(k=>{
       const b=document.createElement('button');
       b.type='button';
-      b.className=((cur||'tool')===k)?'on':'';
+      b.className=(cur===k)?'on':'';
       b.title=names[k];
       b.innerHTML=svgBtn(sw[k]);
       b.style.cssText='display:inline-flex;align-items:center;justify-content:center;padding:3px 5px';
