@@ -813,25 +813,7 @@
     else if (e.key === 'o' || e.key === 'O') { e.preventDefault(); markOut(); }
   });
 
-  // The timeline strip earns its 196px only when there is something to lay out
-  // on it. With no clip and no marks it showed an empty ruler and "0 tracks"
-  // while the ice sat at under a third of the screen. Collapsing it gives that
-  // room back to the board and puts it straight back the moment a clip is
-  // loaded or a mark is drawn.
-  //
-  // The TRANSPORT stays either way: play and scrub drive the drill animation
-  // too, not just video, so hiding it would take away the way you watch a drill.
-  function syncChrome() {
-    var app = document.querySelector('.kd-app');
-    if (!app) return;
-    var hasMarks = (typeof paths !== 'undefined') && paths.some(function (p) {
-      return p.motion || p.owner || (p.delay != null && p.dur != null);
-    });
-    app.classList.toggle('no-tl', !vid && !hasMarks);
-  }
-
   function syncTimeline(force) {
-    syncChrome();
     var w = gridW();
     // the ruler depends on both the pixel width and the total length
     if (force || w !== lastW || T !== lastT) { lastW = w; lastT = T; buildRuler(); lastSig = ''; }
