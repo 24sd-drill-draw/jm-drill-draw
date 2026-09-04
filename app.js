@@ -3463,6 +3463,12 @@ function svgBtn(inner){
 // Changing a style with something selected RESTYLES it, exactly like the colour
 // and weight controls. Changing it with nothing selected sets the next mark.
 function applyStyle(which, val){
+  // Picking a shape ARMS THE LINE TOOL. When the six drawing tools existed,
+  // choosing Pass both set the style and armed the tool in one click; pulling
+  // them out left these rows setting a value with nothing to draw it, so the
+  // whole strip read as dead. Order matters: the tool goes first, because
+  // setTool would otherwise re-sync the rows and overwrite the click.
+  if(tool!=='line') setTool('line');
   const v = val;
   if(which==='line') markLine=v; else markEnd=v;
   const hit = paths.filter(p=>selContains('path',p.id) && LINE_FAMILY.indexOf(p.type)>=0);
@@ -3479,6 +3485,10 @@ function applyStyle(which, val){
 // three states (this style / that style / whatever the tool says) where two do.
 // Now the rows always show what the next mark will actually look like.
 function syncStyleToTool(k){
+  // The Line tool has no fixed pair - it IS whatever the rows say. Syncing it
+  // would reset the rows to solid+arrow every time the tool is armed, wiping the
+  // choice the user just made to arm it.
+  if(k==='line') return;
   if(MARK_LINE[k]===undefined) return;
   markLine = MARK_LINE[k];
   markEnd  = MARK_END[k];
