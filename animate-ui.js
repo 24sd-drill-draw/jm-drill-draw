@@ -524,9 +524,32 @@
     });
   }
 
+  // Marks within HOLD_GROUP of each other are one teaching point — the same
+  // rule the freeze hold uses, so what the timeline shows and what the clip
+  // does are the same grouping.
+  function teachingPoints() {
+    var marks = paths.filter(function (p) { return !isMotion(p); });
+    marks.sort(function (a, b) { return (a.delay || 0) - (b.delay || 0); });
+    var out = [];
+    marks.forEach(function (p) {
+      var last = out[out.length - 1];
+      if (last && Math.abs((p.delay || 0) - last.at) <= HOLD_GROUP) { last.paths.push(p); return; }
+      out.push({ at: p.delay || 0, paths: [p] });
+    });
+    return out;
+  }
+
   function rowLabel(r) {
     if (r.kind === 'puck') return prettyType(r.piece.type);
     var p = r.path;
+    // Every point is numbered the same way the ticks are, so "Point 3" on the
+    // clip track and "Point 3" in the list are the same thing. The count badge
+    // only appears when there is more than one mark in it.
+    if (r.group) {
+      var n = rows.filter(function (x) { return x.group; }).indexOf(r) + 1;
+      return 'Point ' + n +
+        (r.group.length > 1 ? ' <b class="kd-xn">&times;' + r.group.length + '</b>' : '');
+    }
     if (!isMotion(p)) return TYPE_LABEL[p.type] || p.type;
     var owner = p.owner ? getPiece(p.owner) : null;
     if (!owner) return 'Motion';
@@ -585,10 +608,17 @@
   }
 
   // Total real time the freezes add inside the trim window.
+  // Time the pauses add to the export. Per teaching POINT, not per mark: three
+  // lines on one play stop the clip once, so summing each mark's duration
+  // triple-counted the pause and overstated the finished length.
   function holdTotal() {
-    return paths.filter(function (p) {
-      return p.freeze && !p.hidden && !isMotion(p) && p.delay >= inMs && p.delay <= outMs;
-    }).reduce(function (s, p) { return s + (p.dur || 0); }, 0);
+    var total = 0;
+    teachingPoints().forEach(function (g) {
+      if (g.at < inMs || g.at > outMs) return;
+      var held = g.paths.filter(function (p) { return p.freeze && !p.hidden; });
+      if (held.length) total += Math.max.apply(null, held.map(function (p) { return p.dur || 0; }));
+    });
+    return total;
   }
 
   function buildTracks() {
@@ -596,12 +626,17 @@
     tracksEl.style.width = W + 'px';
     rows = [];
     rows.push({ kind: 'clip' });                       // the clip itself, always on top
-    motionPaths().forEach(function (p) { rows.push({ kind: 'path', path: p }); });
+    // A teaching point is the unit, not a mark. Three lines drawn on the same
+    // play are one point and take one row, the way KlipDraw shows one track
+    // with a count on it — a row per mark buried a six-moment breakdown.
+    teachingPoints().forEach(function (g) {
+      rows.push({ kind: 'path', path: g.paths[0], group: g.paths, at: g.at });
+    });
     puckPieces().forEach(function (p) { rows.push({ kind: 'puck', piece: p }); });
 
-    var nMarks = rows.length - 1;
+    var nPts = rows.filter(function (r) { return r.group; }).length;
     var holds = holdTotal();
-    trackInfo.textContent = nMarks + (nMarks === 1 ? ' mark' : ' marks') + ' · ' +
+    trackInfo.textContent = nPts + (nPts === 1 ? ' point' : ' points') + ' · ' +
       (holds
         ? fmtT(trimSpan()) + ' + ' + (holds / 1000).toFixed(1) + 's holds = ' + fmtT(trimSpan() + holds) + ' out'
         : fmtT(trimSpan()) + ' out');
@@ -624,13 +659,20 @@
         nh += '<div class="kd-name kd-cliprow"><span class="kd-chip" style="background:var(--accent)"></span>' +
           '<span class="kd-nm">' + cname + '</span></div>';
         var cl = (inMs / T) * W, cw = Math.max(4, ((outMs - inMs) / T) * W);
+        // A tick for every teaching point, across the WHOLE clip rather than
+        // only inside the trim: on a two-minute breakdown this is the map of
+        // where the work is.
         var stops = '';
-        paths.filter(function (p) {
-          return p.freeze && !p.hidden && !isMotion(p) && p.delay >= inMs && p.delay <= outMs;
-        }).forEach(function (p) {
-          stops += '<div class="kd-stop" style="left:' + ((p.delay / T) * W).toFixed(1) + 'px"' +
-            ' title="Clip pauses ' + (p.dur / 1000).toFixed(1) + 's here"><b>' +
-            (p.dur / 1000).toFixed(1) + 's</b></div>';
+        teachingPoints().forEach(function (g, gi) {
+          var live = g.paths.filter(function (p) { return !p.hidden; });
+          if (!live.length) return;
+          var pause = live.filter(function (p) { return p.freeze; });
+          var secs = pause.length ? Math.max.apply(null, pause.map(function (p) { return p.dur || 0; })) / 1000 : 0;
+          stops += '<div class="kd-stop' + (pause.length ? '' : ' nopause') +
+            '" style="left:' + ((g.at / T) * W).toFixed(1) + 'px"' +
+            ' title="Point ' + (gi + 1) + ' — ' + live.length + (live.length === 1 ? ' mark' : ' marks') +
+            (pause.length ? ', clip pauses ' + secs.toFixed(1) + 's' : ', clip plays on') +
+            '"><b>' + (pause.length ? secs.toFixed(1) + 's' : '' + live.length) + '</b></div>';
         });
         th += '<div class="kd-track kd-cliptrack">' + lines +
           '<div class="kd-clipbar" style="left:' + cl.toFixed(1) + 'px;width:' + cw.toFixed(1) + 'px"></div>' +
@@ -689,7 +731,8 @@
         var r = rows[+b.dataset.eye];
         if (!r || r.kind !== 'path') return;
         pushUndo();
-        r.path.hidden = !r.path.hidden;
+        var hide = !r.path.hidden;                 // the whole point, not one line
+        (r.group || [r.path]).forEach(function (q) { q.hidden = hide; });
         lastSig = ''; render();
       });
     });
@@ -699,7 +742,8 @@
         var r = rows[+b.dataset.del];
         if (!r || r.kind !== 'path') return;
         pushUndo();
-        paths = paths.filter(function (x) { return x !== r.path; });
+        var gone = r.group || [r.path];            // deleting a point takes all of it
+        paths = paths.filter(function (x) { return gone.indexOf(x) < 0; });
         scenes[currentScene].paths = paths;
         selOne(null); updateInspector();
         lastSig = ''; render();
@@ -757,6 +801,35 @@
   // and on a long clip it is the only practical way to cut a few seconds out.
   function markIn() { inMs = clamp(tNow, 0, outMs - 200); syncTimeline(true); render(); }
   function markOut() { outMs = clamp(tNow, inMs + 200, T); syncTimeline(true); render(); }
+  // Jump between teaching points. On a two-minute clip with six of them,
+  // scrubbing to find each one by eye is the slow part of the job.
+  function gotoPoint(dir) {
+    var pts = teachingPoints().map(function (g) { return g.at; });
+    if (!pts.length) { toast('No marks yet'); return; }
+    var here = tNow, target = null;
+    if (dir > 0) { for (var i = 0; i < pts.length; i++) if (pts[i] > here + 40) { target = pts[i]; break; } }
+    else { for (var j = pts.length - 1; j >= 0; j--) if (pts[j] < here - 40) { target = pts[j]; break; } }
+    if (target === null) { toast(dir > 0 ? 'Last point' : 'First point'); return; }
+    playing = false; setPlayUI();
+    tNow = clamp(target, 0, T);
+    syncScrub(); render();
+    if (tlZoom > 1) {
+      var x = msToX(tNow), Wv = gridW();
+      grid.scrollLeft = clamp(x - Wv * 0.4, 0, Math.max(0, contentW() - Wv));
+    }
+    var n = pts.indexOf(target) + 1;
+    toast('Point ' + n + ' of ' + pts.length + ' — ' + fmtT(target));
+  }
+  [].slice.call($('kdPoints').querySelectorAll('button')).forEach(function (b) {
+    b.addEventListener('click', function () { gotoPoint(b.dataset.pt === 'next' ? 1 : -1); });
+  });
+  window.addEventListener('keydown', function (e) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === ']') { e.preventDefault(); gotoPoint(1); }
+    else if (e.key === '[') { e.preventDefault(); gotoPoint(-1); }
+  });
+
   $('kdMarkIn').onclick = markIn;
   $('kdMarkOut').onclick = markOut;
   // The still and the video belong beside each other. The image export was
@@ -857,7 +930,7 @@
     if (frz) {
       var fr = rows[+frz.dataset.row];
       pushUndo();
-      drag = { mode: 'move', path: fr.path, grabMs: xToMs(x) - fr.path.delay,
+      drag = { mode: 'move', path: fr.path, group: fr.group, grabMs: xToMs(x) - fr.path.delay,
                d0: fr.path.delay, u0: fr.path.dur };
       selOne('path', fr.path.id); showPropsTab(); updateInspector();
       grid.setPointerCapture(e.pointerId);
@@ -900,7 +973,11 @@
       // a freeze can sit anywhere in the clip — its duration costs no clip time,
       // so the usual "must finish before the end" clamp doesn't apply
       var hi = drag.path.freeze ? T : Math.max(0, T - drag.path.dur);
+      var was = drag.path.delay;
       drag.path.delay = Math.round(clamp(ms - drag.grabMs, 0, hi) / 50) * 50;
+      // the rest of the point travels with it, or the group splits apart
+      if (drag.group) { var dd = drag.path.delay - was;
+        drag.group.forEach(function (q) { if (q !== drag.path) q.delay = Math.max(0, q.delay + dd); }); }
       // dragging a freeze scrubs with it, so you see the frame you're landing on
       if (drag.path.freeze) { tNow = drag.path.delay; syncScrub(); }
     } else if (drag.mode === 'dur') {

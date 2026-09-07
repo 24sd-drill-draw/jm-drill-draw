@@ -366,6 +366,10 @@ let markFreeze=false; // does a new mark stop the clip while it's up?
 // which mark is currently holding the clip.
 let _holdIds=null;   // ids of every mark the current freeze hold is showing
 function markSpan(){
+  // A pause is REAL time and costs the clip nothing, so it is not capped by
+  // how much footage is left. A mark eight seconds into a ten-second clip was
+  // getting a 2s pause instead of the 3s asked for.
+  if(markFreeze) return Math.max(300, markHold==null ? 2000 : markHold);
   const rest = T - markStart();
   return Math.max(300, markHold==null ? rest : Math.min(markHold, rest));
 }
