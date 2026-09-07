@@ -364,7 +364,7 @@ let markHold=null;    // ms a new mark stays up; null = to the end of the clip
 let markFreeze=false; // does a new mark stop the clip while it's up?
 // Set by the UI layer while a freeze-hold is running, so markVisible knows
 // which mark is currently holding the clip.
-let _holdPath=null;
+let _holdIds=null;   // ids of every mark the current freeze hold is showing
 function markSpan(){
   const rest = T - markStart();
   return Math.max(300, markHold==null ? rest : Math.min(markHold, rest));
@@ -388,7 +388,7 @@ function markVisible(p){
     // during its own hold. While paused, show it only near its instant (or
     // whenever it's selected, so you can still edit it); treating `dur` as a
     // span of clip time made it linger long after its moment had passed.
-    if(_holdPath) return _holdPath===p;
+    if(_holdIds) return _holdIds.indexOf(p.id)>=0;
     if(playing) return false;
     // Only near its own instant — no exception for "selected". Keeping a
     // selected freeze on screen so it stayed editable just made it linger

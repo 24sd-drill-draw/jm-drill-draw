@@ -359,6 +359,14 @@
     });
   });
 
+  function setHold(ms) {
+    markHold = ms;
+    holdBtns.forEach(function (b) {
+      var v = b.dataset.hold ? parseInt(b.dataset.hold, 10) : null;
+      b.classList.toggle('on', v === ms);
+    });
+  }
+
   // Plays-on vs pauses, as a visible two-way choice. This was a checkbox at the
   // bottom of a long panel and simply wasn't being found.
   var modeBtns = [].slice.call(document.querySelectorAll('#markModes button'));
@@ -1095,8 +1103,12 @@
       tNow = 0; playing = false; setPlayUI();
       lastT = 0;               // force the ruler to rebuild at the new length
       inMs = 0; outMs = T;     // trim spans the whole clip until you drag it in
+      // On footage, a mark IS a teaching point: stop the clip, hold it, carry
+      // on. Defaulting to "plays on" for the rest of the clip meant every mark
+      // had to be reset by hand, and a missed one just smeared across the play.
+      setFreezeMode(true, false); setHold(3000);
       syncScrub(); updateVideoPanel(); render();
-      toast('Loaded ' + vidName + ' — ' + fmtT(T));
+      toast('Loaded ' + vidName + ' — ' + fmtT(T) + ' · marks pause the clip 3s');
     }, { once: true });
 
     vid.addEventListener('error', function () {
@@ -1250,37 +1262,60 @@
   // A freeze mark stops the clip on its frame for `dur` of REAL time, then
   // lets it run on without the mark. The video clock stands still during the
   // hold while wall-clock advances, so the two can't share a timer.
-  var holdNow = null;      // {path, at, endsAt}
+  var holdNow = null;      // {ids, at, endsAt}
   var holdDone = [];       // ids already held this pass, so it fires once
+  var HOLD_GROUP = 150;    // marks this close together are one teaching point
 
   function resetHolds() {
     if (holdNow && vid && playing) { try { vid.play(); } catch (e) { } }
-    holdNow = null; _holdPath = null; holdDone = [];
+    holdNow = null; _holdIds = null; holdDone = [];
   }
 
   function checkFreeze() {
-    if (!playing) { if (holdNow) { holdNow = null; _holdPath = null; } return; }
+    if (!playing) { if (holdNow) { holdNow = null; _holdIds = null; } return; }
     if (holdNow) {
       if (performance.now() >= holdNow.endsAt) {
-        holdDone.push(holdNow.path.id);
-        holdNow = null; _holdPath = null;
+        holdNow.ids.forEach(function (id) { holdDone.push(id); });
+        holdNow = null; _holdIds = null;
         if (vid) vid.play().catch(function () { });
       } else {
         tNow = holdNow.at;               // clock stands still
         return;
       }
     }
+    // Everything drawn at the same moment is ONE teaching point, so it holds
+    // as one: three lines on the same play stop the clip once and all three
+    // are on screen for it. Holding a single path meant they queued up — three
+    // separate pauses, one line each.
+    var first = null;
     for (var i = 0; i < paths.length; i++) {
       var p = paths[i];
       if (!p.freeze || p.hidden || isMotion(p)) continue;
       if (holdDone.indexOf(p.id) >= 0) continue;
-      if (tNow >= (p.delay || 0)) {
-        holdNow = { path: p, at: p.delay || 0, endsAt: performance.now() + (p.dur || 2000) };
-        _holdPath = p;
-        tNow = holdNow.at;
-        if (vid) vid.pause();
-        break;
+      var d = p.delay || 0;
+      if (tNow >= d && (first === null || d < first)) first = d;
+    }
+    if (first === null) return;
+    var ids = [], span = 0;
+    paths.forEach(function (q) {
+      if (!q.freeze || q.hidden || isMotion(q)) return;
+      if (holdDone.indexOf(q.id) >= 0) return;
+      if (Math.abs((q.delay || 0) - first) <= HOLD_GROUP) {
+        ids.push(q.id);
+        span = Math.max(span, q.dur || 2000);   // the longest one sets the pause
       }
+    });
+    holdNow = { ids: ids, at: first, endsAt: performance.now() + span };
+    _holdIds = ids;
+    tNow = first;
+    if (vid) {
+      vid.pause();
+      // Land on the exact frame the mark was drawn on. The check runs once a
+      // frame, so the clip is always a little past the instant by the time it
+      // fires — and if the tab ever hitches it can be a long way past. Without
+      // this the held frame is not the frame the coach drew on, and the clip
+      // then replays the gap when it resumes.
+      try { if (Math.abs(vid.currentTime - first / 1000) > 0.03) vid.currentTime = first / 1000; } catch (e) { }
     }
   }
 
