@@ -755,10 +755,19 @@
     var r = rows[i];
     if (!r) return;
     if (r.kind === 'path') {
+      // Picking a point picks every mark in it, so the colour, weight, pause
+      // and hold controls act on the whole teaching point at once. Selecting
+      // one of three meant a board made before the pause default had to be
+      // fixed a line at a time.
       selOne('path', r.path.id);
+      if (r.group && r.group.length > 1) {
+        selSet = r.group.map(function (q) { return { kind: 'path', id: q.id }; });
+        sel = selSet[selSet.length - 1];
+      }
       // A freeze exists at a single instant, so park the playhead on it —
       // otherwise you select the mark and cannot see what you're editing.
       if (r.path.freeze && !isMotion(r.path)) { tNow = r.path.delay; syncScrub(); }
+      else if (r.at != null) { tNow = r.at; syncScrub(); }
     }
     else selOne('piece', r.piece.id);
     showPropsTab();
