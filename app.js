@@ -2816,19 +2816,60 @@ document.getElementById('recBtn').onclick=()=>{ mediaRec? stopRec() : startRec()
 
 // image export
 let imgNameHint=null;   // set by the UI layer when a clip supplies a better name
+// Everything a drill occupies, in feet — pieces and route points. The rink is
+// not the whole picture: a title sits above the boards, and on the field the
+// drill can run off the grass, so the shot has to know where the ink actually is.
+function inkBounds(){
+  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity,any=false;
+  // Width and height apart: a title is a long, low box, and squaring it off
+  // would push the frame half its own width above the boards.
+  const add=(x,y,rx,ry)=>{ any=true; x0=Math.min(x0,x-rx); y0=Math.min(y0,y-ry); x1=Math.max(x1,x+rx); y1=Math.max(y1,y+ry); };
+  for(const p of pieces){
+    if(p.type==='text') add(p.x,p.y,(p._wft||10)/2,(p._hft||4)/2);
+    else if(p.type==='image'){ const w=8*(p.size||1), h=w*((p.img&&p.img.height&&p.img.height/p.img.width)||0.62); add(p.x,p.y,w/2,h/2); }
+    else { const r=pieceRadius(p)+1; add(p.x,p.y,r,r); }
+  }
+  for(const t of paths) for(const q of (t.pts||[])) add(q.x,q.y,1,1);
+  return any ? {x:x0,y:y0,w:x1-x0,h:y1-y0} : null;
+}
+// The picture should be of the drill, not of the window. Shooting the stage
+// meant the file was whatever the window happened to be showing, so a zoomed-in
+// board lost the far end of the rink off the edge (Josh, 2026-09-11). Reframe
+// onto a canvas sized to the surface itself before the shot, the way the clip
+// export already does, and the file comes out the same shape every time.
+function boardShot(){
+  const b=worldBounds(), pad=1.5;
+  let x=b.x-pad, y=b.y-pad, X=b.x+b.w+pad, Y=b.y+b.h+pad;
+  const ink=inkBounds();
+  if(ink){ x=Math.min(x,ink.x-2); y=Math.min(y,ink.y-2); X=Math.max(X,ink.x+ink.w+2); Y=Math.max(Y,ink.y+ink.h+2); }
+  const w=X-x, h=Y-y;
+  const scale=Math.min(8, Math.max(2, 2400/Math.max(w,h)));   // ~2400px on the long side
+  const W=Math.round(w*scale), H=Math.round(h*scale);
+  const saved={dpr:DPR,s:cam.s,tx:cam.tx,ty:cam.ty,rot:camRot,w:cv.width,h:cv.height};
+  cv.width=W; cv.height=H; DPR=1; camRot=0;
+  cam.s=scale; cam.tx=-x*scale; cam.ty=-y*scale;
+  render();
+  const shot=document.createElement('canvas'); shot.width=W; shot.height=H;
+  const sctx=shot.getContext('2d');
+  sctx.fillStyle='#FFFFFF'; sctx.fillRect(0,0,W,H);
+  sctx.drawImage(cv,0,0);
+  DPR=saved.dpr; camRot=saved.rot; cam.s=saved.s; cam.tx=saved.tx; cam.ty=saved.ty;
+  cv.width=saved.w; cv.height=saved.h;        // put the backing store back ourselves:
+  resize();                                   // resize() bails out on a hidden canvas
+  return shot;
+}
 function exportImage(fmt){
-  // 2x on a drill board, where the canvas is only as big as the stage. On a
-  // clip the canvas has already been set to the clip's own resolution, and
-  // doubling that would just be an upscale.
-  const scale = (rinkConfig==='video') ? 1 : 2;
-  const W=cv.width, H=cv.height;
-  const off=document.createElement('canvas'); off.width=W*scale; off.height=H*scale;
-  const octx=off.getContext('2d');
-  octx.scale(scale,scale);
-  // white background
-  octx.fillStyle='#FFFFFF'; octx.fillRect(0,0,W,H);
-  // copy current canvas
-  octx.drawImage(cv,0,0,W,H);
+  let off;
+  if(rinkConfig==='video'){
+    // A clip's canvas is already at the clip's own resolution — copy it as it is.
+    const W=cv.width, H=cv.height;
+    off=document.createElement('canvas'); off.width=W; off.height=H;
+    const octx=off.getContext('2d');
+    octx.fillStyle='#FFFFFF'; octx.fillRect(0,0,W,H);
+    octx.drawImage(cv,0,0,W,H);
+  } else {
+    off=boardShot();
+  }
   const mime=fmt==='jpg'?'image/jpeg':'image/png';
   const ext=fmt==='jpg'?'jpg':'png';
   const safe=safeFileName(imgNameHint || (scenes[currentScene]||{}).name);
