@@ -55,9 +55,12 @@
   .body{flex:1;display:flex;min-height:0}
 
   /* tray */
-  .tray{width:172px;flex:0 0 auto;background:var(--navy2);border-right:1px solid var(--line);
+  /* 196, not 172. Four thumbnails plus the scrollbar need the width; at 172 the
+     third column of Objects sat outside the box, reachable only by scrolling
+     sideways inside a 144px strip. */
+  .tray{width:196px;flex:0 0 auto;background:var(--navy2);border-right:1px solid var(--line);
     padding:5px 6px;overflow-y:auto}
-  .tray h4{margin:8px 2px 4px;font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
+  .tray h4{margin:6px 2px 3px;font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
   .tray h4:first-child{margin-top:2px}
   .tray-toggle{cursor:pointer;display:flex;justify-content:space-between;align-items:center;
     padding:3px 4px;border-radius:5px;user-select:none}
@@ -67,20 +70,32 @@
   .tray-sec{overflow:hidden;transition:max-height .2s ease}
   .tray-sec.collapsed{max-height:0!important}
   .tray-sec>*{overflow-x:auto}
-  .toolgrid{display:grid;grid-template-columns:1fr 1fr;gap:4px}
-  .tool{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:5px 4px;
-    display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;font-weight:600;color:var(--muted)}
+  /* Four across, not two. Sixteen tools stacked two-wide made a 415px rail that
+     started below the fold, so Select and Move - the tool the whole animation
+     runs on - could not be seen without scrolling. Four rows of four fit, and
+     every tool keeps its name. */
+  .toolgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
+  .tool{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:4px 2px;
+    display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;font-weight:600;color:var(--muted)}
   .tool svg{width:18px;height:18px}
   .tool:hover{background:var(--panel2);color:var(--ink)}
   .tool.on{background:var(--accent);color:#04141c;border-color:var(--accent)}
   .tool.on svg *{stroke:#04141c}
-  .pieces{display:grid;grid-template-columns:1fr 1fr;gap:4px}
-  .pieces.three-col{grid-template-columns:1fr 1fr 1fr}
+  /* minmax(0,1fr), not 1fr. A 1fr column will not shrink below its contents, and
+     the thumbnails are 56px canvases - that is what pushed every grid wider than
+     the tray and put a scrollbar inside each section. */
+  .pieces{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}
+  .pieces.obj-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+  /* Players stay three across. They are the one tray with no name under the
+     thumbnail - the picture IS the label - so shrinking them to four is the
+     one place the density costs you something. */
+  .pieces.player-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
   .pieces.player-grid .piece{height:32px}
   .piece{background:var(--panel);border:1px solid var(--line);border-radius:6px;height:42px;
     display:grid;place-items:center;position:relative}
   .piece:hover{background:var(--panel2);border-color:var(--accentdk)}
-  .piece canvas{pointer-events:none}
+  /* The thumbnail is drawn at 56x36 and now scales to whatever the cell is. */
+  .piece canvas{pointer-events:none;max-width:100%;height:auto}
   .piece .nm{position:absolute;bottom:1px;left:0;right:0;text-align:center;font-size:9px;color:var(--muted)}
   .swatchrow{display:flex;flex-wrap:wrap;gap:3px;margin:1px 1px 0}
   .sw{width:16px;height:16px;border-radius:50%;border:2px solid transparent;cursor:pointer}
@@ -146,7 +161,8 @@
   .card .x{position:absolute}
   .card .closerow{display:flex;justify-content:flex-end;margin-top:18px}
   @media (max-width:760px){
-    .tray{width:150px}
+    .tray{width:172px}
+    .pieces.obj-grid,.pieces.player-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
     .inspect{width:200px}
     .seg button{padding:7px 8px}
   }

@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Drill Draw</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%230A1622'/><ellipse cx='50' cy='54' rx='34' ry='22' fill='none' stroke='%23EAF6FB' stroke-width='5'/><line x1='16' y1='54' x2='84' y2='54' stroke='%23E8313A' stroke-width='4'/><line x1='50' y1='32' x2='50' y2='76' stroke='%233A9BDC' stroke-width='3'/><circle cx='50' cy='54' r='8' fill='none' stroke='%233A9BDC' stroke-width='3'/></svg>">
-<link rel="stylesheet" href="style.css?v=216e57e-202609031943">
+<link rel="stylesheet" href="style.css?v=ea0ba69-202609120404">
 
 
 <div class="app">
@@ -73,6 +73,15 @@
   <div class="body">
     <!-- TRAY -->
     <div class="tray">
+      <!-- Tools sit at the top now. Two-wide, sixteen deep, and last in the list,
+           the rail started 200px below the bottom of the tray: on a laptop you
+           could not see Select or Move at all without scrolling, and Move is the
+           tool everything on the ice animates from. -->
+      <h4 class="tray-toggle" data-target="sec-tools">Tools <span class="tray-arrow">▾</span></h4>
+      <div class="tray-sec" id="sec-tools">
+        <div class="toolgrid" id="tools"></div>
+      </div>
+
       <h4 class="tray-toggle" data-target="sec-players">Players <span class="tray-arrow">▾</span></h4>
       <div class="tray-sec" id="sec-players">
         <div class="swatchrow" id="swatches"></div>
@@ -83,17 +92,15 @@
 
       <h4 class="tray-toggle" data-target="sec-objects">Objects <span class="tray-arrow">▾</span></h4>
       <div class="tray-sec" id="sec-objects">
-        <div class="pieces three-col" id="equip"></div>
+        <div class="pieces obj-grid" id="equip"></div>
       </div>
 
-      <h4 class="tray-toggle" data-target="sec-move">Move <span class="tray-arrow">▾</span></h4>
-      <div class="tray-sec" id="sec-move">
+      <!-- This row was headed "Move", which named nothing you can see in it. It is
+           the colour used for the next object or line you draw, and for whatever
+           is selected. -->
+      <h4 class="tray-toggle" data-target="sec-objcolor" title="Colour for the next object or line you draw, or for the current selection">Object colour <span class="tray-arrow">▾</span></h4>
+      <div class="tray-sec" id="sec-objcolor">
         <div class="swatchrow" id="objcolors"></div>
-      </div>
-
-      <h4 class="tray-toggle" data-target="sec-tools">Tools <span class="tray-arrow">▾</span></h4>
-      <div class="tray-sec" id="sec-tools">
-        <div class="toolgrid" id="tools"></div>
       </div>
     </div>
 
@@ -190,4 +197,4 @@
   </div>
 </div>
 
-<script src="app.js?v=216e57e-202609031943"></script>
+<script src="app.js?v=ea0ba69-202609120404"></script>
