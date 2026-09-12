@@ -1119,6 +1119,20 @@
   var vidName = '';
   var VW = 200, VH = 112.5;   // clip size in world units (16:9 default)
 
+  // The last frame we managed to decode, kept so a seek does not blank the
+  // stage. Refreshed a few times a second — it is only ever seen during the
+  // gap in a seek, so it does not need to be current to the frame.
+  var frameCache = null, frameCtx = null, seenFrame = false, lastCache = 0;
+  function keepFrame() {
+    if (!vid || !vid.videoWidth) return;
+    var now = performance.now();
+    if (now - lastCache < 180) return;
+    lastCache = now;
+    if (!frameCache) { frameCache = document.createElement('canvas'); frameCtx = frameCache.getContext('2d'); }
+    if (frameCache.width !== vid.videoWidth) { frameCache.width = vid.videoWidth; frameCache.height = vid.videoHeight; }
+    try { frameCtx.drawImage(vid, 0, 0); } catch (e) { }
+  }
+
   CONFIGS.video = { label: 'Video clip', panels: [{ ox: 0, oy: 0, kind: 'video' }] };
 
   var _panelW = panelW, _panelH = panelH;
@@ -1131,11 +1145,21 @@
     var a = W2S(p.ox, p.oy), b = W2S(p.ox + VW, p.oy + VH);
     var w = b[0] - a[0], h = b[1] - a[1];
     ctx.save();
-    ctx.fillStyle = '#000';
-    ctx.fillRect(a[0], a[1], w, h);
+    var drew = false;
     if (vid && vid.readyState >= 2) {
-      try { ctx.drawImage(vid, a[0], a[1], w, h); } catch (e) { }
-    } else {
+      try { ctx.drawImage(vid, a[0], a[1], w, h); drew = true; seenFrame = true; keepFrame(); }
+      catch (e) { }
+    }
+    // Every play, pause and seek drops the decoder below "has a current frame"
+    // for a moment, and on a long clip that moment is visible. Blanking to
+    // "Loading clip…" each time made the picture flash black on every space
+    // bar. Hold the last frame instead; only an empty stage says loading.
+    if (!drew && seenFrame && frameCache) {
+      try { ctx.drawImage(frameCache, a[0], a[1], w, h); drew = true; } catch (e) { }
+    }
+    if (!drew) {
+      ctx.fillStyle = '#000';
+      ctx.fillRect(a[0], a[1], w, h);
       ctx.fillStyle = '#8B929C';
       ctx.font = '600 14px system-ui,Segoe UI,sans-serif';
       ctx.textAlign = 'center';
@@ -1290,6 +1314,7 @@
     }
     if (vidURL) { URL.revokeObjectURL(vidURL); vidURL = null; }
     vid = null; vidName = '';
+    seenFrame = false; lastCache = 0;   // or the old clip's last frame lingers
   }
 
   function removeVideo() {
