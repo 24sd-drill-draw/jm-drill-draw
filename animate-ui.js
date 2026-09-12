@@ -1056,14 +1056,20 @@
   // too slow for crossing a shift. The size is a choice, and it drives the
   // buttons and the arrow keys together.
   var stepBtns = [].slice.call($('kdStepSize').querySelectorAll('button'));
-  stepBtns.forEach(function (b) {
-    b.addEventListener('click', function () {
-      stepMs = parseFloat(b.dataset.ms) || FRAME;
-      stepBtns.forEach(function (x) { x.classList.toggle('on', x === b); });
-      var lbl = b.textContent.trim();
-      $('kdPrevF').title = 'Back ' + lbl + ' (←)';
-      $('kdNextF').title = 'Forward ' + lbl + ' (→)';
+  function setStep(ms) {
+    stepMs = ms || FRAME;
+    var picked = null;
+    stepBtns.forEach(function (x) {
+      var on = (parseFloat(x.dataset.ms) || FRAME) === stepMs;
+      x.classList.toggle('on', on);
+      if (on) picked = x;
     });
+    var lbl = picked ? picked.textContent.trim() : '1f';
+    $('kdPrevF').title = 'Back ' + lbl + ' (←)';
+    $('kdNextF').title = 'Forward ' + lbl + ' (→)';
+  }
+  stepBtns.forEach(function (b) {
+    b.addEventListener('click', function () { setStep(parseFloat(b.dataset.ms) || FRAME); });
   });
   window.addEventListener('keydown', function (e) {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -1233,6 +1239,10 @@
       // on. Defaulting to "plays on" for the rest of the clip meant every mark
       // had to be reset by hand, and a missed one just smeared across the play.
       setFreezeMode(true, false); setHold(3000);
+      // One frame at a time is right for landing on a tip-in and hopeless for
+      // crossing a half-hour game. Start at 2s on a clip; Shift+arrow is still
+      // a single frame whenever the exact moment matters.
+      setStep(2000);
       syncScrub(); updateVideoPanel(); render();
       toast('Loaded ' + vidName + ' — ' + fmtT(T) + ' · marks pause the clip 3s');
     }, { once: true });
