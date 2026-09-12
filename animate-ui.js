@@ -942,7 +942,7 @@
       drag = { mode: 'move', path: fr.path, group: fr.group, grabMs: xToMs(x) - fr.path.delay,
                d0: fr.path.delay, u0: fr.path.dur };
       selOne('path', fr.path.id); showPropsTab(); updateInspector();
-      grid.setPointerCapture(e.pointerId);
+      try { grid.setPointerCapture(e.pointerId); } catch (err) { }
       onDrag(e); e.preventDefault();
       return;
     }
@@ -966,7 +966,8 @@
       drag = { mode: 'scrub' };
       playing = false; setPlayUI();
     }
-    grid.setPointerCapture(e.pointerId);
+    // capture is a convenience; if the browser refuses it the drag must still run
+    try { grid.setPointerCapture(e.pointerId); } catch (err) { }
     onDrag(e);
     e.preventDefault();
   });
@@ -1009,7 +1010,14 @@
   }
 
   grid.addEventListener('pointermove', onDrag);
-  grid.addEventListener('pointerup', function () { drag = null; updateInspector(); });
+  grid.addEventListener('pointerup', function () {
+    var wasScrub = drag && drag.mode === 'scrub';
+    drag = null;
+    // the throttled seeks during the drag were to the nearest keyframe; land
+    // on the exact frame now that the mouse has stopped
+    if (wasScrub) { lastSeekAt = 0; syncScrub(); render(); }
+    updateInspector();
+  });
   grid.addEventListener('pointercancel', function () { drag = null; });
 
   // ---------------------------------------------------------
@@ -1113,6 +1121,7 @@
   defaultView = function () { return rinkConfig === 'video' ? 'frame' : _defaultView(); };
 
   // --- clock: the clip is the master while it plays, the slave while you scrub
+  var lastSeekAt = 0;      // throttles seeks while a scrub drag is running
   var _syncScrub = syncScrub;
   syncScrub = function () {
     // runs first: a hold pins tNow before anything else reads it
@@ -1123,7 +1132,21 @@
       } else {
         var want = tNow / 1000;
         if (Math.abs(vid.currentTime - want) > 0.04) {
-          try { vid.currentTime = want; } catch (e) { }
+          // Seeking costs real time, and on a half-hour file with sparse
+          // keyframes it can be hundreds of milliseconds. Asking for an exact
+          // seek on every pointermove queues them up faster than they finish
+          // and the playhead stops following the mouse — the drag looks dead.
+          // While scrubbing, seek at most ten times a second and take the
+          // nearest keyframe; pointerup then lands it exactly.
+          var scrubbing = !!(drag && drag.mode === 'scrub');
+          var now = performance.now();
+          if (!scrubbing || now - lastSeekAt > 90) {
+            lastSeekAt = now;
+            try {
+              if (scrubbing && vid.fastSeek) vid.fastSeek(want);
+              else vid.currentTime = want;
+            } catch (e) { try { vid.currentTime = want; } catch (e2) { } }
+          }
         }
       }
     }

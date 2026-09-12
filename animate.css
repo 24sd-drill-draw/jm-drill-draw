@@ -416,3 +416,9 @@ body.light-theme .seg,body.light-theme .zoomctl button{background:rgba(255,255,2
 .kd-stop.nopause{opacity:.62;filter:grayscale(.35)}
 .kd-xn{display:inline-block;margin-left:5px;padding:0 4px;border-radius:6px;
   background:var(--panel2);color:var(--accent);font:800 9.5px/1.5 system-ui,sans-serif}
+
+/* The timeline is draggable anywhere, but nothing said so — the playhead is a
+   1px line you cannot grab, so it read as "the playhead will not drag". */
+.kd-grid{cursor:col-resize}
+.kd-grid .kd-bar,.kd-grid .kd-frzmark,.kd-grid .kd-key{cursor:grab}
+.kd-names,.kd-names *{cursor:default}

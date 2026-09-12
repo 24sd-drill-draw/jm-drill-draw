@@ -19,11 +19,11 @@
         "-NoProfile",
         "-ExecutionPolicy", "Bypass",
         "-File", ".claude/serve.ps1",
-        "-Port", "8790",
+        "-Port", "8791",
         "-Root", "C:/Users/JoshMizerek/Claude/Projects/Team Workouts/18U-AAA-Kraken"
       ],
-      "port": 8790,
-      "url": "http://127.0.0.1:8790"
+      "port": 8791,
+      "url": "http://127.0.0.1:8791"
     }
   ]
 }
