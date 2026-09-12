@@ -820,6 +820,7 @@
     else { for (var j = pts.length - 1; j >= 0; j--) if (pts[j] < here - 40) { target = pts[j]; break; } }
     if (target === null) { toast(dir > 0 ? 'Last point' : 'First point'); return; }
     playing = false; setPlayUI();
+    if (target < tNow) rearmHoldsFrom(target);   // so replaying it stops again
     tNow = clamp(target, 0, T);
     syncScrub(); render();
     if (tlZoom > 1) {
@@ -1025,7 +1026,11 @@
     drag = null;
     // land on the exact frame now the mouse has stopped, and drop any seek
     // still queued from mid-drag so it cannot overwrite where you let go
-    if (wasScrub) { clearTimeout(seekTimer); lastSeekAt = 0; syncScrub(); render(); }
+    if (wasScrub) {
+      clearTimeout(seekTimer); lastSeekAt = 0;
+      rearmHoldsFrom(tNow);        // scrubbing back re-arms the points behind you
+      syncScrub(); render();
+    }
     updateInspector();
   });
   grid.addEventListener('pointercancel', function () { drag = null; });
@@ -1044,9 +1049,29 @@
   // 30fps — close enough to land on a moment, which is the whole point.
   var FRAME = 1000 / 30;
   var stepMs = FRAME;          // how far one press moves; 1f until you change it
+  // A point only fires once per pass, so jumping backwards has to put the ones
+  // you have just rewound past back on the table — otherwise replaying a moment
+  // to look at it again runs straight through without stopping.
+  function rearmHoldsFrom(ms) {
+    holdDone = holdDone.filter(function (id) {
+      var p = getPath(id);
+      return p && (p.delay || 0) < ms - 1;
+    });
+  }
   function step(n, ms) {
-    playing = false; setPlayUI();
-    tNow = clamp(tNow + n * (ms || stepMs), 0, T);
+    var to = clamp(tNow + n * (ms || stepMs), 0, T);
+    var back = to < tNow;
+    tNow = to;
+    // Stepping while it plays skips and carries on, the way every player
+    // does it. Stopping the clip to move two seconds made the arrows useless
+    // for following a shift.
+    if (playing && vid) {
+      try { vid.currentTime = tNow / 1000; } catch (e) { }
+      if (back) rearmHoldsFrom(tNow);
+    } else {
+      playing = false; setPlayUI();
+      if (back) rearmHoldsFrom(tNow);
+    }
     syncScrub(); render();
   }
   $('kdPrevF').onclick = function () { step(-1); };
