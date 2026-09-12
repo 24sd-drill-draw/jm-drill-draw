@@ -1306,6 +1306,32 @@
     updateVideoPanel();
   }
 
+  // Click the picture to start or stop it, the way any player behaves. Only
+  // with Select, and only on a click that neither drew nor picked anything —
+  // with a drawing tool a click is a mark, and on a mark it is a selection.
+  // A click that clears a selection counts as the clear; the next one plays.
+  var clickStart = null;
+  cv.addEventListener('pointerdown', function (e) {
+    // capture phase: read the selection and the clock before app.js touches them
+    clickStart = { x: e.clientX, y: e.clientY, had: selSet.length,
+                   at: performance.now(), wasPlaying: playing };
+    // app.js stops the clock on any press on the ice so you can edit, but it
+    // never pauses the video element — so the clip kept rolling underneath a
+    // stopped playhead. Keep the two together.
+    if (playing && vid) { try { vid.pause(); } catch (err) { } }
+  }, true);
+  cv.addEventListener('pointerup', function (e) {
+    var c = clickStart; clickStart = null;
+    if (!c || e.button || !vid || rinkConfig !== 'video') return;
+    if (tool !== 'select') return;
+    if (Math.hypot(e.clientX - c.x, e.clientY - c.y) > 5) return;  // a drag
+    if (performance.now() - c.at > 500) return;                    // a press
+    if (selSet.length || c.had) return;                            // picked or cleared
+    // Pressing already stopped it, so a click while playing IS the pause.
+    // Only a click on a stopped clip has anything left to do.
+    if (!c.wasPlaying) togglePlay();
+  });
+
   function disposeVideo() {
     if (vid) {
       try { vid.pause(); } catch (e) { }
