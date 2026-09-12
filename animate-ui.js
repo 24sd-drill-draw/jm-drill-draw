@@ -978,7 +978,17 @@
 
     if (drag.mode === 'scrub') {
       tNow = clamp(ms, 0, T);
-      syncScrub();
+      // Move the playhead off the mouse, not off the video. Seeking a
+      // half-hour clip decodes from a keyframe that can be ten seconds back,
+      // and Chrome has no fastSeek, so the seek owns the main thread and the
+      // rAF loop that draws the playhead never gets a turn — the marker sits
+      // still while the mouse keeps going. The marker and the readout are two
+      // cheap DOM writes and must never wait on the decoder.
+      movePlayhead();
+      $('timeLbl').textContent = (T >= 60000)
+        ? fmtT(tNow) + ' / ' + fmtT(T)
+        : (tNow / 1000).toFixed(1) + 's / ' + (T / 1000).toFixed(1) + 's';
+      seekSoon();
     } else if (drag.mode === 'move') {
       // a freeze can sit anywhere in the clip — its duration costs no clip time,
       // so the usual "must finish before the end" clamp doesn't apply
@@ -1013,9 +1023,9 @@
   grid.addEventListener('pointerup', function () {
     var wasScrub = drag && drag.mode === 'scrub';
     drag = null;
-    // the throttled seeks during the drag were to the nearest keyframe; land
-    // on the exact frame now that the mouse has stopped
-    if (wasScrub) { lastSeekAt = 0; syncScrub(); render(); }
+    // land on the exact frame now the mouse has stopped, and drop any seek
+    // still queued from mid-drag so it cannot overwrite where you let go
+    if (wasScrub) { clearTimeout(seekTimer); lastSeekAt = 0; syncScrub(); render(); }
     updateInspector();
   });
   grid.addEventListener('pointercancel', function () { drag = null; });
@@ -1122,6 +1132,24 @@
 
   // --- clock: the clip is the master while it plays, the slave while you scrub
   var lastSeekAt = 0;      // throttles seeks while a scrub drag is running
+  var seekTimer = null;
+  // One seek in flight at a time, and one more queued for where the mouse
+  // ended up. Firing a seek per pointermove stacks requests the decoder cannot
+  // service and the whole tab stops responding.
+  function seekSoon() {
+    if (!vid || !vid.duration) return;
+    var now = performance.now();
+    if (now - lastSeekAt > 220) {
+      lastSeekAt = now;
+      try { vid.currentTime = tNow / 1000; } catch (e) { }
+      return;
+    }
+    clearTimeout(seekTimer);
+    seekTimer = setTimeout(function () {
+      lastSeekAt = performance.now();
+      try { vid.currentTime = tNow / 1000; } catch (e) { }
+    }, 220);
+  }
   var _syncScrub = syncScrub;
   syncScrub = function () {
     // runs first: a hold pins tNow before anything else reads it
@@ -1132,21 +1160,10 @@
       } else {
         var want = tNow / 1000;
         if (Math.abs(vid.currentTime - want) > 0.04) {
-          // Seeking costs real time, and on a half-hour file with sparse
-          // keyframes it can be hundreds of milliseconds. Asking for an exact
-          // seek on every pointermove queues them up faster than they finish
-          // and the playhead stops following the mouse — the drag looks dead.
-          // While scrubbing, seek at most ten times a second and take the
-          // nearest keyframe; pointerup then lands it exactly.
-          var scrubbing = !!(drag && drag.mode === 'scrub');
-          var now = performance.now();
-          if (!scrubbing || now - lastSeekAt > 90) {
-            lastSeekAt = now;
-            try {
-              if (scrubbing && vid.fastSeek) vid.fastSeek(want);
-              else vid.currentTime = want;
-            } catch (e) { try { vid.currentTime = want; } catch (e2) { } }
-          }
+          // A scrub drag does its own throttled seeking in seekSoon(); this is
+          // every other case, where one exact seek is what is wanted.
+          lastSeekAt = performance.now();
+          try { vid.currentTime = want; } catch (e) { }
         }
       }
     }
