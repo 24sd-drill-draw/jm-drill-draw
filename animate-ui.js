@@ -857,7 +857,9 @@
   window.addEventListener('keydown', function (e) {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
-    if (e.key === 'a' || e.key === 'A') { e.preventDefault(); addSegment(); }
+    // 'm' for mark a segment — not 'a', which app.js already uses to pick the
+    // arrow tool. Both handlers are on window, so 'a' did each of them.
+    if (e.key === 'm' || e.key === 'M') { e.preventDefault(); addSegment(); }
     else if (e.key === ']') { e.preventDefault(); gotoPoint(1); }
     else if (e.key === '[') { e.preventDefault(); gotoPoint(-1); }
   });
@@ -1266,7 +1268,12 @@
     if (vid && vid.duration) {
       if (!vid.paused && !vid.ended) {
         tNow = clamp(vid.currentTime * 1000, 0, T);
-      } else {
+      } else if (!playing) {
+        // Only correct the clip's position when playback is stopped. While
+        // playing, the clip is the master — and a resume takes a moment during
+        // which vid.paused is still true. Seeking in that window cancelled the
+        // play request, which asked for another seek, which cancelled the next
+        // play: the reel sat on its second segment forever.
         var want = tNow / 1000;
         if (Math.abs(vid.currentTime - want) > 0.04) {
           // A scrub drag does its own throttled seeking in seekSoon(); this is
@@ -1595,6 +1602,7 @@
   var breakMs = 3000;
   var reelAt = -1;            // which segment is running; -1 = not on the reel
   var breakUntil = 0;         // wall-clock end of the card, 0 = not showing one
+  var lastNudge = 0;          // throttles the resume retry
   function onReel() { return segments.length > 0; }
   function reelTotal() {
     var t = 0;
@@ -1633,7 +1641,16 @@
       var next = segments[reelAt];
       if (!next) { playing = false; setPlayUI(); if (vid) vid.pause(); return false; }
       tNow = next.in;
-      if (vid) { try { vid.currentTime = next.in / 1000; vid.play(); } catch (e) { } }
+      // Seek, THEN play once the seek has landed. Asking for both in the same
+      // tick lets the seek abort the play request: the clip stayed paused at
+      // the segment's in-point, our own code kept re-seeking it there, and the
+      // reel sat on segment two forever.
+      if (vid) {
+        try {
+          vid.addEventListener('seeked', function once() { vid.play().catch(function () { }); }, { once: true });
+          vid.currentTime = next.in / 1000;
+        } catch (e) { }
+      }
       return false;
     }
     if (reelAt < 0) {                       // first frame of a reel playback
@@ -1643,6 +1660,12 @@
     }
     var seg = segments[reelAt];
     if (!seg) return false;
+    // Belt and braces: if the reel thinks it is rolling but the clip is not,
+    // ask again. A refused or interrupted play() would otherwise strand it.
+    if (vid && vid.paused && !vid.ended && performance.now() - lastNudge > 300) {
+      lastNudge = performance.now();
+      try { vid.play().catch(function () { }); } catch (e) { }
+    }
     if (tNow >= seg.out) {
       reelAt++;
       if (reelAt >= segments.length) {      // reel finished
