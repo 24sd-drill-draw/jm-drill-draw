@@ -310,6 +310,17 @@
       </div>
       <button class="tbtn" id="kdMarkIn" title="Set the start of the clip at the playhead (I)">Set in</button>
       <button class="tbtn" id="kdMarkOut" title="Set the end of the clip at the playhead (O)">Set out</button>
+      <span class="kd-tlbl">Reel</span>
+      <button class="tbtn" id="kdAddSeg" title="Add the in/out window to the reel as a segment (A)">&#43; Segment</button>
+      <span class="kd-selinfo" id="kdReelInfo">no segments</span>
+      <button class="tbtn" id="kdClearSegs" title="Empty the reel">Clear reel</button>
+      <span class="kd-tlbl">Break</span>
+      <div class="kd-steps" id="kdBreak" title="Black card with the crest between segments, so a jump to another part of the game reads as a new clip">
+        <button type="button" data-br="0">off</button>
+        <button type="button" data-br="2000">2s</button>
+        <button type="button" data-br="3000" class="on">3s</button>
+        <button type="button" data-br="5000">5s</button>
+      </div>
       <button class="tbtn" id="kdSelAll" title="Reset the in/out points to the whole timeline">Reset</button>
       <button class="tbtn" id="kdCopy" title="Copy the picture to the clipboard, ready to paste into another program">&#128203; Copy</button>
       <button class="tbtn" id="kdImage" title="Save a picture: a drill board as a see-through PNG cropped to the boards, a clip frame as a JPG">&#128247; Image</button>

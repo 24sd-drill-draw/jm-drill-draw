@@ -659,6 +659,15 @@
         nh += '<div class="kd-name kd-cliprow"><span class="kd-chip" style="background:var(--accent)"></span>' +
           '<span class="kd-nm">' + cname + '</span></div>';
         var cl = (inMs / T) * W, cw = Math.max(4, ((outMs - inMs) / T) * W);
+        // Each segment of the reel, numbered, so a six-cut breakdown reads at
+        // a glance instead of living in the export.
+        var segs = '';
+        segments.forEach(function (s, i) {
+          var x = (s.in / T) * W, ww = Math.max(3, ((s.out - s.in) / T) * W);
+          segs += '<div class="kd-seg" style="left:' + x.toFixed(1) + 'px;width:' + ww.toFixed(1) + 'px"' +
+            ' title="Segment ' + (i + 1) + ' — ' + fmtT(s.in) + ' to ' + fmtT(s.out) +
+            ' (' + fmtT(s.out - s.in) + ')"><b>' + (i + 1) + '</b></div>';
+        });
         // A tick for every teaching point, across the WHOLE clip rather than
         // only inside the trim: on a two-minute breakdown this is the map of
         // where the work is.
@@ -676,7 +685,7 @@
         });
         th += '<div class="kd-track kd-cliptrack">' + lines +
           '<div class="kd-clipbar" style="left:' + cl.toFixed(1) + 'px;width:' + cw.toFixed(1) + 'px"></div>' +
-          stops + '</div>';
+          segs + stops + '</div>';
         return;
       }
       var selected = sel && ((r.kind === 'path' && sel.kind === 'path' && sel.id === r.path.id) ||
@@ -808,8 +817,20 @@
 
   // Setting the in/out at the playhead beats dragging a handle to the pixel,
   // and on a long clip it is the only practical way to cut a few seconds out.
-  function markIn() { inMs = clamp(tNow, 0, outMs - 200); syncTimeline(true); render(); }
-  function markOut() { outMs = clamp(tNow, inMs + 200, T); syncTimeline(true); render(); }
+  // Setting one end past the other takes the other with it rather than being
+  // clamped back. Cutting a second segment later in the game means pressing I
+  // beyond the previous out, and clamping made that silently pick the wrong
+  // moment — the window snapped back to where the last cut ended.
+  function markIn() {
+    inMs = clamp(tNow, 0, T - 200);
+    if (outMs < inMs + 200) outMs = Math.min(T, inMs + 200);
+    syncTimeline(true); render();
+  }
+  function markOut() {
+    outMs = clamp(tNow, 200, T);
+    if (inMs > outMs - 200) inMs = Math.max(0, outMs - 200);
+    syncTimeline(true); render();
+  }
   // Jump between teaching points. On a two-minute clip with six of them,
   // scrubbing to find each one by eye is the slow part of the job.
   function gotoPoint(dir) {
@@ -836,10 +857,21 @@
   window.addEventListener('keydown', function (e) {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
-    if (e.key === ']') { e.preventDefault(); gotoPoint(1); }
+    if (e.key === 'a' || e.key === 'A') { e.preventDefault(); addSegment(); }
+    else if (e.key === ']') { e.preventDefault(); gotoPoint(1); }
     else if (e.key === '[') { e.preventDefault(); gotoPoint(-1); }
   });
 
+  $('kdAddSeg').onclick = addSegment;
+  $('kdClearSegs').onclick = clearSegments;
+  [].slice.call($('kdBreak').querySelectorAll('button')).forEach(function (b) {
+    b.addEventListener('click', function () {
+      breakMs = parseInt(b.dataset.br, 10) || 0;
+      [].slice.call($('kdBreak').querySelectorAll('button'))
+        .forEach(function (x) { x.classList.toggle('on', x === b); });
+      paintReelInfo();
+    });
+  });
   $('kdMarkIn').onclick = markIn;
   $('kdMarkOut').onclick = markOut;
   // The still and the video belong beside each other. The image export was
@@ -1145,6 +1177,24 @@
     var a = W2S(p.ox, p.oy), b = W2S(p.ox + VW, p.oy + VH);
     var w = b[0] - a[0], h = b[1] - a[1];
     ctx.save();
+    // The break card: black with the crest, so a jump to another part of the
+    // game reads as a new clip rather than a glitch.
+    if (breakUntil) {
+      ctx.fillStyle = '#05070a';
+      ctx.fillRect(a[0], a[1], w, h);
+      var crest = LOGO_IMG[centerLogo] || LOGO_IMG.krakenS;
+      if (crest && crest.complete && crest.naturalWidth) {
+        var ch = h * 0.34, cw2 = ch * (crest.naturalWidth / crest.naturalHeight);
+        if (cw2 > w * 0.5) { cw2 = w * 0.5; ch = cw2 / (crest.naturalWidth / crest.naturalHeight); }
+        ctx.globalAlpha = 0.95;
+        ctx.drawImage(crest, a[0] + (w - cw2) / 2, a[1] + (h - ch) / 2, cw2, ch);
+        ctx.globalAlpha = 1;
+      }
+      ctx.strokeStyle = '#343A43'; ctx.lineWidth = 1;
+      ctx.strokeRect(a[0], a[1], w, h);
+      ctx.restore();
+      return;
+    }
     var drew = false;
     if (vid && vid.readyState >= 2) {
       try { ctx.drawImage(vid, a[0], a[1], w, h); drew = true; seenFrame = true; keepFrame(); }
@@ -1209,6 +1259,10 @@
   syncScrub = function () {
     // runs first: a hold pins tNow before anything else reads it
     if (typeof checkFreeze === 'function') checkFreeze();
+    // then the reel: while a card is up the clip is paused and its clock must
+    // not be read back over tNow
+    var onCard = advanceReel();
+    if (onCard) { _syncScrub(); return; }
     if (vid && vid.duration) {
       if (!vid.paused && !vid.ended) {
         tNow = clamp(vid.currentTime * 1000, 0, T);
@@ -1287,6 +1341,7 @@
       // On footage, a mark IS a teaching point: stop the clip, hold it, carry
       // on. Defaulting to "plays on" for the rest of the clip meant every mark
       // had to be reset by hand, and a missed one just smeared across the play.
+      segments = []; reelAt = -1; breakUntil = 0; paintReelInfo();
       setFreezeMode(true, false); setHold(3000);
       // One frame at a time is right for landing on a tip-in and hopeless for
       // crossing a half-hour game. Start at 2s on a clip; Shift+arrow is still
@@ -1531,7 +1586,84 @@
     }
   }
 
+  // ---------------------------------------------------------
+  // The reel: several segments cut from one long game clip, played and
+  // exported back to back with a crest card between them. Two plays five
+  // minutes apart look like a jump cut otherwise — the card says "new clip".
+  // ---------------------------------------------------------
+  var segments = [];          // [{in, out}] in the order they play
+  var breakMs = 3000;
+  var reelAt = -1;            // which segment is running; -1 = not on the reel
+  var breakUntil = 0;         // wall-clock end of the card, 0 = not showing one
+  function onReel() { return segments.length > 0; }
+  function reelTotal() {
+    var t = 0;
+    segments.forEach(function (s) { t += Math.max(0, s.out - s.in); });
+    return t + Math.max(0, segments.length - 1) * breakMs;
+  }
+  function paintReelInfo() {
+    var n = segments.length;
+    $('kdReelInfo').textContent = n
+      ? n + (n === 1 ? ' segment · ' : ' segments · ') + fmtT(reelTotal())
+      : 'no segments';
+    $('kdClearSegs').disabled = !n;
+  }
+  function addSegment() {
+    if (!vid) { toast('Open a clip first'); return; }
+    if (outMs - inMs < 300) { toast('Set in and out around a play first'); return; }
+    segments.push({ in: Math.round(inMs), out: Math.round(outMs) });
+    segments.sort(function (a, b) { return a.in - b.in; });
+    paintReelInfo(); lastSig = ''; render();
+    toast('Segment ' + segments.length + ' added — ' + fmtT(outMs - inMs));
+  }
+  function clearSegments() {
+    segments = []; reelAt = -1; breakUntil = 0;
+    paintReelInfo(); lastSig = ''; render();
+    toast('Reel emptied');
+  }
+
+  // Runs every frame while playing: holds the card, then moves to the next
+  // segment. Wall-clock for the card, the clip's own clock for the footage —
+  // the same split the freeze hold uses, for the same reason.
+  function advanceReel() {
+    if (!onReel() || !playing) return false;
+    if (breakUntil) {
+      if (performance.now() < breakUntil) { return true; }   // card is up
+      breakUntil = 0;
+      var next = segments[reelAt];
+      if (!next) { playing = false; setPlayUI(); if (vid) vid.pause(); return false; }
+      tNow = next.in;
+      if (vid) { try { vid.currentTime = next.in / 1000; vid.play(); } catch (e) { } }
+      return false;
+    }
+    if (reelAt < 0) {                       // first frame of a reel playback
+      reelAt = 0; tNow = segments[0].in;
+      if (vid) { try { vid.currentTime = segments[0].in / 1000; } catch (e) { } }
+      return false;
+    }
+    var seg = segments[reelAt];
+    if (!seg) return false;
+    if (tNow >= seg.out) {
+      reelAt++;
+      if (reelAt >= segments.length) {      // reel finished
+        if (loop && !exporting) { reelAt = -1; resetHolds(); return false; }
+        playing = false; setPlayUI(); if (vid) vid.pause();
+        tNow = seg.out; syncScrub();
+        return false;
+      }
+      if (breakMs > 0) {                    // hold the card, then carry on
+        breakUntil = performance.now() + breakMs;
+        if (vid) { try { vid.pause(); } catch (e) { } }
+        return true;
+      }
+      tNow = segments[reelAt].in;
+      if (vid) { try { vid.currentTime = tNow / 1000; } catch (e) { } }
+    }
+    return false;
+  }
+
   function enforceOut() {
+    if (onReel()) return;          // the reel decides where playback ends
     if (!playing) return;
     if (tNow >= outMs) {
       if (loop && !exporting) {
@@ -1649,7 +1781,7 @@
 
   function exportClip() {
     if (exporting) return;
-    if (trimSpan() < 200) { toast('Drag the in/out handles to pick a window first'); return; }
+    if (!onReel() && trimSpan() < 200) { toast('Set in and out around a play, or build a reel'); return; }
 
     var native = useNativeView();
     // captureStream(0) emits a frame only when asked, so the recording follows
@@ -1717,18 +1849,31 @@
     // park on the in-point, let the clip actually seek, then roll.
     // Holds are re-armed so every freeze fires into the recording.
     resetHolds();
+    reelAt = -1; breakUntil = 0;             // a reel export starts at segment 1
     playing = false; setPlayUI();
-    tNow = inMs; syncScrub(); render();
+    tNow = onReel() ? segments[0].in : inMs;
+    syncScrub(); render();
 
     var begin = function () {
       rec.start(100);
       capFrames = 0; capStarted = Date.now(); capTrack = vtrack;
       playing = true; lastTs = 0; setPlayUI();
-      if (vid) { try { vid.currentTime = inMs / 1000; } catch (e) { } vid.play().catch(function () { }); }
+      if (vid) { try { vid.currentTime = (onReel() ? segments[0].in : inMs) / 1000; } catch (e) { } vid.play().catch(function () { }); }
+      if (onReel()) reelAt = 0;
       // Read the clip's own clock rather than tNow: tNow is advanced by the
       // rAF render loop, which the browser throttles when the tab isn't
       // visible, and a stuck watcher would record forever.
       var watch = setInterval(function () {
+        // On a reel, advanceReel() decides when it is over — it walks the
+        // segments and holds the cards, and stops playback at the last one.
+        if (onReel()) {
+          if (!playing) {
+            clearInterval(watch);
+            render();
+            setTimeout(function () { if (rec.state !== 'inactive') rec.stop(); }, 160);
+          }
+          return;
+        }
         var at = (vid && vid.duration) ? vid.currentTime * 1000 : tNow;
         if (at >= outMs || !playing) {
           clearInterval(watch);
@@ -1875,6 +2020,7 @@
   applyWeight(parseFloat(wSlider.value));
   applyOpacity(parseFloat(oSlider.value));
   paintRecent();
+  paintReelInfo();
   restoreAutosave();
   syncTimeline(true);
   setTimeout(function () { syncTimeline(true); }, 300);

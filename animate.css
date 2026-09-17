@@ -422,3 +422,10 @@ body.light-theme .seg,body.light-theme .zoomctl button{background:rgba(255,255,2
 .kd-grid{cursor:col-resize}
 .kd-grid .kd-bar,.kd-grid .kd-frzmark,.kd-grid .kd-key{cursor:grab}
 .kd-names,.kd-names *{cursor:default}
+
+/* Reel segments on the clip track. Numbered, because the order they play in
+   is the whole point of a reel. */
+.kd-seg{position:absolute;top:6px;height:14px;border-radius:3px;z-index:3;
+  background:rgba(91,194,214,.36);border:1px solid #5BC2D6;
+  display:flex;align-items:center;justify-content:center;pointer-events:none}
+.kd-seg b{font:800 9px/1 system-ui,sans-serif;color:#cdeff7;letter-spacing:.3px}
