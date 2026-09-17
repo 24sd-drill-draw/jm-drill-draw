@@ -24,6 +24,19 @@
       ],
       "port": 8791,
       "url": "http://127.0.0.1:8791"
+    },
+    {
+      "name": "kraken-site",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": [
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-File", ".claude/serve.ps1",
+        "-Port", "8792",
+        "-Root", "C:/Users/JoshMizerek/Claude/Projects/Team Workouts/18U-AAA-Kraken/site"
+      ],
+      "port": 8792,
+      "url": "http://127.0.0.1:8792"
     }
   ]
 }

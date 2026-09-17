@@ -33,7 +33,7 @@ while ($true) {
     if (-not $path) { $path = "/" }
     $path = ($path -split '\?')[0]
     $path = [System.Uri]::UnescapeDataString($path)
-    if ($path -eq "/") { $path = "/animate.html" }
+    if ($path -eq "/") { $path = "/film-room.html" }
 
     $full = Join-Path $Root ($path.TrimStart('/') -replace '/', '\')
     $full = [System.IO.Path]::GetFullPath($full)
