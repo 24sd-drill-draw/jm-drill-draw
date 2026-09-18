@@ -1229,7 +1229,10 @@
     if (breakUntil) {
       ctx.fillStyle = '#05070a';
       ctx.fillRect(a[0], a[1], w, h);
-      var crest = LOGO_IMG[centerLogo] || LOGO_IMG.krakenS;
+      // Always the Kraken S. It followed the Centre logo dropdown, which
+      // defaults to the Anchorage camp crest — and on footage that dropdown
+      // does nothing else, so there was no reason to go looking for it.
+      var crest = LOGO_IMG.krakenS || LOGO_IMG[centerLogo];
       if (crest && crest.complete && crest.naturalWidth) {
         var ch = h * 0.34, cw2 = ch * (crest.naturalWidth / crest.naturalHeight);
         if (cw2 > w * 0.5) { cw2 = w * 0.5; ch = cw2 / (crest.naturalWidth / crest.naturalHeight); }
