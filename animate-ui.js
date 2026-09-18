@@ -1765,19 +1765,19 @@
   function addSegment() {
     if (!vid) { toast('Open a clip first'); return; }
     if (outMs - inMs < 300) { toast('Set in and out around a play first'); return; }
-    // Pressing M twice on the same window put the same play on the reel twice,
-    // so it ran back to back in the export. The same window is refused.
-    var a = Math.round(inMs), b = Math.round(outMs);
+    // The same window twice is added, not refused — Josh decides. Showing a
+    // play twice can be on purpose; the toast flags it and the × on the bar
+    // takes it off.
+    var a = Math.round(inMs), b = Math.round(outMs), dup = -1;
     for (var k = 0; k < segments.length; k++) {
-      if (Math.abs(segments[k].in - a) < 150 && Math.abs(segments[k].out - b) < 150) {
-        toast('That play is already on the reel (segment ' + (k + 1) + ')');
-        return;
-      }
+      if (Math.abs(segments[k].in - a) < 150 && Math.abs(segments[k].out - b) < 150) { dup = k; break; }
     }
     segments.push({ in: a, out: b });
     segments.sort(function (a, b) { return a.in - b.in; });
     paintReelInfo(); lastSig = ''; render();
-    toast('Segment ' + segments.length + ' added — ' + fmtT(outMs - inMs));
+    toast(dup >= 0
+      ? 'Added again — same play as segment ' + (dup + 1) + '. Click its × to take one off'
+      : 'Segment ' + segments.length + ' added — ' + fmtT(outMs - inMs));
     autosaveSoon();
   }
   // One segment off the reel. Clear reel was the only way to take anything
