@@ -792,6 +792,10 @@
         var gone = r.group || [r.path];            // deleting a point takes all of it
         paths = paths.filter(function (x) { return gone.indexOf(x) < 0; });
         scenes[currentScene].paths = paths;
+        // A label in the point goes with it — it is a piece, not a path, and
+        // was left behind as a lone point with nothing visible but its tick.
+        pieces = pieces.filter(function (x) { return gone.indexOf(x) < 0; });
+        scenes[currentScene].pieces = pieces;
         selOne(null); updateInspector();
         lastSig = ''; render();
       });
