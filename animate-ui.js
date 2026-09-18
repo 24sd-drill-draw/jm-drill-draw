@@ -928,6 +928,9 @@
     if (e.key === 'm' || e.key === 'M') { e.preventDefault(); addSegment(); }
     else if (e.key === ']') { e.preventDefault(); gotoPoint(1); }
     else if (e.key === '[') { e.preventDefault(); gotoPoint(-1); }
+    // Delete with nothing picked deletes the point you are parked on — the
+    // key is what a coach reaches for, not a button in the transport.
+    else if ((e.key === 'Delete' || e.key === 'Backspace') && !selSet.length) { e.preventDefault(); deletePointHere(); }
   });
 
   $('kdAddSeg').onclick = addSegment;
