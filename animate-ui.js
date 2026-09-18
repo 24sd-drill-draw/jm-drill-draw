@@ -546,6 +546,21 @@
     });
     return out;
   }
+  // A mark drawn while a point's marks are on screen joins that point. Paused,
+  // a point shows within 250ms of its instant, so parking by eye near it and
+  // adding a missed line used to land a few frames off: it showed with the
+  // others but held on its own, a second pause after the first.
+  var _markStart = window.markStart;
+  window.markStart = function () {
+    var t = _markStart();
+    if (rinkConfig !== 'video' || playing) return t;
+    var best = null;
+    teachingPoints().forEach(function (g) {
+      var d = Math.abs(g.at - t);
+      if (d <= 250 && (best === null || d < Math.abs(best - t))) best = g.at;
+    });
+    return best === null ? t : best;
+  };
 
   function rowLabel(r) {
     if (r.kind === 'puck') return prettyType(r.piece.type);
