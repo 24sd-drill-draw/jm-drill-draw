@@ -2078,7 +2078,13 @@ function render(){
   const showAnim = playing || tNow>0;
   const map = showAnim? animatedPositions() : {};
   pieces.forEach(p=>{ if(p.type==='puck'||p.type==='ball'&&p.legs&&p.legs.length) drawPuckJourney(p); });
-  pieces.filter(p=>p.type!=='zone').forEach(p=>drawPiece(p, map[p.id]));
+  // A piece carrying a delay is a timed mark — a label written on footage —
+  // and obeys the same window as the shapes. Everything else on a board has no
+  // timing and is always there.
+  pieces.filter(p=>p.type!=='zone').forEach(p=>{
+    if(p.delay!=null && !markVisible(p)) return;
+    drawPiece(p, map[p.id]);
+  });
   // rotation handle for selected net
   const rotPc = selSet.length===1 && selSet[0].kind==='piece' ? getPiece(selSet[0].id) : null;
   if(rotPc && (rotPc.type==='net'||rotPc.type==='bumper')){
@@ -2399,6 +2405,10 @@ cv.addEventListener('pointerdown',e=>{
   if(tool==='text'){
     const s=window.prompt('Label text:'); if(s && s.trim()){ pushUndo();
       const p={id:id(),type:'text',x:wx,y:wy,text:s.trim(),color:'#11181f',size:1,rot:0};
+      // On footage a label is a teaching point like any other mark, so it is
+      // stamped with the same timing and comes and goes with the shapes it was
+      // written for. On a drill board a label is furniture and stays put.
+      if(rinkConfig==='video'){ p.delay=markStart(); p.dur=markSpan(); p.freeze=markFreeze; }
       pieces.push(p); selOne('piece',p.id); updateInspector(); render(); }
     return;
   }

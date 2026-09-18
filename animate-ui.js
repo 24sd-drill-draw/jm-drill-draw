@@ -527,8 +527,16 @@
   // Marks within HOLD_GROUP of each other are one teaching point — the same
   // rule the freeze hold uses, so what the timeline shows and what the clip
   // does are the same grouping.
+  // Marks that carry timing: the drawn shapes, plus any label written on the
+  // footage. A label belongs to the point it was written for, so it groups,
+  // holds and disappears with it.
+  function timedMarks() {
+    var out = paths.filter(function (p) { return !isMotion(p); });
+    pieces.forEach(function (p) { if (p.delay != null) out.push(p); });
+    return out;
+  }
   function teachingPoints() {
-    var marks = paths.filter(function (p) { return !isMotion(p); });
+    var marks = timedMarks();
     marks.sort(function (a, b) { return (a.delay || 0) - (b.delay || 0); });
     var out = [];
     marks.forEach(function (p) {
@@ -1584,8 +1592,9 @@
     // are on screen for it. Holding a single path meant they queued up — three
     // separate pauses, one line each.
     var first = null;
-    for (var i = 0; i < paths.length; i++) {
-      var p = paths[i];
+    var pool = timedMarks();          // shapes and labels alike
+    for (var i = 0; i < pool.length; i++) {
+      var p = pool[i];
       if (!p.freeze || p.hidden || isMotion(p)) continue;
       if (holdDone.indexOf(p.id) >= 0) continue;
       var d = p.delay || 0;
@@ -1593,7 +1602,7 @@
     }
     if (first === null) return;
     var ids = [], span = 0;
-    paths.forEach(function (q) {
+    pool.forEach(function (q) {
       if (!q.freeze || q.hidden || isMotion(q)) return;
       if (holdDone.indexOf(q.id) >= 0) return;
       if (Math.abs((q.delay || 0) - first) <= HOLD_GROUP) {
@@ -1634,8 +1643,8 @@
   function paintReelInfo() {
     var n = segments.length;
     $('kdReelInfo').textContent = n
-      ? n + (n === 1 ? ' segment · ' : ' segments · ') + fmtT(reelTotal())
-      : 'no segments';
+      ? n + (n === 1 ? ' segment' : ' segments') + ' → one video, ' + fmtT(reelTotal())
+      : 'reel empty — Export uses in/out';
     $('kdClearSegs').disabled = !n;
   }
   function addSegment() {
