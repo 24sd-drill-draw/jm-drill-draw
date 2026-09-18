@@ -879,6 +879,16 @@
   }
   // Jump between teaching points. On a two-minute clip with six of them,
   // scrubbing to find each one by eye is the slow part of the job.
+  // Is a key press going into a box you type in? Only then do the shortcuts
+  // stand aside. Any INPUT used to count, so after opening a clip (the file
+  // picker keeps focus) or touching a slider, [ ] I O M silently did nothing.
+  function typing(e) {
+    var t = e.target;
+    if (!t || !t.tagName) return false;
+    if (t.tagName === 'TEXTAREA' || t.isContentEditable) return true;
+    if (t.tagName !== 'INPUT') return false;
+    return /^(text|search|number|email|password|url|tel)$/i.test(t.type || 'text');
+  }
   function gotoPoint(dir) {
     var pts = teachingPoints().map(function (g) { return g.at; });
     if (!pts.length) { toast('No marks yet'); return; }
@@ -936,7 +946,7 @@
     });
   });
   window.addEventListener('keydown', function (e) {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (typing(e)) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     // 'm' for mark a segment — not 'a', which app.js already uses to pick the
     // arrow tool. Both handlers are on window, so 'a' did each of them.
@@ -1026,7 +1036,7 @@
   }
   $('kdCopy').onclick = copyStill;
   window.addEventListener('keydown', function (e) {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (typing(e)) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === 'i' || e.key === 'I') { e.preventDefault(); markIn(); }
     else if (e.key === 'o' || e.key === 'O') { e.preventDefault(); markOut(); }
@@ -1228,7 +1238,7 @@
     b.addEventListener('click', function () { setStep(parseFloat(b.dataset.ms) || FRAME); });
   });
   window.addEventListener('keydown', function (e) {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (typing(e)) return;
     // Shift always gives a single frame, whatever the step is set to, so you
     // can jump close and then walk in without touching the control.
     if (e.key === 'ArrowLeft') { e.preventDefault(); step(-1, e.shiftKey ? FRAME : 0); }
@@ -1588,6 +1598,7 @@
   $('vidFile').addEventListener('change', function (e) {
     var f = e.target.files[0];
     e.target.value = '';
+    try { e.target.blur(); } catch (x) { }   // or the picker keeps the keys
     if (f) openClipAsked(f);
   });
   $('vidOpen').onclick = openVideo;
