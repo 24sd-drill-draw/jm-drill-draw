@@ -1157,8 +1157,13 @@
   // stage. Refreshed a few times a second — it is only ever seen during the
   // gap in a seek, so it does not need to be current to the frame.
   var frameCache = null, frameCtx = null, seenFrame = false, lastCache = 0;
+  var stalledSince = 0;       // how long the clip has had nothing to show
   function keepFrame() {
     if (!vid || !vid.videoWidth) return;
+    // The cache only covers the gap in a seek, so copying frames while the clip
+    // is running is work for nothing — and a full-size frame copy is not free
+    // on a big file.
+    if (playing) return;
     var now = performance.now();
     if (now - lastCache < 180) return;
     lastCache = now;
@@ -1219,6 +1224,23 @@
         a[0] + w / 2, a[1] + h / 2);
       ctx.textAlign = 'start';
     }
+    // Holding the last frame stopped the picture flashing black on every play
+    // and pause, but it also hid a clip that is still reading off disk: a big
+    // file looked frozen instead of loading. Say so once it has been stuck for
+    // a moment, so a slow file is not mistaken for a hang.
+    if (vid && playing && vid.readyState < 3) {
+      if (!stalledSince) stalledSince = performance.now();
+      if (performance.now() - stalledSince > 400) {
+        var bw = 132, bh = 30, bx = a[0] + w / 2 - bw / 2, by = a[1] + h - bh - 14;
+        ctx.fillStyle = 'rgba(5,7,10,.78)';
+        ctx.fillRect(bx, by, bw, bh);
+        ctx.fillStyle = '#B9E60C';
+        ctx.font = '700 12px system-ui,Segoe UI,sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Buffering the clip…', a[0] + w / 2, by + 19);
+        ctx.textAlign = 'start';
+      }
+    } else stalledSince = 0;
     ctx.strokeStyle = '#343A43';
     ctx.lineWidth = 1;
     ctx.strokeRect(a[0], a[1], w, h);
