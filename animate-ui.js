@@ -712,7 +712,15 @@
         var stops = '';
         teachingPoints().forEach(function (g, gi) {
           var live = g.paths.filter(function (p) { return !p.hidden; });
-          if (!live.length) return;
+          // Every mark in it hidden: still a point — ] stops there and it is
+          // counted — so it gets a faint tick. Leaving it off the map made ]
+          // land on bare footage with nothing to say why.
+          if (!live.length) {
+            stops += '<div class="kd-stop hid" style="left:' + ((g.at / T) * W).toFixed(1) + 'px"' +
+              ' title="Point ' + (gi + 1) + ' is hidden (' + g.paths.length +
+              (g.paths.length === 1 ? ' mark' : ' marks') + '). Show it with its eye in the list, or Delete point removes it"><b>hidden</b></div>';
+            return;
+          }
           var pause = live.filter(function (p) { return p.freeze; });
           var secs = pause.length ? Math.max.apply(null, pause.map(function (p) { return p.dur || 0; })) / 1000 : 0;
           stops += '<div class="kd-stop' + (pause.length ? '' : ' nopause') +
@@ -909,7 +917,9 @@
       grid.scrollLeft = clamp(x - Wv * 0.4, 0, Math.max(0, contentW() - Wv));
     }
     var n = pts.indexOf(target) + 1;
-    toast('Point ' + n + ' of ' + pts.length + ' — ' + fmtT(target));
+    var allHidden = teachingPoints()[n - 1].paths.every(function (p) { return p.hidden; });
+    toast('Point ' + n + ' of ' + pts.length + ' — ' + fmtT(target) +
+      (allHidden ? ' (hidden: nothing on screen. Delete point removes it)' : ''));
   }
   // Delete the point the playhead is parked on. The list of points under
   // TIMELINE only shows as many rows as the panel is tall, so on a short
