@@ -154,7 +154,10 @@
     if (isPalette) lastPalette = k;
     document.querySelectorAll('.kd-sec').forEach(function (s) {
       var d = s.dataset.sec;
-      s.classList.toggle('on', d === lastPalette || (!isPalette && d === 'tool'));
+      // On footage the players and objects palettes are rarely used, so they show
+      // only when their own button is pressed; a drawing tool gets its tip and,
+      // right under it, the colour and weight that are used on every mark.
+      s.classList.toggle('on', isPalette ? d === k : d === 'tool');
     });
     // Safety net for the other half of the problem: the panel scrolls, so even a
     // visible section can be below the fold. Picking a palette brings it back
@@ -165,6 +168,9 @@
       if (panel && target) {
         try { panel.scrollTop = Math.max(0, target.offsetTop - panel.offsetTop - 8); } catch (e) {}
       }
+    } else {
+      var pnl = document.querySelector('.kd-panel');
+      if (pnl) pnl.scrollTop = 0;
     }
     // The marks footer is sticky to the bottom of the panel, so it sits on top
     // of whatever is scrolled behind it — which was already burying Positions,
@@ -178,7 +184,7 @@
     // Objects when you are actually drawing an arrow.
     panelTitle.textContent = isPalette
       ? (LABELS[k] || 'Tool')
-      : ((LABELS[lastPalette] || '') + '  ·  ' + (LABELS[k] || 'Tool'));
+      : (LABELS[k] || 'Tool');
     if (!isPalette) {
       toolName.textContent = LABELS[k] || 'Tool';
       toolTip.innerHTML = TIPS[k] || '';
@@ -231,6 +237,10 @@
   setTool = function (k) {
     _setTool(k);
     showPanel(k);
+    // the palette closes when a tool is picked, so its button stops lighting up
+    railHost.querySelectorAll('.tool[data-k="players"], .tool[data-k="objects"]').forEach(function (b) {
+      b.classList.remove('on');
+    });
   };
 
   // ---------------------------------------------------------
