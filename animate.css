@@ -446,3 +446,26 @@ body.light-theme .seg,body.light-theme .zoomctl button{background:rgba(255,255,2
 .kd-segh.r{right:-5px}
 .kd-segh::after{content:"";position:absolute;top:2px;bottom:2px;left:3px;width:3px;border-radius:2px;background:#5BC2D6;opacity:.55}
 .kd-segh:hover::after{opacity:1;background:#cdeff7}
+
+/* Colour, weight and opacity in the tool rail, under Erase. The rail is
+   narrower than the panel they came from, so everything steps down a size. */
+.kd-railmarks{margin-top:10px;padding-top:8px;border-top:1px solid var(--line)}
+.kd-railmarks .kd-lbl{margin:8px 2px 5px}
+.kd-railmarks .kd-lbl:first-child{margin-top:0}
+.kd-railmarks .kd-cwrap{padding:6px}
+.kd-railmarks .kd-cnow{gap:6px;margin-bottom:6px}
+.kd-railmarks .kd-cbig{width:22px;height:22px}
+.kd-railmarks .kd-cname{font-size:11px}
+.kd-railmarks .kd-cgrid{gap:3px}
+.kd-railmarks .kd-sw{height:19px;border-width:2px}
+.kd-railmarks .kd-cgrid.recent{margin-bottom:6px}
+.kd-railmarks .kd-cgrid.recent .kd-sw{height:15px}
+.kd-railmarks .kd-wrow{gap:5px}
+.kd-railmarks .kd-wrow input[type=range]{min-width:0}
+.kd-railmarks .kd-wpreview{width:26px;height:22px}
+.kd-railmarks .kd-wpreview i{width:16px}
+.kd-railmarks .kd-opval{min-width:28px;font-size:10px}
+/* Shorter tool buttons, so the colour block under Erase fits without
+   scrolling the rail on a laptop screen. */
+.kd-rail .tool{height:48px;gap:3px}
+.kd-rail .tool svg{width:22px;height:22px}

@@ -191,6 +191,24 @@
     }
   }
 
+  // Colour, weight and opacity live in the tool rail under Erase: they are
+  // used on every mark, so they sit beside the tools rather than in a panel
+  // that changes with what you pick. Moved, not copied, so every control
+  // keeps its id and its handlers.
+  (function () {
+    var foot = document.querySelector('.kd-pfoot');
+    var rail = document.querySelector('.kd-rail');
+    var cw = foot && foot.querySelector('.kd-cwrap');
+    if (!rail || !cw) return;
+    var box = document.createElement('div');
+    box.className = 'kd-railmarks';
+    var kids = [].slice.call(foot.children);
+    var from = kids.indexOf(cw) - 1;                 // the "Colour" label
+    var stop = kids.findIndex(function (el) { return el.id === 'markModes'; }) - 1; // "While the mark is up"
+    kids.slice(from, stop).forEach(function (el) { box.appendChild(el); });
+    rail.appendChild(box);
+  })();
+
   function pickPalette(k) {
     setTool('select');
     railHost.querySelectorAll('.tool').forEach(function (b) {
