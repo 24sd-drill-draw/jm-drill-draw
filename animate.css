@@ -434,7 +434,15 @@ body.light-theme .seg,body.light-theme .zoomctl button{background:rgba(255,255,2
 
 /* Remove one segment from the reel. The bar lets clicks through so the clip
    track still scrubs; only the × catches them. */
-.kd-segx{position:absolute;right:-7px;top:-7px;width:15px;height:15px;border-radius:50%;
+/* In the middle beside the number, clear of the two ends: sitting on the
+   right end, grabbing that end to stretch the segment deleted it. */
+.kd-segx{position:relative;display:inline-block;margin-left:5px;width:13px;height:13px;border-radius:50%;
   background:#E8313A;color:#fff;font:800 11px/15px system-ui,sans-serif;font-style:normal;
-  text-align:center;cursor:pointer;pointer-events:auto;box-shadow:0 0 0 2px #0E1013;z-index:5}
+  text-align:center;cursor:pointer;pointer-events:auto;box-shadow:0 0 0 1px #0E1013;z-index:5;line-height:13px;font-size:10px}
 .kd-segx:hover{background:#ff4d55;transform:scale(1.12)}
+/* The two ends of a segment: drag to stretch or shorten it. */
+.kd-segh{position:absolute;top:-3px;bottom:-3px;width:9px;pointer-events:auto;cursor:ew-resize;z-index:4;font-style:normal}
+.kd-segh.l{left:-5px}
+.kd-segh.r{right:-5px}
+.kd-segh::after{content:"";position:absolute;top:2px;bottom:2px;left:3px;width:3px;border-radius:2px;background:#5BC2D6;opacity:.55}
+.kd-segh:hover::after{opacity:1;background:#cdeff7}

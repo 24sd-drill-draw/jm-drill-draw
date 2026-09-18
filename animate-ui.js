@@ -704,6 +704,8 @@
           segs += '<div class="kd-seg" style="left:' + x.toFixed(1) + 'px;width:' + ww.toFixed(1) + 'px"' +
             ' title="Segment ' + (i + 1) + ' — ' + fmtT(s.in) + ' to ' + fmtT(s.out) +
             ' (' + fmtT(s.out - s.in) + ')"><b>' + (i + 1) + '</b>' +
+            '<i class="kd-segh l" data-seg="' + i + '" data-end="in" title="Drag to change where segment ' + (i + 1) + ' starts"></i>' +
+            '<i class="kd-segh r" data-seg="' + i + '" data-end="out" title="Drag to change where segment ' + (i + 1) + ' ends"></i>' +
             '<i class="kd-segx" data-seg="' + i + '" title="Remove segment ' + (i + 1) + ' from the reel">&times;</i></div>';
         });
         // A tick for every teaching point, across the WHOLE clip rather than
@@ -1085,6 +1087,24 @@
     // the × on a reel segment removes just that one
     var sx = e.target.closest ? e.target.closest('.kd-segx') : null;
     if (sx) { e.preventDefault(); e.stopPropagation(); removeSegment(+sx.dataset.seg); return; }
+    // an end of a reel segment stretches or shortens it. Its neighbours are
+    // fixed walls, so a stretched segment can never swallow the next play or
+    // change the order the reel runs in.
+    var sh = e.target.closest ? e.target.closest('.kd-segh') : null;
+    if (sh) {
+      var si = +sh.dataset.seg, sg = segments[si];
+      if (!sg) return;
+      if (playing) { playing = false; setPlayUI(); if (vid) vid.pause(); }
+      reelPreview = false;
+      drag = {
+        mode: 'seg', seg: sg, end: sh.dataset.end, n: si + 1,
+        lo: si > 0 ? segments[si - 1].out : 0,
+        hi: si < segments.length - 1 ? segments[si + 1].in : T
+      };
+      try { grid.setPointerCapture(e.pointerId); } catch (err) { }
+      onDrag(e); e.preventDefault(); e.stopPropagation();
+      return;
+    }
     var bar = e.target.closest ? e.target.closest('.kd-bar') : null;
     var key = e.target.closest ? e.target.closest('.kd-key') : null;
     var frz = e.target.closest ? e.target.closest('.kd-frzmark') : null;
@@ -1163,6 +1183,16 @@
       var nd = Math.round(clamp(ms, 0, end - 300) / 50) * 50;
       drag.path.delay = nd;
       drag.path.dur = end - nd;
+    } else if (drag.mode === 'seg') {
+      var s = drag.seg, v = Math.round(ms / 50) * 50;
+      if (drag.end === 'in') s.in = clamp(v, drag.lo, s.out - 300);
+      else s.out = clamp(v, s.in + 300, drag.hi);
+      // the playhead rides the edge, so the video shows the frame the
+      // segment will now start or end on
+      tNow = drag.end === 'in' ? s.in : s.out;
+      movePlayhead(); seekSoon();
+      $('timeLbl').textContent = fmtT(tNow) + ' / ' + fmtT(T);
+      toast('Segment ' + drag.n + ': ' + fmtT(s.in) + ' to ' + fmtT(s.out) + ' (' + fmtT(s.out - s.in) + ')');
     } else if (drag.mode === 'key') {
       var legs = drag.piece.legs;
       legs[drag.leg].s = Math.round(clamp(ms, 0, T) / 50) * 50;
@@ -1178,7 +1208,13 @@
   grid.addEventListener('pointermove', onDrag);
   grid.addEventListener('pointerup', function () {
     var wasScrub = drag && drag.mode === 'scrub';
+    var wasSeg = drag && drag.mode === 'seg';
     drag = null;
+    if (wasSeg) {
+      clearTimeout(seekTimer); lastSeekAt = 0;
+      paintReelInfo(); syncScrub(); lastSig = ''; render();
+      autosaveSoon();
+    }
     // land on the exact frame now the mouse has stopped, and drop any seek
     // still queued from mid-drag so it cannot overwrite where you let go
     if (wasScrub) {
