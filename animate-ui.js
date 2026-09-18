@@ -1566,10 +1566,26 @@
   $('kdSelAll').onclick = function () { inMs = 0; outMs = T; layoutTrim(); };
 
   // Playback respects the trim window: start at `in`, stop (or loop) at `out`.
+  // Points behind the playhead are spent; only the ones still ahead may fire.
+  // Re-arming everything on Play meant a moment drawn at 0:05 fired the instant
+  // you pressed play at 0:25 and dragged the clip back to it.
+  function spendHoldsBefore(ms) {
+    timedMarks().forEach(function (p) {
+      if (p.freeze && (p.delay || 0) < ms - 1 && holdDone.indexOf(p.id) < 0) holdDone.push(p.id);
+    });
+  }
+
   var _togglePlay2 = togglePlay;
   togglePlay = function () {
-    resetHolds();                       // every run through re-arms the freezes
-    if (!playing && (tNow < inMs || tNow >= outMs - 30)) { tNow = inMs; syncScrub(); }
+    if (!playing) {
+      // Space and a click play the FILM, from wherever the playhead is. Only
+      // with Loop on does Play mean "go round the in/out window" — that was
+      // the old single-clip behaviour, and applied to everything it yanked
+      // you back to the in-point whenever you pressed play outside it.
+      if (loop && (tNow < inMs || tNow >= outMs - 30)) { tNow = inMs; syncScrub(); }
+      holdNow = null; _holdIds = null; holdDone = [];
+      spendHoldsBefore(tNow);
+    }
     _togglePlay2();
   };
   $('playBtn').onclick = togglePlay;
@@ -1694,7 +1710,7 @@
       breakUntil = 0;
       var next = segments[reelAt];
       if (!next) { playing = false; setPlayUI(); if (vid) vid.pause(); return false; }
-      tNow = next.in;
+      tNow = next.in; spendHoldsBefore(next.in);   // skipped footage stays skipped
       // Seek, THEN play once the seek has landed. Asking for both in the same
       // tick lets the seek abort the play request: the clip stayed paused at
       // the segment's in-point, our own code kept re-seeking it there, and the
@@ -1708,7 +1724,7 @@
       return false;
     }
     if (reelAt < 0) {                       // first frame of a reel playback
-      reelAt = 0; tNow = segments[0].in;
+      reelAt = 0; tNow = segments[0].in; spendHoldsBefore(tNow);
       if (vid) { try { vid.currentTime = segments[0].in / 1000; } catch (e) { } }
       return false;
     }
@@ -1716,7 +1732,9 @@
     if (!seg) return false;
     // Belt and braces: if the reel thinks it is rolling but the clip is not,
     // ask again. A refused or interrupted play() would otherwise strand it.
-    if (vid && vid.paused && !vid.ended && performance.now() - lastNudge > 300) {
+    // Never during a freeze hold — the clip is paused there on purpose, and
+    // restarting it ran the footage on underneath the teaching point.
+    if (!holdNow && vid && vid.paused && !vid.ended && performance.now() - lastNudge > 300) {
       lastNudge = performance.now();
       try { vid.play().catch(function () { }); } catch (e) { }
     }
@@ -1734,7 +1752,7 @@
         if (vid) { try { vid.pause(); } catch (e) { } }
         return true;
       }
-      tNow = segments[reelAt].in;
+      tNow = segments[reelAt].in; spendHoldsBefore(tNow);
       if (vid) { try { vid.currentTime = tNow / 1000; } catch (e) { } }
     }
     return false;
@@ -1743,6 +1761,10 @@
   function enforceOut() {
     if (reelActive()) return;      // the reel decides where playback ends
     if (!playing) return;
+    // The in/out window says what gets cut; it only fences playback when Loop
+    // is on (play the window round) or during an export. Otherwise playing on
+    // past the out point is just watching the rest of the game.
+    if (!loop && !exporting) return;
     if (tNow >= outMs) {
       if (loop && !exporting) {
         // Seek the CLIP as well, not just the clock. While playing, the video
@@ -1930,6 +1952,7 @@
     reelAt = -1; breakUntil = 0;             // a reel export starts at segment 1
     playing = false; setPlayUI();
     tNow = onReel() ? segments[0].in : inMs;
+    spendHoldsBefore(tNow);                  // nothing before the start may fire
     syncScrub(); render();
 
     var begin = function () {
