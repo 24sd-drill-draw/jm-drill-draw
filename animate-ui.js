@@ -995,6 +995,56 @@
     });
     paintReelInfo();
   }
+  // What the break card shows. A standing preference, not part of a reel:
+  // it is kept in its own key so Clear all on a new game does not reset it.
+  var cardStyle = 'krakenS', cardImg = null;
+  function paintCard() {
+    [].slice.call($('kdCard').querySelectorAll('button')).forEach(function (x) {
+      x.classList.toggle('on', x.dataset.card === cardStyle);
+    });
+  }
+  function saveCard(src) {
+    try { localStorage.setItem('kd.card', JSON.stringify({ style: cardStyle, src: src || null })); } catch (e) {
+      toast('That picture is too big to remember; it works until you reload');
+    }
+  }
+  function useCardSrc(src, save) {
+    var im = new Image();
+    im.onload = function () { cardImg = im; cardStyle = 'custom'; paintCard(); if (save) saveCard(src); lastSig = ''; render(); };
+    im.src = src;
+  }
+  [].slice.call($('kdCard').querySelectorAll('button')).forEach(function (b) {
+    b.addEventListener('click', function () {
+      if (b.dataset.card === 'custom') { $('cardFile').click(); return; }
+      cardStyle = b.dataset.card; paintCard(); saveCard(null);
+      toast(cardStyle === 'black' ? 'Break card: plain black' : 'Break card: Kraken S');
+    });
+  });
+  $('cardFile').addEventListener('change', function (e) {
+    var f = e.target.files[0]; e.target.value = '';
+    try { e.target.blur(); } catch (x) { }
+    if (!f) return;
+    var rd = new FileReader();
+    rd.onload = function () {
+      // shrink it first: a phone photo would not fit in the browser's storage
+      var src = new Image();
+      src.onload = function () {
+        var k = Math.min(1, 900 / Math.max(src.naturalWidth, src.naturalHeight));
+        var c = document.createElement('canvas');
+        c.width = Math.round(src.naturalWidth * k); c.height = Math.round(src.naturalHeight * k);
+        c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+        useCardSrc(c.toDataURL('image/png'), true);
+        toast('Break card: your picture');
+      };
+      src.src = rd.result;
+    };
+    rd.readAsDataURL(f);
+  });
+  try {
+    var ck = JSON.parse(localStorage.getItem('kd.card') || 'null');
+    if (ck && ck.style === 'custom' && ck.src) useCardSrc(ck.src, false);
+    else if (ck && ck.style === 'black') { cardStyle = 'black'; paintCard(); }
+  } catch (e) { }
   [].slice.call($('kdBreak').querySelectorAll('button')).forEach(function (b) {
     b.addEventListener('click', function () { setBreak(parseInt(b.dataset.br, 10) || 0); });
   });
@@ -1353,9 +1403,12 @@
       // Always the Kraken S. It followed the Centre logo dropdown, which
       // defaults to the Anchorage camp crest — and on footage that dropdown
       // does nothing else, so there was no reason to go looking for it.
-      var crest = LOGO_IMG.krakenS || LOGO_IMG[centerLogo];
+      var crest = cardStyle === 'black' ? null
+        : cardStyle === 'custom' && cardImg ? cardImg
+        : (LOGO_IMG.krakenS || LOGO_IMG[centerLogo]);
       if (crest && crest.complete && crest.naturalWidth) {
-        var ch = h * 0.34, cw2 = ch * (crest.naturalWidth / crest.naturalHeight);
+        // a picture of your own can fill more of the card than a crest
+        var ch = h * (cardStyle === 'custom' ? 0.6 : 0.34), cw2 = ch * (crest.naturalWidth / crest.naturalHeight);
         if (cw2 > w * 0.5) { cw2 = w * 0.5; ch = cw2 / (crest.naturalWidth / crest.naturalHeight); }
         ctx.globalAlpha = 0.95;
         ctx.drawImage(crest, a[0] + (w - cw2) / 2, a[1] + (h - ch) / 2, cw2, ch);
@@ -2443,7 +2496,8 @@
       loadData(o.data);
       var r = o.data.reel;
       if (r && r.segments && r.segments.length) {
-        segments = r.segments.map(function (s) { return { in: +s.in, out: +s.out }; });
+        // keep the caption: this copied only in/out, so a reload lost every caption
+        segments = r.segments.map(function (s) { var o = { in: +s.in, out: +s.out }; if (s.label) o.label = String(s.label); return o; });
         if (r.breakMs != null) setBreak(r.breakMs);
         paintReelInfo();
       }
