@@ -901,10 +901,21 @@
   // TIMELINE only shows as many rows as the panel is tall, so on a short
   // window most of their x buttons were out of sight.
   function deletePointHere() {
-    var pts = teachingPoints(), hit = -1;
-    for (var i = 0; i < pts.length; i++) if (Math.abs(pts[i].at - tNow) <= 250) { hit = i; break; }
-    if (hit < 0) { toast('Park on a point first: [ or ] jumps to one'); return; }
+    // The nearest point within a second and a half, not just a frame or two:
+    // a playhead dragged there by hand is rarely dead on, and a stray mark
+    // with nothing visible gives no way to tell you're close.
+    var pts = teachingPoints(), hit = -1, near = -1;
+    for (var i = 0; i < pts.length; i++) {
+      if (near < 0 || Math.abs(pts[i].at - tNow) < Math.abs(pts[near].at - tNow)) near = i;
+    }
+    if (near >= 0 && Math.abs(pts[near].at - tNow) <= 1500) hit = near;
+    if (hit < 0) {
+      toast(near < 0 ? 'No points to delete'
+        : 'No point here. Nearest is Point ' + (near + 1) + ' at ' + fmtT(pts[near].at) + ': [ or ] jumps to it');
+      return;
+    }
     var gone = pts[hit].paths;
+    var nLabels = gone.filter(function (x) { return x.type === 'text'; }).length;
     pushUndo();
     paths = paths.filter(function (x) { return gone.indexOf(x) < 0; });
     scenes[currentScene].paths = paths;
@@ -912,7 +923,11 @@
     scenes[currentScene].pieces = pieces;
     selOne(null); updateInspector();
     lastSig = ''; render();
-    toast('Point ' + (hit + 1) + ' deleted (Ctrl+Z brings it back)');
+    var nLines = gone.length - nLabels;
+    toast('Point ' + (hit + 1) + ' at ' + fmtT(pts[hit].at) + ' deleted: ' +
+      nLines + (nLines === 1 ? ' mark' : ' marks') +
+      (nLabels ? ', ' + nLabels + (nLabels === 1 ? ' label' : ' labels') : '') +
+      ' (Ctrl+Z brings it back)');
   }
   [].slice.call($('kdPoints').querySelectorAll('button')).forEach(function (b) {
     b.addEventListener('click', function () {
