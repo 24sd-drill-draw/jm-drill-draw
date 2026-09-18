@@ -831,7 +831,11 @@
   // moment — the window snapped back to where the last cut ended.
   function markIn() {
     inMs = clamp(tNow, 0, T - 200);
-    if (outMs < inMs + 200) outMs = Math.min(T, inMs + 200);
+    // A new in past the old out opens the window to the end of the clip, so
+    // the play can run on until O closes it. Squeezing it to 0.2s after the in
+    // meant the next Play stopped almost at once — you could never watch
+    // forward to find where the second play ended.
+    if (outMs < inMs + 200) outMs = T;
     syncTimeline(true); render();
   }
   function markOut() {
@@ -874,6 +878,14 @@
 
   $('kdAddSeg').onclick = addSegment;
   $('kdClearSegs').onclick = clearSegments;
+  $('kdPlayReel').onclick = function () {
+    if (!onReel()) { toast('Add a segment to the reel first'); return; }
+    if (playing) { playing = false; setPlayUI(); if (vid) vid.pause(); }
+    reelPreview = true; reelAt = -1; breakUntil = 0;
+    resetHolds();
+    tNow = segments[0].in; syncScrub();
+    togglePlay();
+  };
   [].slice.call($('kdBreak').querySelectorAll('button')).forEach(function (b) {
     b.addEventListener('click', function () {
       breakMs = parseInt(b.dataset.br, 10) || 0;
@@ -1634,7 +1646,15 @@
   var reelAt = -1;            // which segment is running; -1 = not on the reel
   var breakUntil = 0;         // wall-clock end of the card, 0 = not showing one
   var lastNudge = 0;          // throttles the resume retry
+  var cardAt = 0;             // where the clock waits while the card is up
   function onReel() { return segments.length > 0; }
+  // Building a reel and watching one are different jobs. Having segments must
+  // not take over ordinary playback: finding where the next play ends means
+  // watching forward from the playhead, and a reel that grabbed every Play
+  // and jumped back to segment 1 made the second cut impossible to finish.
+  // The reel drives playback only when asked (Play reel) or when exporting.
+  var reelPreview = false;
+  function reelActive() { return onReel() && (reelPreview || exporting); }
   function reelTotal() {
     var t = 0;
     segments.forEach(function (s) { t += Math.max(0, s.out - s.in); });
@@ -1646,6 +1666,7 @@
       ? n + (n === 1 ? ' segment' : ' segments') + ' → one video, ' + fmtT(reelTotal())
       : 'reel empty — Export uses in/out';
     $('kdClearSegs').disabled = !n;
+    $('kdPlayReel').disabled = !n;
   }
   function addSegment() {
     if (!vid) { toast('Open a clip first'); return; }
@@ -1656,7 +1677,7 @@
     toast('Segment ' + segments.length + ' added — ' + fmtT(outMs - inMs));
   }
   function clearSegments() {
-    segments = []; reelAt = -1; breakUntil = 0;
+    segments = []; reelAt = -1; breakUntil = 0; reelPreview = false;
     paintReelInfo(); lastSig = ''; render();
     toast('Reel emptied');
   }
@@ -1665,9 +1686,11 @@
   // segment. Wall-clock for the card, the clip's own clock for the footage —
   // the same split the freeze hold uses, for the same reason.
   function advanceReel() {
-    if (!onReel() || !playing) return false;
+    if (!reelActive() || !playing) return false;
     if (breakUntil) {
-      if (performance.now() < breakUntil) { return true; }   // card is up
+      // card is up: hold the clock where the last segment ended, or the tick
+      // loop crawls the playhead across the footage being skipped
+      if (performance.now() < breakUntil) { tNow = cardAt; return true; }
       breakUntil = 0;
       var next = segments[reelAt];
       if (!next) { playing = false; setPlayUI(); if (vid) vid.pause(); return false; }
@@ -1702,11 +1725,12 @@
       if (reelAt >= segments.length) {      // reel finished
         if (loop && !exporting) { reelAt = -1; resetHolds(); return false; }
         playing = false; setPlayUI(); if (vid) vid.pause();
+        reelPreview = false;                // back to ordinary playback
         tNow = seg.out; syncScrub();
         return false;
       }
       if (breakMs > 0) {                    // hold the card, then carry on
-        breakUntil = performance.now() + breakMs;
+        breakUntil = performance.now() + breakMs; cardAt = seg.out;
         if (vid) { try { vid.pause(); } catch (e) { } }
         return true;
       }
@@ -1717,7 +1741,7 @@
   }
 
   function enforceOut() {
-    if (onReel()) return;          // the reel decides where playback ends
+    if (reelActive()) return;      // the reel decides where playback ends
     if (!playing) return;
     if (tNow >= outMs) {
       if (loop && !exporting) {
@@ -1983,6 +2007,9 @@
   // ---------------------------------------------------------
   var _render = render;
   render = function () {
+    // Stopping a reel preview part-way (space, a click, the play button)
+    // hands playback back to the playhead; the next Play is an ordinary one.
+    if (reelPreview && !playing && !breakUntil) { reelPreview = false; reelAt = -1; }
     _render.apply(this, arguments);
     syncTimeline(false);
     // While recording, hand the freshly painted canvas to the encoder. Driving
