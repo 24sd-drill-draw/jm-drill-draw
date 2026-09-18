@@ -897,8 +897,28 @@
     var n = pts.indexOf(target) + 1;
     toast('Point ' + n + ' of ' + pts.length + ' — ' + fmtT(target));
   }
+  // Delete the point the playhead is parked on. The list of points under
+  // TIMELINE only shows as many rows as the panel is tall, so on a short
+  // window most of their x buttons were out of sight.
+  function deletePointHere() {
+    var pts = teachingPoints(), hit = -1;
+    for (var i = 0; i < pts.length; i++) if (Math.abs(pts[i].at - tNow) <= 250) { hit = i; break; }
+    if (hit < 0) { toast('Park on a point first: [ or ] jumps to one'); return; }
+    var gone = pts[hit].paths;
+    pushUndo();
+    paths = paths.filter(function (x) { return gone.indexOf(x) < 0; });
+    scenes[currentScene].paths = paths;
+    pieces = pieces.filter(function (x) { return gone.indexOf(x) < 0; });
+    scenes[currentScene].pieces = pieces;
+    selOne(null); updateInspector();
+    lastSig = ''; render();
+    toast('Point ' + (hit + 1) + ' deleted (Ctrl+Z brings it back)');
+  }
   [].slice.call($('kdPoints').querySelectorAll('button')).forEach(function (b) {
-    b.addEventListener('click', function () { gotoPoint(b.dataset.pt === 'next' ? 1 : -1); });
+    b.addEventListener('click', function () {
+      if (b.dataset.pt === 'del') { deletePointHere(); return; }
+      gotoPoint(b.dataset.pt === 'next' ? 1 : -1);
+    });
   });
   window.addEventListener('keydown', function (e) {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
