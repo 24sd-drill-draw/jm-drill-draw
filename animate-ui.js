@@ -1465,10 +1465,40 @@
     toast('Clip removed');
   }
 
+  // Drawings are tied to timestamps, not to a file — so opening a different
+  // game used to drop the last clip's marks onto the new one at the same
+  // times. Ask first. "Keep" is there for reopening the same clip.
+  var pendingClip = null;
+  function drawingCount() {
+    return paths.length + pieces.filter(function (p) { return p.delay != null; }).length;
+  }
+  function openClipAsked(f) {
+    var n = drawingCount();
+    if (!n) { loadVideoFile(f); return; }
+    pendingClip = f;
+    $('keepMsg').innerHTML = 'You have <b>' + n + (n === 1 ? ' drawing' : ' drawings') +
+      '</b> on the board. They are tied to times in the clip, so kept ones will ' +
+      'appear on <b>' + f.name.replace(/[<>&]/g, '') + '</b> at the same timestamps.' +
+      '<br><br>Keep them if you are reopening the same clip.';
+    $('keepModal').classList.add('show');
+  }
+  function closeKeep() { $('keepModal').classList.remove('show'); pendingClip = null; }
+  $('keepCancel').onclick = closeKeep;
+  $('keepKeep').onclick = function () { var f = pendingClip; closeKeep(); if (f) loadVideoFile(f); };
+  $('keepClear').onclick = function () {
+    var f = pendingClip; closeKeep();
+    pushUndo();                               // Ctrl+Z brings them back
+    paths = []; pieces = [];
+    scenes[currentScene].paths = paths; scenes[currentScene].pieces = pieces;
+    selOne(null); updateInspector(); lastSig = '';
+    if (f) loadVideoFile(f);
+    toast('Drawings cleared');
+  };
+
   $('vidFile').addEventListener('change', function (e) {
     var f = e.target.files[0];
     e.target.value = '';
-    if (f) loadVideoFile(f);
+    if (f) openClipAsked(f);
   });
   $('vidOpen').onclick = openVideo;
   $('vidRemove').onclick = removeVideo;

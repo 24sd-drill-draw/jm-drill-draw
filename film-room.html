@@ -350,6 +350,23 @@
 <div class="toast" id="toast"></div>
 
 <!-- SAVE DRILL MODAL -->
+<!-- Opening a new clip with drawings already on the board. The marks are tied
+     to timestamps, not to a file, so without asking they would land on the new
+     game at the same times. -->
+<div class="modal" id="keepModal">
+  <div class="card" style="max-width:400px">
+    <h2 style="font-size:16px;margin-bottom:8px">Opening a new clip</h2>
+    <p id="keepMsg" style="font-size:13px;line-height:1.5;color:var(--muted);margin:0 0 16px">
+      You have drawings on the board.
+    </p>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="tbtn ghost" id="keepCancel">Cancel</button>
+      <button class="tbtn ghost" id="keepKeep">Keep them</button>
+      <button class="tbtn accent" id="keepClear">Clear drawings</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal" id="saveModal">
   <div class="card" style="max-width:380px">
     <h2 style="font-size:16px;margin-bottom:12px">Save Drill</h2>
