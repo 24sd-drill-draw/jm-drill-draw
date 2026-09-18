@@ -886,13 +886,15 @@
     tNow = segments[0].in; syncScrub();
     togglePlay();
   };
-  [].slice.call($('kdBreak').querySelectorAll('button')).forEach(function (b) {
-    b.addEventListener('click', function () {
-      breakMs = parseInt(b.dataset.br, 10) || 0;
-      [].slice.call($('kdBreak').querySelectorAll('button'))
-        .forEach(function (x) { x.classList.toggle('on', x === b); });
-      paintReelInfo();
+  function setBreak(ms) {
+    breakMs = ms || 0;
+    [].slice.call($('kdBreak').querySelectorAll('button')).forEach(function (x) {
+      x.classList.toggle('on', (parseInt(x.dataset.br, 10) || 0) === breakMs);
     });
+    paintReelInfo();
+  }
+  [].slice.call($('kdBreak').querySelectorAll('button')).forEach(function (b) {
+    b.addEventListener('click', function () { setBreak(parseInt(b.dataset.br, 10) || 0); });
   });
   $('kdMarkIn').onclick = markIn;
   $('kdMarkOut').onclick = markOut;
@@ -1390,7 +1392,10 @@
       // On footage, a mark IS a teaching point: stop the clip, hold it, carry
       // on. Defaulting to "plays on" for the rest of the clip meant every mark
       // had to be reset by hand, and a missed one just smeared across the play.
-      segments = []; reelAt = -1; breakUntil = 0; paintReelInfo();
+      // The reel is kept or cleared by the keep-or-clear prompt, not here —
+      // but a segment past the end of THIS clip cannot be played, so drop it.
+      segments = segments.filter(function (s) { return s.out <= T + 50; });
+      reelAt = -1; breakUntil = 0; reelPreview = false; paintReelInfo();
       setFreezeMode(true, false); setHold(3000);
       // One frame at a time is right for landing on a tip-in and hopeless for
       // crossing a half-hour game. Start at 2s on a clip; Shift+arrow is still
@@ -1473,13 +1478,19 @@
     return paths.length + pieces.filter(function (p) { return p.delay != null; }).length;
   }
   function openClipAsked(f) {
-    var n = drawingCount();
-    if (!n) { loadVideoFile(f); return; }
+    // Drawings and reel segments are both tied to times in the clip, so both
+    // are the same question: carry them onto this clip, or start clean.
+    var n = drawingCount(), s = segments.length;
+    if (!n && !s) { loadVideoFile(f); return; }
     pendingClip = f;
-    $('keepMsg').innerHTML = 'You have <b>' + n + (n === 1 ? ' drawing' : ' drawings') +
-      '</b> on the board. They are tied to times in the clip, so kept ones will ' +
-      'appear on <b>' + f.name.replace(/[<>&]/g, '') + '</b> at the same timestamps.' +
+    var what = [];
+    if (n) what.push('<b>' + n + (n === 1 ? ' drawing' : ' drawings') + '</b>');
+    if (s) what.push('<b>' + s + (s === 1 ? ' reel segment' : ' reel segments') + '</b>');
+    $('keepMsg').innerHTML = 'You have ' + what.join(' and ') + ' on the board. ' +
+      'They are tied to times in the clip, so kept ones land on <b>' +
+      f.name.replace(/[<>&]/g, '') + '</b> at the same timestamps.' +
       '<br><br>Keep them if you are reopening the same clip.';
+    $('keepClear').textContent = s && n ? 'Clear all' : (s ? 'Clear reel' : 'Clear drawings');
     $('keepModal').classList.add('show');
   }
   function closeKeep() { $('keepModal').classList.remove('show'); pendingClip = null; }
@@ -1487,12 +1498,13 @@
   $('keepKeep').onclick = function () { var f = pendingClip; closeKeep(); if (f) loadVideoFile(f); };
   $('keepClear').onclick = function () {
     var f = pendingClip; closeKeep();
-    pushUndo();                               // Ctrl+Z brings them back
+    pushUndo();
     paths = []; pieces = [];
     scenes[currentScene].paths = paths; scenes[currentScene].pieces = pieces;
+    segments = []; reelAt = -1; breakUntil = 0; reelPreview = false; paintReelInfo();
     selOne(null); updateInspector(); lastSig = '';
     if (f) loadVideoFile(f);
-    toast('Drawings cleared');
+    toast('Cleared — starting fresh on the new clip');
   };
 
   $('vidFile').addEventListener('change', function (e) {
@@ -1721,11 +1733,13 @@
     segments.sort(function (a, b) { return a.in - b.in; });
     paintReelInfo(); lastSig = ''; render();
     toast('Segment ' + segments.length + ' added — ' + fmtT(outMs - inMs));
+    autosaveSoon();
   }
   function clearSegments() {
     segments = []; reelAt = -1; breakUntil = 0; reelPreview = false;
     paintReelInfo(); lastSig = ''; render();
     toast('Reel emptied');
+    autosaveSoon();
   }
 
   // Runs every frame while playing: holds the card, then moves to the next
@@ -2101,14 +2115,19 @@
             var q = Object.assign({}, p); q._lut = undefined; return q;
           })
         };
-      })
+      }),
+      // The reel is tied to timestamps exactly as the drawings are, so it is
+      // kept the same way. A reload used to bring the lines back and lose
+      // every segment.
+      reel: { segments: segments.slice(), breakMs: breakMs }
     };
   }
   var lastSaved = '';
   function autosaveNow() {
     try {
       var d = boardData();
-      var empty = d.scenes.every(function (s) { return !s.pieces.length && !s.paths.length; });
+      // a reel with no drawings is still work worth keeping
+      var empty = !segments.length && d.scenes.every(function (s) { return !s.pieces.length && !s.paths.length; });
       if (empty) { localStorage.removeItem(AKEY); lastSaved = ''; return; }
       var json = JSON.stringify(d);
       if (json === lastSaved) return;
@@ -2138,6 +2157,12 @@
     if (pieces.length || paths.length) return;   // never clobber a live board
     try {
       loadData(o.data);
+      var r = o.data.reel;
+      if (r && r.segments && r.segments.length) {
+        segments = r.segments.map(function (s) { return { in: +s.in, out: +s.out }; });
+        if (r.breakMs != null) setBreak(r.breakMs);
+        paintReelInfo();
+      }
       toast('Picked up where you left off — File ▸ New to start fresh');
     } catch (e) { }
   }
