@@ -359,6 +359,18 @@
 <!-- Opening a new clip with drawings already on the board. The marks are tied
      to timestamps, not to a file, so without asking they would land on the new
      game at the same times. -->
+<div class="modal" id="nameModal">
+  <div class="card" style="max-width:420px">
+    <h2 style="font-size:16px;margin-bottom:8px">Name this video</h2>
+    <p id="nameMsg" style="font-size:13px;line-height:1.5;color:var(--muted);margin:0 0 12px">The export is ready.</p>
+    <input type="text" id="nameInput" autocomplete="off" style="width:100%;box-sizing:border-box;padding:8px 10px;font-size:14px;border-radius:6px;border:1px solid var(--line);background:var(--navy2,#161a20);color:inherit;margin-bottom:16px">
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="tbtn ghost" id="nameDiscard">Discard video</button>
+      <button class="tbtn accent" id="nameSave">Save video</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal" id="keepModal">
   <div class="card" style="max-width:400px">
     <h2 style="font-size:16px;margin-bottom:8px">Opening a new clip</h2>

@@ -1916,6 +1916,67 @@
     toast('Removed segment ' + (i + 1) + ' (' + fmtT(s.in) + '–' + fmtT(s.out) + ')');
     autosaveSoon();
   }
+  // Name the finished export before it is written. The recording ends minutes
+  // after the click, so the save has to wait for a fresh click here — the
+  // folder picker only opens off a click. Discard asks first: the recording
+  // exists nowhere else.
+  var pendingVideo = null;
+  function askVideoName(blob, ext, suggested, info) {
+    pendingVideo = { blob: blob, ext: ext, info: info };
+    $('nameMsg').textContent = 'The export is ready: ' + info + '. Give it a name your players will recognise.';
+    $('nameInput').value = suggested;
+    $('nameModal').classList.add('show');
+    setTimeout(function () { $('nameInput').focus(); $('nameInput').select(); }, 30);
+  }
+  function cleanName(s) {
+    return (s || '').replace(/[\\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120) || 'film-room-clip';
+  }
+  function downloadVideo(v, name) {
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(v.blob);
+    a.download = name + '.' + v.ext;
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+    toast('Saved "' + name + '.' + v.ext + '" to your downloads');
+  }
+  $('nameSave').onclick = async function () {
+    var v = pendingVideo; if (!v) return;
+    var name = cleanName($('nameInput').value);
+    $('nameModal').classList.remove('show');
+    if (window.showSaveFilePicker) {
+      try {
+        var mime = 'video/' + v.ext;
+        var types = {}; types[mime] = ['.' + v.ext];
+        var handle = await window.showSaveFilePicker({
+          id: 'filmRoomVideos', suggestedName: name + '.' + v.ext,
+          types: [{ description: 'Video', accept: types }]
+        });
+        var w = await handle.createWritable();
+        await w.write(v.blob); await w.close();
+        pendingVideo = null;
+        toast('Saved "' + handle.name + '"');
+        return;
+      } catch (err) {
+        if (err && err.name === 'AbortError') {
+          // cancelling the folder picker must not lose the video
+          $('nameModal').classList.add('show');
+          toast('Not saved yet. Save again, or Discard');
+          return;
+        }
+      }
+    }
+    downloadVideo(v, name);
+    pendingVideo = null;
+  };
+  $('nameInput').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); $('nameSave').click(); }
+  });
+  $('nameDiscard').onclick = function () {
+    if (!window.confirm('Throw this export away? You would have to export it again.')) return;
+    pendingVideo = null;
+    $('nameModal').classList.remove('show');
+    toast('Export discarded');
+  };
   // Jump to the previous / next start or end of a reel segment. [ and ] walk
   // the drawings; these walk the cuts, so trimming a play is two keys away.
   function gotoSegEdge(dir) {
@@ -2199,15 +2260,14 @@
         return;
       }
       var base = (vidName ? vidName.replace(/\.[^.]+$/, '') : 'drill');
-      var a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = base + '_marked_' + Math.round(inMs / 100) / 10 + 's-' + Math.round(outMs / 100) / 10 + 's.' + ext;
-      a.click();
-      setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
-      toast('Saved ' + fmtT(trimSpan()) + ' ' + ext.toUpperCase() +
+      var suggested = onReel()
+        ? base + '_reel_' + segments.length + '-clips'
+        : base + '_marked_' + Math.round(inMs / 100) / 10 + 's-' + Math.round(outMs / 100) / 10 + 's';
+      var info = ext.toUpperCase() +
         (native ? ' at ' + native.w + '×' + native.h : '') +
         (fps ? ' · ' + fps + 'fps' : '') +
-        (withAudio ? ' with audio' : ' (no audio)') + ' to your downloads');
+        (withAudio ? ' with audio' : ' (no audio)');
+      askVideoName(blob, ext, suggested, info);
     };
 
     exporting = true;
