@@ -429,3 +429,10 @@ body.light-theme .seg,body.light-theme .zoomctl button{background:rgba(255,255,2
   background:rgba(91,194,214,.36);border:1px solid #5BC2D6;
   display:flex;align-items:center;justify-content:center;pointer-events:none}
 .kd-seg b{font:800 9px/1 system-ui,sans-serif;color:#cdeff7;letter-spacing:.3px}
+
+/* Remove one segment from the reel. The bar lets clicks through so the clip
+   track still scrubs; only the × catches them. */
+.kd-segx{position:absolute;right:-7px;top:-7px;width:15px;height:15px;border-radius:50%;
+  background:#E8313A;color:#fff;font:800 11px/15px system-ui,sans-serif;font-style:normal;
+  text-align:center;cursor:pointer;pointer-events:auto;box-shadow:0 0 0 2px #0E1013;z-index:5}
+.kd-segx:hover{background:#ff4d55;transform:scale(1.12)}

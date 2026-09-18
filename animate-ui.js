@@ -619,10 +619,16 @@
   // Time the pauses add to the export. Per teaching POINT, not per mark: three
   // lines on one play stop the clip once, so summing each mark's duration
   // triple-counted the pause and overstated the finished length.
+  // Is this moment in what the export will contain — the reel's segments when
+  // there is a reel, otherwise the in/out window.
+  function inExport(ms) {
+    if (onReel()) return segments.some(function (s) { return ms >= s.in && ms <= s.out; });
+    return ms >= inMs && ms <= outMs;
+  }
   function holdTotal() {
     var total = 0;
     teachingPoints().forEach(function (g) {
-      if (g.at < inMs || g.at > outMs) return;
+      if (!inExport(g.at)) return;
       var held = g.paths.filter(function (p) { return p.freeze && !p.hidden; });
       if (held.length) total += Math.max.apply(null, held.map(function (p) { return p.dur || 0; }));
     });
@@ -644,10 +650,16 @@
 
     var nPts = rows.filter(function (r) { return r.group; }).length;
     var holds = holdTotal();
-    trackInfo.textContent = nPts + (nPts === 1 ? ' point' : ' points') + ' · ' +
+    // With a reel, the export is the reel — counting the in/out window here
+    // said "0:31 out" beside a 2:54 reel. Points that fall outside every
+    // segment are left out of the file, so say how many.
+    var base = onReel() ? reelTotal() : trimSpan();
+    var left = teachingPoints().filter(function (g) { return !inExport(g.at); }).length;
+    trackInfo.textContent = nPts + (nPts === 1 ? ' point' : ' points') +
+      (left ? ' (' + left + ' not in export)' : '') + ' · ' +
       (holds
-        ? fmtT(trimSpan()) + ' + ' + (holds / 1000).toFixed(1) + 's holds = ' + fmtT(trimSpan() + holds) + ' out'
-        : fmtT(trimSpan()) + ' out');
+        ? fmtT(base) + ' + ' + (holds / 1000).toFixed(1) + 's holds = ' + fmtT(base + holds) + ' out'
+        : fmtT(base) + ' out');
 
 
     // gridlines on the same beat as the ruler
@@ -672,9 +684,12 @@
         var segs = '';
         segments.forEach(function (s, i) {
           var x = (s.in / T) * W, ww = Math.max(3, ((s.out - s.in) / T) * W);
+          // The × is the only part that takes clicks; the bar itself lets them
+          // through, so the clip track still scrubs underneath it.
           segs += '<div class="kd-seg" style="left:' + x.toFixed(1) + 'px;width:' + ww.toFixed(1) + 'px"' +
             ' title="Segment ' + (i + 1) + ' — ' + fmtT(s.in) + ' to ' + fmtT(s.out) +
-            ' (' + fmtT(s.out - s.in) + ')"><b>' + (i + 1) + '</b></div>';
+            ' (' + fmtT(s.out - s.in) + ')"><b>' + (i + 1) + '</b>' +
+            '<i class="kd-segx" data-seg="' + i + '" title="Remove segment ' + (i + 1) + ' from the reel">&times;</i></div>';
         });
         // A tick for every teaching point, across the WHOLE clip rather than
         // only inside the trim: on a two-minute breakdown this is the map of
@@ -986,6 +1001,9 @@
   }
 
   grid.addEventListener('pointerdown', function (e) {
+    // the × on a reel segment removes just that one
+    var sx = e.target.closest ? e.target.closest('.kd-segx') : null;
+    if (sx) { e.preventDefault(); e.stopPropagation(); removeSegment(+sx.dataset.seg); return; }
     var bar = e.target.closest ? e.target.closest('.kd-bar') : null;
     var key = e.target.closest ? e.target.closest('.kd-key') : null;
     var frz = e.target.closest ? e.target.closest('.kd-frzmark') : null;
@@ -1729,10 +1747,30 @@
   function addSegment() {
     if (!vid) { toast('Open a clip first'); return; }
     if (outMs - inMs < 300) { toast('Set in and out around a play first'); return; }
-    segments.push({ in: Math.round(inMs), out: Math.round(outMs) });
+    // Pressing M twice on the same window put the same play on the reel twice,
+    // so it ran back to back in the export. The same window is refused.
+    var a = Math.round(inMs), b = Math.round(outMs);
+    for (var k = 0; k < segments.length; k++) {
+      if (Math.abs(segments[k].in - a) < 150 && Math.abs(segments[k].out - b) < 150) {
+        toast('That play is already on the reel (segment ' + (k + 1) + ')');
+        return;
+      }
+    }
+    segments.push({ in: a, out: b });
     segments.sort(function (a, b) { return a.in - b.in; });
     paintReelInfo(); lastSig = ''; render();
     toast('Segment ' + segments.length + ' added — ' + fmtT(outMs - inMs));
+    autosaveSoon();
+  }
+  // One segment off the reel. Clear reel was the only way to take anything
+  // off, so a play added twice by mistake meant rebuilding the whole reel.
+  function removeSegment(i) {
+    var s = segments[i];
+    if (!s) return;
+    segments.splice(i, 1);
+    reelAt = -1; breakUntil = 0;
+    paintReelInfo(); lastSig = ''; render();
+    toast('Removed segment ' + (i + 1) + ' (' + fmtT(s.in) + '–' + fmtT(s.out) + ')');
     autosaveSoon();
   }
   function clearSegments() {
