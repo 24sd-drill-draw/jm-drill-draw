@@ -703,7 +703,7 @@
           // through, so the clip track still scrubs underneath it.
           segs += '<div class="kd-seg" style="left:' + x.toFixed(1) + 'px;width:' + ww.toFixed(1) + 'px"' +
             ' title="Segment ' + (i + 1) + ' — ' + fmtT(s.in) + ' to ' + fmtT(s.out) +
-            ' (' + fmtT(s.out - s.in) + ')"><b>' + (i + 1) + '</b>' +
+            ' (' + fmtT(s.out - s.in) + ')' + (s.label ? ': ' + s.label.replace(/"/g, '&quot;') : '') + '"><b>' + (i + 1) + (s.label ? ' ✎' : '') + '</b>' +
             '<i class="kd-segh l" data-seg="' + i + '" data-end="in" title="Drag to change where segment ' + (i + 1) + ' starts"></i>' +
             '<i class="kd-segh r" data-seg="' + i + '" data-end="out" title="Drag to change where segment ' + (i + 1) + ' ends"></i>' +
             '<i class="kd-segx" data-seg="' + i + '" title="Remove segment ' + (i + 1) + ' from the reel">&times;</i></div>';
@@ -975,6 +975,7 @@
   });
 
   $('kdAddSeg').onclick = addSegment;
+  $('kdLabelSeg').onclick = labelSegment;
   $('kdClearSegs').onclick = clearSegments;
   $('kdPlayReel').onclick = function () {
     if (!onReel()) { toast('Add a segment to the reel first'); return; }
@@ -1383,6 +1384,24 @@
       ctx.fillText(vid ? 'Loading clip…' : 'No clip loaded — File ▸ Open video…',
         a[0] + w / 2, a[1] + h / 2);
       ctx.textAlign = 'start';
+    }
+    // The segment's caption, lower left — the way a pro breakdown names each
+    // clip ("Replacement", "CBO"). It is burned into the export with the rest.
+    var capSeg = null;
+    for (var ci = 0; ci < segments.length; ci++) {
+      if (segments[ci].label && tNow >= segments[ci].in - 1 && tNow <= segments[ci].out + 1) { capSeg = segments[ci]; break; }
+    }
+    if (drew && capSeg) {
+      var fs = Math.max(12, Math.round(h * 0.045));
+      ctx.font = '600 ' + fs + 'px system-ui,Segoe UI,sans-serif';
+      var tw = ctx.measureText(capSeg.label).width, pad = fs * 0.45;
+      var bx2 = a[0], by2 = a[1] + h - fs * 1.9 - h * 0.03;
+      ctx.fillStyle = 'rgba(10,12,16,.72)';
+      ctx.fillRect(bx2, by2, tw + pad * 2, fs * 1.6);
+      ctx.fillStyle = '#fff';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(capSeg.label, bx2 + pad, by2 + fs * 0.8);
+      ctx.textBaseline = 'alphabetic';
     }
     // Holding the last frame stopped the picture flashing black on every play
     // and pause, but it also hid a clip that is still reading off disk: a big
@@ -1892,6 +1911,20 @@
     reelAt = -1; breakUntil = 0;
     paintReelInfo(); lastSig = ''; render();
     toast('Removed segment ' + (i + 1) + ' (' + fmtT(s.in) + '–' + fmtT(s.out) + ')');
+    autosaveSoon();
+  }
+  // Caption the segment the playhead is in. Empty text takes the caption off.
+  function labelSegment() {
+    var i = -1;
+    for (var k = 0; k < segments.length; k++) if (tNow >= segments[k].in && tNow <= segments[k].out) { i = k; break; }
+    if (i < 0) { toast(segments.length ? 'Park the playhead inside a segment first' : 'Add a segment to the reel first'); return; }
+    var s = segments[i];
+    var v = window.prompt('Caption for segment ' + (i + 1) + ' (shows lower left while it plays; leave empty to remove):', s.label || '');
+    if (v === null) return;
+    v = v.trim();
+    if (v) s.label = v; else delete s.label;
+    lastSig = ''; render();
+    toast(v ? 'Segment ' + (i + 1) + ' captioned "' + v + '"' : 'Caption removed from segment ' + (i + 1));
     autosaveSoon();
   }
   function clearSegments() {
