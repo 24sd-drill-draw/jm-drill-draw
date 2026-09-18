@@ -976,6 +976,9 @@
 
   $('kdAddSeg').onclick = addSegment;
   $('kdLabelSeg').onclick = labelSegment;
+  [].slice.call($('kdSegJump').querySelectorAll('button')).forEach(function (b) {
+    b.addEventListener('click', function () { gotoSegEdge(+b.dataset.sj); });
+  });
   $('kdClearSegs').onclick = clearSegments;
   $('kdPlayReel').onclick = function () {
     if (!onReel()) { toast('Add a segment to the reel first'); return; }
@@ -1913,6 +1916,35 @@
     toast('Removed segment ' + (i + 1) + ' (' + fmtT(s.in) + '–' + fmtT(s.out) + ')');
     autosaveSoon();
   }
+  // Jump to the previous / next start or end of a reel segment. [ and ] walk
+  // the drawings; these walk the cuts, so trimming a play is two keys away.
+  function gotoSegEdge(dir) {
+    if (!segments.length) { toast('No segments on the reel yet'); return; }
+    var edges = [];
+    segments.forEach(function (s, i) {
+      edges.push({ at: s.in, n: i + 1, what: 'start' });
+      edges.push({ at: s.out, n: i + 1, what: 'end' });
+    });
+    edges.sort(function (a, b) { return a.at - b.at; });
+    var t = null;
+    if (dir > 0) { for (var i = 0; i < edges.length; i++) if (edges[i].at > tNow + 40) { t = edges[i]; break; } }
+    else { for (var j = edges.length - 1; j >= 0; j--) if (edges[j].at < tNow - 40) { t = edges[j]; break; } }
+    if (!t) { toast(dir > 0 ? 'No more segments after this: , goes back' : 'No segments before this: . goes forward'); return; }
+    playing = false; setPlayUI(); if (vid) vid.pause();
+    if (t.at < tNow) rearmHoldsFrom(t.at);
+    tNow = clamp(t.at, 0, T);
+    syncScrub(); render();
+    if (tlZoom > 1) {
+      var x = msToX(tNow), Wv = gridW();
+      grid.scrollLeft = clamp(x - Wv * 0.4, 0, Math.max(0, contentW() - Wv));
+    }
+    toast('Segment ' + t.n + ' ' + t.what + ' — ' + fmtT(t.at));
+  }
+  window.addEventListener('keydown', function (e) {
+    if (typing(e) || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === ',') { e.preventDefault(); gotoSegEdge(-1); }
+    else if (e.key === '.') { e.preventDefault(); gotoSegEdge(1); }
+  });
   // Caption the segment the playhead is in. Empty text takes the caption off.
   function labelSegment() {
     var i = -1;
