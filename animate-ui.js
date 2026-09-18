@@ -895,7 +895,11 @@
     var here = tNow, target = null;
     if (dir > 0) { for (var i = 0; i < pts.length; i++) if (pts[i] > here + 40) { target = pts[i]; break; } }
     else { for (var j = pts.length - 1; j >= 0; j--) if (pts[j] < here - 40) { target = pts[j]; break; } }
-    if (target === null) { toast(dir > 0 ? 'Last point' : 'First point'); return; }
+    if (target === null) {
+      toast(dir > 0 ? 'No more points after this: [ goes back'
+        : 'No points before this: ] goes forward');
+      return;
+    }
     playing = false; setPlayUI();
     if (target < tNow) rearmHoldsFrom(target);   // so replaying it stops again
     tNow = clamp(target, 0, T);
