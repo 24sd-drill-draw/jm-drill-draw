@@ -1408,9 +1408,10 @@
   // to look at it again runs straight through without stopping.
   function rearmHoldsFrom(ms) {
     holdDone = holdDone.filter(function (id) {
-      var p = getPath(id);
+      var p = getPath(id) || getPiece(id);   // labels are pieces: getPath alone re-armed every one
       return p && (p.delay || 0) < ms - 1;
     });
+    spendHoldsBefore(ms);   // and nothing behind the new spot may fire
   }
   function step(n, ms) {
     var to = clamp(tNow + n * (ms || stepMs), 0, T);
@@ -1991,6 +1992,9 @@
       if (!p.freeze || p.hidden || isMotion(p)) continue;
       if (holdDone.indexOf(p.id) >= 0) continue;
       var d = p.delay || 0;
+      // A pause fires as the playhead reaches it, never from far behind: one
+      // left armed minutes back yanked the clip there on the next frame.
+      if (tNow - d > 1500) { if (tNow >= d) holdDone.push(p.id); continue; }
       if (tNow >= d && (first === null || d < first)) first = d;
     }
     if (first === null) return;
