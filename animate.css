@@ -469,3 +469,8 @@ body.light-theme .seg,body.light-theme .zoomctl button{background:rgba(255,255,2
    scrolling the rail on a laptop screen. */
 .kd-rail .tool{height:48px;gap:3px}
 .kd-rail .tool svg{width:22px;height:22px}
+/* The keyboard key for a button, printed on it so the shortcut is learned
+   by using the button. */
+.kd-hk{display:inline-block;min-width:15px;height:15px;padding:0 3px;margin:0 1px;border-radius:3px;
+  border:1px solid var(--muted);border-bottom-width:2px;font:800 9.5px/13px system-ui,sans-serif;
+  text-align:center;color:var(--ink);background:rgba(255,255,255,.06);vertical-align:1px}

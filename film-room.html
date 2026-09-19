@@ -281,8 +281,8 @@
       <button class="kd-tp" id="kdToEnd" title="Go to end">&#9197;</button>
       <span class="kd-tlbl">Point</span>
       <div class="kd-steps" id="kdPoints" title="Jump to the previous / next teaching point (Shift+&larr; and Shift+&rarr; are frame steps; use [ and ])">
-        <button type="button" data-pt="prev" title="Previous teaching point ( [ )">&#9668;&#9646;</button>
-        <button type="button" data-pt="next" title="Next teaching point ( ] )">&#9646;&#9658;</button>
+        <button type="button" data-pt="prev" title="Previous teaching point ( [ )">&#9668;&#9646; <kbd class="kd-hk">[</kbd></button>
+        <button type="button" data-pt="next" title="Next teaching point ( ] )"><kbd class="kd-hk">]</kbd> &#9646;&#9658;</button>
         <button type="button" data-pt="del" title="Delete the teaching point the playhead is on: its pause and every mark and label in it. Ctrl+Z brings it back">&#10005; Delete point</button>
       </div>
       <span class="kd-tlbl">Step</span>
@@ -309,13 +309,13 @@
         <button type="button" data-z="fit" title="Show the whole clip">Fit</button>
         <button type="button" data-z="in" title="Zoom in">+</button>
       </div>
-      <button class="tbtn" id="kdMarkIn" title="Set the start of the clip at the playhead (I)">Set in</button>
-      <button class="tbtn" id="kdMarkOut" title="Set the end of the clip at the playhead (O)">Set out</button>
+      <button class="tbtn" id="kdMarkIn" title="Set the start of the clip at the playhead (I)">Set in <kbd class="kd-hk">I</kbd></button>
+      <button class="tbtn" id="kdMarkOut" title="Set the end of the clip at the playhead (O)">Set out <kbd class="kd-hk">O</kbd></button>
       <span class="kd-tlbl">Reel</span>
-      <button class="tbtn" id="kdAddSeg" title="Add the in/out window to the reel. Add as many as you like — one Export writes them all into a single video (M)">&#43; Add to reel</button>
+      <button class="tbtn" id="kdAddSeg" title="Add the in/out window to the reel. Add as many as you like — one Export writes them all into a single video (M)">&#43; Add to reel <kbd class="kd-hk">M</kbd></button>
       <div class="kd-steps" id="kdSegJump" title="Jump to the previous / next start or end of a reel segment ( , and . )">
-        <button type="button" data-sj="-1" title="Previous segment start or end ( , )">&#9668; Cut</button>
-        <button type="button" data-sj="1" title="Next segment start or end ( . )">Cut &#9658;</button>
+        <button type="button" data-sj="-1" title="Previous segment start or end ( , )">&#9668; Cut <kbd class="kd-hk">,</kbd></button>
+        <button type="button" data-sj="1" title="Next segment start or end ( . )"><kbd class="kd-hk">.</kbd> Cut &#9658;</button>
       </div>
       <button class="tbtn" id="kdLabelSeg" title="Caption the segment the playhead is in: a name like &quot;Replacement&quot; or &quot;CBO&quot;, shown lower left while it plays and in the export">&#9998; Caption</button>
       <span class="kd-selinfo" id="kdReelInfo">reel empty — Export uses in/out</span>
