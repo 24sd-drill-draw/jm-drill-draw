@@ -251,6 +251,31 @@
 
   // Wrap setTool so panel + rail stay in sync however the tool changed
   // (rail click, keyboard shortcut v/s/p/a, or the engine itself).
+  // On footage, only what is ON SCREEN can be clicked. Marks and labels from
+  // other points are invisible here but were still being hit, so a click on
+  // bare ice picked up a label from minutes earlier instead of playing.
+  function onScreenOnly(fn, which) {
+    return function () {
+      if (rinkConfig !== 'video') return fn.apply(this, arguments);
+      var keep = which === 'paths' ? paths : pieces;
+      var vis = keep.filter(function (p) { return p.delay == null && !p.owner ? !p.hidden : markVisible(p); });
+      if (which === 'paths') paths = vis; else pieces = vis;
+      try { return fn.apply(this, arguments); }
+      finally { if (which === 'paths') paths = keep; else pieces = keep; }
+    };
+  }
+  pieceAt = onScreenOnly(pieceAt, 'pieces');
+  nearestPiece = onScreenOnly(nearestPiece, 'pieces');
+  pathAt = onScreenOnly(pathAt, 'paths');
+  var _finalizeMarquee = finalizeMarquee;
+  finalizeMarquee = function () {
+    if (rinkConfig !== 'video') return _finalizeMarquee.apply(this, arguments);
+    var kp = pieces, ka = paths;
+    pieces = kp.filter(function (p) { return p.delay == null ? !p.hidden : markVisible(p); });
+    paths = ka.filter(function (p) { return markVisible(p); });
+    try { return _finalizeMarquee.apply(this, arguments); } finally { pieces = kp; paths = ka; }
+  };
+
   var _setTool = setTool;
   setTool = function (k) {
     _setTool(k);
