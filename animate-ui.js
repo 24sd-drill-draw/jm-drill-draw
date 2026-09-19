@@ -273,6 +273,16 @@
     ['Orange', '#F2811D'], ['Magenta', '#D6259B'], ['White', '#FFFFFF']
   ];
 
+  // The right-hand panel (editing a picked mark or label) had its own nine
+  // colours, and its blue was not this blue. One palette, both sides.
+  colorBtns = function (cur) {
+    return '<div style="display:flex;gap:6px;flex-wrap:wrap">' + MARK_COLOURS.map(function (c) {
+      var hex = c[1];
+      return '<div data-col="' + hex + '" title="' + c[0] + '" style="width:24px;height:24px;border-radius:6px;background:' + hex +
+        ';cursor:pointer;' + (hex === '#FFFFFF' || hex === '#111111' ? 'border:1px solid #3d444e;' : '') +
+        (String(cur).toUpperCase() === hex.toUpperCase() ? 'outline:2px solid #B9E60C;outline-offset:1px;' : '') + '"></div>';
+    }).join('') + '</div>';
+  };
   var cChip = $('colourChip'), cName = $('colourName'), cMenu = $('colourMenu');
 
   // A visible grid, not a dropdown: one click per colour instead of two.

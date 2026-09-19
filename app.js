@@ -1410,12 +1410,26 @@ function drawPieceShape(c, p, scale, thumb){
     case 'text':{
       const fs=Math.max(9,(p.size||1)*5*z);
       c.font=`700 ${fs}px Inter,system-ui,sans-serif`; c.textAlign='center'; c.textBaseline='middle';
-      const tx=p.text||''; const m=c.measureText(tx);
-      p._wft=(m.width/z); p._hft=(fs/z);
+      // A label can run as a paragraph: typed line breaks are kept, and with a
+      // wrap width (p.wrap, world units) long lines break onto the next line.
+      // No wrap width = one line per typed line, as before.
+      const maxW=(p.wrap>0)? p.wrap*z : Infinity;
+      const lines=[];
+      String(p.text||'').split('\n').forEach(par=>{
+        let cur='';
+        par.split(' ').forEach(wd=>{
+          const t=cur? cur+' '+wd : wd;
+          if(cur && c.measureText(t).width>maxW){ lines.push(cur); cur=wd; } else cur=t;
+        });
+        lines.push(cur);
+      });
+      const lh=fs*1.2, top=-(lines.length-1)*lh/2;
+      let widest=0; lines.forEach(l=>{ widest=Math.max(widest,c.measureText(l).width); });
+      p._wft=(widest/z); p._hft=(lines.length*lh/z);
       c.lineJoin='round'; c.lineWidth=Math.max(3,fs*0.2);
       c.strokeStyle = isDark(p.color)? 'rgba(255,255,255,.95)' : 'rgba(8,16,24,.9)';
-      c.strokeText(tx,0,0);
-      c.fillStyle=p.color||'#11181f'; c.fillText(tx,0,0);
+      c.fillStyle=p.color||'#11181f';
+      lines.forEach((l,i)=>{ c.strokeText(l,0,top+i*lh); c.fillText(l,0,top+i*lh); });
       break; }
     case 'image':{
       if(p.img && p.img.complete){
@@ -2638,8 +2652,9 @@ function updateInspector(){
       h+=swatchHTML(p.color);
       h+=field(p.type==='player'?'Number':'Label','<input type="text" id="f_num" maxlength="3" value="'+escapeHtml(p.num||'')+'">');
     } else if(p.type==='text'){
-      h+=field('Text','<input type="text" id="f_text" value="'+escapeHtml(p.text||'')+'">');
+      h+=field('Text — Enter starts a new line','<textarea id="f_text" rows="3" style="width:100%;box-sizing:border-box;resize:vertical;font:inherit">'+escapeHtml(p.text||'')+'</textarea>');
       h+=field('Colour', colorBtns(p.color||'#11181f'));
+      h+=field('<span id="lbl_wrap">Width — '+(p.wrap>0?Math.round(p.wrap):'one line')+'</span>','<input type="range" id="f_wrap" min="0" max="160" step="2" value="'+(p.wrap||0)+'" title="Drag right to let the label run wider before it wraps. All the way left: no wrapping">');
     } else if(p.type!=='image'){
       h+=field('Colour', colorBtns(p.color||defColor(p.type)));
     }
@@ -2659,6 +2674,7 @@ function updateInspector(){
       inspBody.querySelectorAll('[data-col]').forEach(x=>x.style.outline=''); b.style.outline='2px solid #5BC2D6'; render(); });
     bind('f_num','input',v=>{p.num=v;render();});
     bind('f_text','input',v=>{p.text=v;render();});
+    bind('f_wrap','input',v=>{ p.wrap=parseFloat(v)||0; const l=byId('lbl_wrap'); if(l) l.textContent='Width — '+(p.wrap>0?Math.round(p.wrap):'one line'); render(); });
     bind('f_size','input',v=>{p.size=parseFloat(v);render();});
     bind('f_rot','input',v=>{p.rot=parseFloat(v);render();});
     bind('f_op','input',v=>{p.opacity=parseFloat(v);render();});
@@ -2680,7 +2696,7 @@ function updateInspector(){
       : p.type==='ring' ? 'Drag the blue handles to stretch or shrink it, or drag inside the ring to move it.'
       : 'Diagram only — does not move.')+'</div>';
     h+=field('Colour', colorBtns(p.color));
-    h+='<div class="field"><label id="lbl_w">Weight — '+(p.w||1).toFixed(1)+'</label><input type="range" id="p_w" min="1" max="8" step="0.5" value="'+(p.w||1)+'"></div>';
+    h+='<div class="field"><label id="lbl_w">Weight — '+(p.w||1).toFixed(1)+'</label><input type="range" id="p_w" min="0.3" max="8" step="0.1" value="'+(p.w||1)+'"></div>';
     h+='<div class="field"><label id="lbl_op">Opacity — '+Math.round((p.op==null?1:p.op)*100)+'%</label><input type="range" id="p_op" min="15" max="100" step="5" value="'+Math.round((p.op==null?1:p.op)*100)+'"></div>';
     if(!isMotion){
       h+='<div class="field"><label id="lbl_at">Appears at — '+((p.delay||0)/1000).toFixed(1)+'s</label><input type="range" id="p_at" min="0" max="'+Math.max(0,T-300)+'" step="100" value="'+(p.delay||0)+'"></div>';
@@ -3104,7 +3120,7 @@ document.getElementById('scrubber').oninput=e=>{ playing=false; setPlayUI(); tNo
 
 // keyboard
 window.addEventListener('keydown',e=>{
-  if(e.target.tagName==='INPUT')return;
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;   // typing in a box, not a shortcut
   if(coverFrom!=null && e.key==='Escape'){ e.preventDefault(); cancelCover(); return; }
   if(building && (e.key==='Enter'||e.key==='Escape')){ e.preventDefault(); finishBuilding(); return; }
   if(skateBackBuilding && (e.key==='Enter'||e.key==='Escape')){ e.preventDefault(); skateBackBuilding=null; skateBackCursor=null; selOne(null); updateInspector(); render(); return; }
