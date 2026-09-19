@@ -1905,10 +1905,11 @@ function shotDouble(scr,col){
   const n=scr.length;
   const a=scr[n-2]||scr[0], b=scr[n-1];
   const ang=Math.atan2(b[1]-a[1],b[0]-a[0]);
-  const L=Math.max(9,2.8*cam.s);          // triangle size
-  const spread=Math.max(3,0.85*cam.s);    // half-gap between the two lines
-  const lw=Math.max(1.5,0.4*cam.s);
-  const lineGap=Math.max(4,1.4*cam.s);    // gap between line end and triangle base
+  const k=(0.5+0.5*(_wmul||1));             // mark weight: the shot followed none of it
+  const L=Math.max(6,2.8*cam.s*k);          // triangle size
+  const spread=Math.max(2,0.85*cam.s*k);    // half-gap between the two lines
+  const lw=Math.max(0.6,0.4*cam.s*(_wmul||1));
+  const lineGap=Math.max(3,1.4*cam.s*k);    // gap between line end and triangle base
 
   // lines stop short — leave room for gap + triangle
   const stopDist=L+lineGap;
