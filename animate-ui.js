@@ -920,6 +920,20 @@
   // Is a key press going into a box you type in? Only then do the shortcuts
   // stand aside. Any INPUT used to count, so after opening a clip (the file
   // picker keeps focus) or touching a slider, [ ] I O M silently did nothing.
+  // A clicked button, checkbox or slider keeps the keyboard. Then Space
+  // presses it again instead of playing: after "Play reel" it restarted the
+  // reel at segment 1, after "Add to reel" it added the play twice, and after
+  // Loop it switched Loop on, so the next play jumped back to the in point.
+  // The arrows moved whatever slider was last touched. Hand the keys back to
+  // the film as soon as the mouse lets go. Text boxes keep them.
+  function releaseKeys(e) {
+    var el = e.target && e.target.closest
+      ? e.target.closest('button, select, input[type=checkbox], input[type=radio], input[type=range]')
+      : null;
+    if (el) setTimeout(function () { try { el.blur(); } catch (x) { } }, 0);
+  }
+  document.addEventListener('pointerup', releaseKeys, true);
+  document.addEventListener('change', releaseKeys, true);
   function typing(e) {
     var t = e.target;
     if (!t || !t.tagName) return false;
