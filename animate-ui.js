@@ -2324,9 +2324,27 @@
   // file is correct.
   var savedView = null;
   var capTrack = null, capFrames = 0, capStarted = 0;
-  function useNativeView() {
+  // Export size. A full-quality 1080p reel ran past a gigabyte — over Slack's
+  // limit and a slow download on a phone. "Slack" is the default.
+  var exportSize = 'slack';
+  try { if (localStorage.getItem('kd.exportSize') === 'full') exportSize = 'full'; } catch (e) { }
+  function paintSize() {
+    [].slice.call($('kdSize').querySelectorAll('button')).forEach(function (b) {
+      b.classList.toggle('on', b.dataset.size === exportSize);
+    });
+  }
+  [].slice.call($('kdSize').querySelectorAll('button')).forEach(function (b) {
+    b.addEventListener('click', function () {
+      exportSize = b.dataset.size; paintSize();
+      try { localStorage.setItem('kd.exportSize', exportSize); } catch (e) { }
+      toast(exportSize === 'slack' ? 'Export: Slack size (720p, a third to a quarter of Full)' : 'Export: full quality (big: a long reel can pass 1 GB)');
+    });
+  });
+  paintSize();
+
+  function useNativeView(capW) {
     if (!vid || !vid.videoWidth) return null;
-    var MAXW = 1920;                       // 4K would be a 33MP canvas per frame
+    var MAXW = capW || 1920;              // 4K would be a 33MP canvas per frame
     var w = vid.videoWidth, h = vid.videoHeight;
     if (w > MAXW) { h = Math.round(h * MAXW / w); w = MAXW; }
     w -= w % 2; h -= h % 2;                // H.264 will not take odd dimensions
@@ -2378,7 +2396,9 @@
     if (exporting) return;
     if (!onReel() && trimSpan() < 200) { toast('Set in and out around a play, or build a reel'); return; }
 
-    var native = useNativeView();
+    // "Slack" size: 720p at a phone bitrate, about a quarter of the full file.
+    var small = exportSize === 'slack';
+    var native = useNativeView(small ? 1280 : 0);
     // captureStream(0) emits a frame only when asked, so the recording follows
     // the render loop instead of a fixed 30 — a 60fps clip kept every second
     // frame before this. If a browser will not give a requestFrame track, fall
@@ -2402,7 +2422,7 @@
     // frame, and a repeated frame costs the encoder almost nothing, so the
     // headroom is close to free on the way down.
     var px = native ? native.w * native.h : cv.width * cv.height;
-    var rate = Math.max(8000000, Math.round(px * 60 * 0.12));
+    var rate = small ? 3500000 : Math.max(8000000, Math.round(px * 60 * 0.12));
     try {
       rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: rate });
     } catch (e) { restoreView(); toast('This browser cannot record — try Chrome'); return; }
