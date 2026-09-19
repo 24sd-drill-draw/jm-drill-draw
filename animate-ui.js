@@ -933,6 +933,38 @@
     if (el) setTimeout(function () { try { el.blur(); } catch (x) { } }, 0);
   }
   document.addEventListener('pointerup', releaseKeys, true);
+
+  // The Delete key takes ONE mark off the footage: the one you clicked, or
+  // with none clicked (or a whole point picked from the list) the most
+  // recently drawn mark at this point. It used to take the whole point — four
+  // lines to lose one. The "Delete point" button still clears a whole point.
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+    if (typing(e) || rinkConfig !== 'video' || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (selSet.length === 1) return;              // one mark clicked: the engine deletes it
+    var pts = teachingPoints(), g = null;
+    if (selSet.length > 1) {
+      var ids = selSet.map(function (s) { return s.id; });
+      pts.forEach(function (p) { if (p.paths.some(function (q) { return ids.indexOf(q.id) >= 0; })) g = g || p; });
+    } else {
+      var best = null;
+      pts.forEach(function (p) {
+        var d = Math.abs(p.at - tNow);
+        if (d <= 1500 && (best === null || d < best)) { best = d; g = p; }
+      });
+    }
+    e.preventDefault(); e.stopPropagation();
+    if (!g) { toast('No mark here. Click a mark to pick it, or [ ] jumps to a point'); return; }
+    var last = g.paths.reduce(function (a, b) { return (+b.id > +a.id) ? b : a; });
+    pushUndo();
+    paths = paths.filter(function (x) { return x !== last; });
+    scenes[currentScene].paths = paths;
+    pieces = pieces.filter(function (x) { return x !== last; });
+    scenes[currentScene].pieces = pieces;
+    selOne(null); updateInspector(); lastSig = ''; render();
+    var left = g.paths.length - 1;
+    toast('Deleted the last mark' + (left ? ' (' + left + ' left at this point)' : '') + '. Ctrl+Z brings it back');
+  }, true);
   document.addEventListener('change', releaseKeys, true);
   function typing(e) {
     var t = e.target;
@@ -1013,7 +1045,7 @@
     else if (e.key === '[') { e.preventDefault(); gotoPoint(-1); }
     // Delete with nothing picked deletes the point you are parked on — the
     // key is what a coach reaches for, not a button in the transport.
-    else if ((e.key === 'Delete' || e.key === 'Backspace') && !selSet.length) { e.preventDefault(); deletePointHere(); }
+    // (the Delete key is handled above: one mark at a time)
   });
 
   $('kdAddSeg').onclick = addSegment;
