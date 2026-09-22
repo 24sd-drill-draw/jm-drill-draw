@@ -211,3 +211,7 @@
 </div>
 
 <script src="app.js?v=ea0ba69-202609120404"></script>
+<script>
+  // Offline copy (sw.js): online nothing changes; offline this page still opens.
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function () { });
+</script>

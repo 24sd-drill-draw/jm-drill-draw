@@ -466,3 +466,7 @@
 
 <script src="app.js?v=216e57e-202609031943"></script>
 <script src="animate-ui.js?v=216e57e-202609031943"></script>
+<script>
+  // Offline copy (sw.js): online nothing changes; offline this page still opens.
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function () { });
+</script>
