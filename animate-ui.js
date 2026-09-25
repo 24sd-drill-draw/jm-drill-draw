@@ -1092,9 +1092,11 @@
   $('kdPlayReel').onclick = function () {
     if (!onReel()) { toast('Add a segment to the reel first'); return; }
     if (playing) { playing = false; setPlayUI(); if (vid) vid.pause(); }
-    reelPreview = true; reelAt = -1; breakUntil = 0;
+    reelPreview = true; reelAt = -1; breakUntil = 0; reelSwitching = false;
+    reelSeq = reelList();            // the running order is fixed for this pass
     resetHolds();
-    tNow = segments[0].in; syncScrub();
+    var first = reelSeq[0];
+    if (first.ci < 0 || first.ci === clipAt) { tNow = first.seg.in; syncScrub(); }
     togglePlay();
   };
   function setBreak(ms) {
@@ -1531,7 +1533,17 @@
     }
     var drew = false;
     if (vid && vid.readyState >= 2) {
-      try { ctx.drawImage(vid, a[0], a[1], w, h); drew = true; seenFrame = true; keepFrame(); }
+      // Fit, never stretch: on a reel the picture keeps the size the first
+      // clip set, so a clip shot in another shape is boxed inside it rather
+      // than squashed to fit.
+      var vr = (vid.videoWidth / vid.videoHeight) || (w / h), br = w / h;
+      var dw = w, dh = h, dx = a[0], dy = a[1];
+      if (Math.abs(vr - br) > 0.01) {
+        ctx.fillStyle = '#000'; ctx.fillRect(a[0], a[1], w, h);
+        if (vr > br) { dh = w / vr; dy = a[1] + (h - dh) / 2; }
+        else { dw = h * vr; dx = a[0] + (w - dw) / 2; }
+      }
+      try { ctx.drawImage(vid, dx, dy, dw, dh); drew = true; seenFrame = true; keepFrame(); }
       catch (e) { }
     }
     // Every play, pause and seek drops the decoder below "has a current frame"
@@ -2195,26 +2207,53 @@
   var breakUntil = 0;         // wall-clock end of the card, 0 = not showing one
   var lastNudge = 0;          // throttles the resume retry
   var cardAt = 0;             // where the clock waits while the card is up
-  function onReel() { return segments.length > 0; }
+  // The reel runs across every clip in the session, in strip order and then in
+  // time order inside each clip. A clip whose file has not been picked again
+  // is skipped: its segments cannot be played or written.
+  function reelList() {
+    var out = [];
+    if (!clips.length) {
+      segments.forEach(function (s) { out.push({ ci: -1, seg: s }); });
+      return out;
+    }
+    clips.forEach(function (c, ci) {
+      if (!c.file) return;
+      var segs = (ci === clipAt ? segments : c.segments) || [];
+      segs.slice().sort(function (a, b) { return a.in - b.in; }).forEach(function (s) {
+        out.push({ ci: ci, seg: s, name: c.name });
+      });
+    });
+    return out;
+  }
+  function reelClipCount() {
+    var seen = {};
+    reelList().forEach(function (e) { seen[e.ci] = 1; });
+    return Object.keys(seen).length;
+  }
+  function onReel() { return reelList().length > 0; }
   // Building a reel and watching one are different jobs. Having segments must
   // not take over ordinary playback: finding where the next play ends means
   // watching forward from the playhead, and a reel that grabbed every Play
   // and jumped back to segment 1 made the second cut impossible to finish.
   // The reel drives playback only when asked (Play reel) or when exporting.
   var reelPreview = false;
+  var reelSeq = null;        // the running order, fixed while a reel plays
+  var reelSwitching = false; // a clip is loading behind the card
   function reelActive() { return onReel() && (reelPreview || exporting); }
   function reelTotal() {
-    var t = 0;
-    segments.forEach(function (s) { t += Math.max(0, s.out - s.in); });
-    return t + Math.max(0, segments.length - 1) * breakMs;
+    var list = reelList(), t = 0;
+    list.forEach(function (e) { t += Math.max(0, e.seg.out - e.seg.in); });
+    return t + Math.max(0, list.length - 1) * breakMs;
   }
   function paintReelInfo() {
-    var n = segments.length;
+    var n = reelList().length, cn = reelClipCount();
     $('kdReelInfo').textContent = n
-      ? n + (n === 1 ? ' segment' : ' segments') + ' → one video, ' + fmtT(reelTotal())
+      ? n + (n === 1 ? ' segment' : ' segments') +
+        (cn > 1 ? ' from ' + cn + ' clips' : '') + ' → one video, ' + fmtT(reelTotal())
       : 'reel empty — Export uses in/out';
-    $('kdClearSegs').disabled = !n;
+    $('kdClearSegs').disabled = !segments.length;
     $('kdPlayReel').disabled = !n;
+    paintClips();
   }
   function addSegment() {
     if (!vid) { toast('Open a clip first'); return; }
@@ -2359,15 +2398,66 @@
   // Runs every frame while playing: holds the card, then moves to the next
   // segment. Wall-clock for the card, the clip's own clock for the footage —
   // the same split the freeze hold uses, for the same reason.
+  // Swap the loaded video for another clip's, mid-reel, behind the card. The
+  // clip's own marks come with it. The picture stays the size the export
+  // started at, so clips of different resolutions do not resize the canvas
+  // half way through a recording.
+  function reelLoadClip(ci, seekMs, done) {
+    var c = clips[ci];
+    if (!c || !c.file) { done && done(false); return; }
+    stashClip();
+    clipAt = ci;
+    paths = c.paths; pieces = c.pieces;
+    scenes[currentScene].paths = paths; scenes[currentScene].pieces = pieces;
+    segments = c.segments; inMs = c.inMs || 0; outMs = c.outMs || 0;
+    selOne(null);
+    resetHolds();
+    var keepW = VW, keepH = VH, fixed = (exporting || reelPreview);
+    disposeVideo();
+    vidURL = URL.createObjectURL(c.file);
+    vidName = c.name;
+    vid = document.createElement('video');
+    vid.preload = 'auto'; vid.playsInline = true;
+    vid.muted = !!$('vidMute').checked;
+    vid.addEventListener('loadedmetadata', function () {
+      T = Math.max(1000, Math.round(vid.duration * 1000));
+      if (fixed) { VW = keepW; VH = keepH; }
+      else { VW = 200; VH = 200 * ((vid.videoHeight / vid.videoWidth) || 0.5625); }
+      c.T = T;
+      if (!outMs) { inMs = 0; outMs = T; }
+      lastT = 0; lastSig = '';
+      tNow = clamp(seekMs, 0, T);
+      spendHoldsBefore(tNow);
+      vid.addEventListener('seeked', function () { done && done(true); }, { once: true });
+      try { vid.currentTime = tNow / 1000; } catch (e) { done && done(true); }
+      paintClips(); updateVideoPanel(); syncScrub();
+    }, { once: true });
+    vid.addEventListener('error', function () { done && done(false); }, { once: true });
+    vid.src = vidURL;
+  }
+
   function advanceReel() {
     if (!reelActive() || !playing) return false;
+    if (reelSwitching) { tNow = cardAt; return true; }   // card stays up while the next clip loads
     if (breakUntil) {
       // card is up: hold the clock where the last segment ended, or the tick
       // loop crawls the playhead across the footage being skipped
       if (performance.now() < breakUntil) { tNow = cardAt; return true; }
       breakUntil = 0;
-      var next = segments[reelAt];
+      var e = (reelSeq || reelList())[reelAt];
+      var next = e && e.seg;
       if (!next) { playing = false; setPlayUI(); if (vid) vid.pause(); return false; }
+      // a segment from another clip: load that clip first, still behind the card
+      if (e.ci >= 0 && e.ci !== clipAt) {
+        reelSwitching = true;
+        breakUntil = performance.now() + 60;   // keep the card painted
+        reelLoadClip(e.ci, next.in, function (ok) {
+          reelSwitching = false; breakUntil = 0;
+          if (!ok) { playing = false; setPlayUI(); return; }
+          if (playing && vid) vid.play().catch(function () { });
+        });
+        return true;
+      }
       tNow = next.in; spendHoldsBefore(next.in);   // skipped footage stays skipped
       // Seek, THEN play once the seek has landed. Asking for both in the same
       // tick lets the seek abort the play request: the clip stayed paused at
@@ -2381,12 +2471,26 @@
       }
       return false;
     }
+    var list = reelSeq || (reelSeq = reelList());
     if (reelAt < 0) {                       // first frame of a reel playback
-      reelAt = 0; tNow = segments[0].in; spendHoldsBefore(tNow);
-      if (vid) { try { vid.currentTime = segments[0].in / 1000; } catch (e) { } }
+      reelAt = 0;
+      var f = list[0];
+      if (!f) { playing = false; setPlayUI(); return false; }
+      if (f.ci >= 0 && f.ci !== clipAt) {   // the reel starts on another clip
+        reelSwitching = true; cardAt = tNow;
+        reelLoadClip(f.ci, f.seg.in, function (ok) {
+          reelSwitching = false;
+          if (!ok) { playing = false; setPlayUI(); return; }
+          if (playing && vid) vid.play().catch(function () { });
+        });
+        return true;
+      }
+      tNow = f.seg.in; spendHoldsBefore(tNow);
+      if (vid) { try { vid.currentTime = f.seg.in / 1000; } catch (e) { } }
       return false;
     }
-    var seg = segments[reelAt];
+    var here = list[reelAt];
+    var seg = here && here.seg;
     if (!seg) return false;
     // Belt and braces: if the reel thinks it is rolling but the clip is not,
     // ask again. A refused or interrupted play() would otherwise strand it.
@@ -2398,19 +2502,24 @@
     }
     if (tNow >= seg.out) {
       reelAt++;
-      if (reelAt >= segments.length) {      // reel finished
+      if (reelAt >= list.length) {          // reel finished
         if (loop && !exporting) { reelAt = -1; resetHolds(); return false; }
         playing = false; setPlayUI(); if (vid) vid.pause();
         reelPreview = false;                // back to ordinary playback
+        reelSeq = null;
         tNow = seg.out; syncScrub();
         return false;
       }
-      if (breakMs > 0) {                    // hold the card, then carry on
-        breakUntil = performance.now() + breakMs; cardAt = seg.out;
+      var nxt = list[reelAt];
+      // Between clips the card is not optional: without it the picture would
+      // jump from one game to another mid-flow with nothing to mark the cut.
+      var crossing = nxt && nxt.ci >= 0 && nxt.ci !== here.ci;
+      if (breakMs > 0 || crossing) {        // hold the card, then carry on
+        breakUntil = performance.now() + (breakMs || 1200); cardAt = seg.out;
         if (vid) { try { vid.pause(); } catch (e) { } }
         return true;
       }
-      tNow = segments[reelAt].in; spendHoldsBefore(tNow);
+      tNow = nxt.seg.in; spendHoldsBefore(tNow);
       if (vid) { try { vid.currentTime = tNow / 1000; } catch (e) { } }
     }
     return false;
@@ -2621,7 +2730,7 @@
       }
       var base = (vidName ? vidName.replace(/\.[^.]+$/, '') : 'drill');
       var suggested = onReel()
-        ? base + '_reel_' + segments.length + '-clips'
+        ? base + '_reel_' + reelList().length + '-clips'
         : base + '_marked_' + Math.round(inMs / 100) / 10 + 's-' + Math.round(outMs / 100) / 10 + 's';
       var info = ext.toUpperCase() +
         (native ? ' at ' + native.w + '×' + native.h : '') +
@@ -2637,9 +2746,13 @@
     // park on the in-point, let the clip actually seek, then roll.
     // Holds are re-armed so every freeze fires into the recording.
     resetHolds();
-    reelAt = -1; breakUntil = 0;             // a reel export starts at segment 1
+    reelAt = -1; breakUntil = 0; reelSwitching = false;   // a reel export starts at segment 1
+    reelSeq = onReel() ? reelList() : null;
     playing = false; setPlayUI();
-    tNow = onReel() ? segments[0].in : inMs;
+    var firstSeg = reelSeq && reelSeq[0];
+    // A reel that starts on another clip loads it before recording rolls.
+    var startAt = firstSeg ? firstSeg.seg.in : inMs;
+    tNow = startAt;
     spendHoldsBefore(tNow);                  // nothing before the start may fire
     syncScrub(); render();
 
@@ -2647,7 +2760,7 @@
       rec.start(100);
       capFrames = 0; capStarted = Date.now(); capTrack = vtrack;
       playing = true; lastTs = 0; setPlayUI();
-      if (vid) { try { vid.currentTime = (onReel() ? segments[0].in : inMs) / 1000; } catch (e) { } vid.play().catch(function () { }); }
+      if (vid) { try { vid.currentTime = startAt / 1000; } catch (e) { } vid.play().catch(function () { }); }
       if (onReel()) reelAt = 0;
       // Read the clip's own clock rather than tNow: tNow is advanced by the
       // rAF render loop, which the browser throttles when the tab isn't
@@ -2676,11 +2789,15 @@
     // Don't start recording on a timer — wait until the clip has actually
     // landed on the in-point, or the head of the export is padded with
     // whatever frame happened to be showing.
-    if (vid) {
-      var started = false;
-      var go = function () { if (!started) { started = true; begin(); } };
+    var started = false;
+    var go = function () { if (!started) { started = true; begin(); } };
+    if (firstSeg && firstSeg.ci >= 0 && firstSeg.ci !== clipAt) {
+      // the reel opens on a different clip: load that one before rolling
+      reelLoadClip(firstSeg.ci, startAt, function () { go(); });
+      setTimeout(go, 6000);
+    } else if (vid) {
       vid.addEventListener('seeked', go, { once: true });
-      try { vid.currentTime = inMs / 1000; } catch (e) { }
+      try { vid.currentTime = startAt / 1000; } catch (e) { }
       setTimeout(go, 1200);                 // fallback if 'seeked' never fires
     } else begin();
   }
@@ -2811,6 +2928,15 @@
 
   function restoreAutosave() {
     var raw = null;
+    // film-room.html?fresh starts an empty session on purpose: nothing is
+    // brought back and the save is dropped. Clearing it from the console does
+    // not work, because leaving the page saves the live board again on the way
+    // out.
+    if (/[?&]fresh\b/.test(location.search)) {
+      try { localStorage.removeItem(AKEY); } catch (e) { }
+      toast('Started fresh — nothing restored');
+      return;
+    }
     try { raw = localStorage.getItem(AKEY); } catch (e) { return; }
     if (!raw) return;
     var o = null;
