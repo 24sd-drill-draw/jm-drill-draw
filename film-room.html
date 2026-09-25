@@ -76,7 +76,7 @@
     <input type="file" id="jsonFile" accept="application/json,.json" hidden>
     <input type="file" id="logoFile" accept="image/*" hidden>
     <input type="file" id="refFile" accept="image/*" hidden>
-    <input type="file" id="vidFile" accept="video/*" hidden>
+    <input type="file" id="vidFile" accept="video/*" multiple hidden>
   </div>
 
   <!-- ============ SCENE TABS ============ -->
@@ -273,6 +273,9 @@
 
   <!-- ============ TIMELINE ============ -->
   <div class="kd-timeline">
+    <!-- Every clip open in this session. Each keeps its own marks and segments. -->
+    <div class="kd-clips" id="kdClips"></div>
+
     <div class="kd-transport">
       <button class="kd-tp" id="kdToStart" title="Go to start">&#9198;</button>
       <button class="kd-tp" id="kdPrevF" title="Back one frame (&larr;)">&#8249;</button>

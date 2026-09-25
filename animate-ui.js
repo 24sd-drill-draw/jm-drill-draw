@@ -1689,7 +1689,116 @@
 
   function openVideo() { $('vidFile').click(); }
 
-  function loadVideoFile(file) {
+  // ---------------------------------------------------------
+  // Clips: several videos open at once. One session, one reel, several games.
+  //
+  // Each clip keeps its OWN marks, points, in/out and segments, because they
+  // are all positions inside that file. Switching clips parks the current
+  // set and brings back the other one's. The browser cannot hold on to a file
+  // across a reload, so the marks are saved and the files are asked for again.
+  // ---------------------------------------------------------
+  var clips = [];        // [{id, name, file, url, T, VW, VH, paths, pieces, segments, inMs, outMs, tNow}]
+  var clipAt = -1;       // which one is loaded
+  var clipUid = 1;
+
+  function stashClip() {
+    var c = clips[clipAt];
+    if (!c) return;
+    c.paths = paths; c.pieces = pieces; c.segments = segments;
+    c.inMs = inMs; c.outMs = outMs; c.tNow = tNow;
+    if (T > 1000) { c.T = T; c.VW = VW; c.VH = VH; }
+  }
+  function clipByName(n) {
+    for (var i = 0; i < clips.length; i++) if (clips[i].name === n) return clips[i];
+    return null;
+  }
+  function addClip(file, quiet) {
+    var have = clipByName(file.name);
+    if (have) {                       // same file again: give it its marks back
+      have.file = file; have.missing = false;
+      switchClip(clips.indexOf(have));
+      if (!quiet) toast('Reopened ' + file.name + ' with its marks');
+      return have;
+    }
+    // Added to the strip, NOT loaded: loading each file in turn cancelled the
+    // one before it, and only the last clip survived.
+    var c = { id: clipUid++, name: file.name, file: file, url: null, T: 0,
+              paths: [], pieces: [], segments: [], inMs: 0, outMs: 0, tNow: 0 };
+    clips.push(c);
+    paintClips();
+    return c;
+  }
+  function switchClip(i) {
+    var c = clips[i];
+    if (!c) return;
+    if (i !== clipAt) stashClip();
+    if (playing) { playing = false; setPlayUI(); }
+    reelPreview = false; reelAt = -1; breakUntil = 0;
+    clipAt = i;
+    // its own marks come back on the board
+    paths = c.paths; pieces = c.pieces;
+    scenes[currentScene].paths = paths; scenes[currentScene].pieces = pieces;
+    segments = c.segments;
+    selOne(null); updateInspector();
+    if (!c.file) {                    // saved marks, file not picked yet
+      paintClips(); paintReelInfo(); lastSig = ''; render();
+      toast('Pick the file for ' + c.name + ' to see it');
+      return;
+    }
+    loadVideoFile(c.file, c);
+  }
+  function removeClip(i) {
+    var c = clips[i];
+    if (!c) return;
+    var n = (c.paths ? c.paths.length : 0) + (c.segments ? c.segments.length : 0);
+    if (n && !window.confirm('Close ' + c.name + '? Its ' + n + ' marks and segments go with it.')) return;
+    clips.splice(i, 1);
+    if (clipAt === i) {
+      clipAt = -1;
+      if (clips.length) switchClip(Math.min(i, clips.length - 1));
+      else { disposeVideo(); paths = []; pieces = []; segments = [];
+             scenes[currentScene].paths = paths; scenes[currentScene].pieces = pieces;
+             paintClips(); paintReelInfo(); updateVideoPanel(); lastSig = ''; render(); }
+    } else {
+      if (clipAt > i) clipAt--;
+      paintClips();
+    }
+    autosaveSoon();
+    toast('Closed ' + c.name);
+  }
+  function paintClips() {
+    var bar = $('kdClips');
+    if (!bar) return;
+    var h = '';
+    clips.forEach(function (c, i) {
+      var n = (c.segments ? c.segments.length : 0);
+      h += '<button type="button" class="kd-clip' + (i === clipAt ? ' on' : '') + (c.file ? '' : ' need') +
+        '" data-clip="' + i + '" title="' + c.name.replace(/[<>&"]/g, '') +
+        (c.file ? (n ? ' — ' + n + ' on the reel' : ' — no segments yet') : ' — file not picked yet: click to pick it') + '">' +
+        '<b>' + (i + 1) + '</b>' + shortName(c.name) +
+        (n ? '<i class="kd-clipn">' + n + '</i>' : '') +
+        '<i class="kd-clipx" data-close="' + i + '" title="Close this clip">&times;</i></button>';
+    });
+    h += '<button type="button" class="kd-clipadd" id="kdClipAdd" title="Open another video. Each clip keeps its own marks and segments">&#43; Clip</button>';
+    bar.innerHTML = h;
+  }
+  function shortName(n) {
+    n = String(n).replace(/\.[^.]+$/, '');
+    return n.length > 18 ? n.slice(0, 17) + '…' : n;
+  }
+  $('kdClips').addEventListener('click', function (e) {
+    var x = e.target.closest ? e.target.closest('.kd-clipx') : null;
+    if (x) { e.stopPropagation(); removeClip(+x.dataset.close); return; }
+    if (e.target.closest('#kdClipAdd')) { openVideo(); return; }
+    var b = e.target.closest ? e.target.closest('.kd-clip') : null;
+    if (!b) return;
+    var i = +b.dataset.clip;
+    if (clips[i] && !clips[i].file) { pendingPick = i; openVideo(); return; }
+    switchClip(i);
+  });
+  var pendingPick = -1;   // a saved clip waiting for its file to be picked again
+
+  function loadVideoFile(file, restore) {
     disposeVideo();
     vidURL = URL.createObjectURL(file);
     vidName = file.name;
@@ -1712,13 +1821,36 @@
       tNow = 0; playing = false; setPlayUI();
       lastT = 0;               // force the ruler to rebuild at the new length
       inMs = 0; outMs = T;     // trim spans the whole clip until you drag it in
+      // Coming back to a clip already open in this session: its in/out, its
+      // playhead and its segments are part of that clip, not of the board.
+      if (restore) {
+        restore.T = T; restore.VW = VW; restore.VH = VH; restore.missing = false;
+        if (restore.outMs > 0) {
+          inMs = clamp(restore.inMs, 0, T);
+          outMs = clamp(restore.outMs, inMs + 100, T);
+        }
+        tNow = clamp(restore.tNow || 0, 0, T);
+        segments = restore.segments;
+      }
       // On footage, a mark IS a teaching point: stop the clip, hold it, carry
       // on. Defaulting to "plays on" for the rest of the clip meant every mark
       // had to be reset by hand, and a missed one just smeared across the play.
       // The reel is kept or cleared by the keep-or-clear prompt, not here —
       // but a segment past the end of THIS clip cannot be played, so drop it.
       segments = segments.filter(function (s) { return s.out <= T + 50; });
-      reelAt = -1; breakUntil = 0; reelPreview = false; paintReelInfo();
+      if (restore) restore.segments = segments;
+      // A clip opened any other way (the first one, or File ▸ Open video) joins
+      // the strip too, so there is one list and one rule for all of them.
+      if (!restore) {
+        var c0 = clipByName(vidName);
+        if (!c0) { c0 = { id: clipUid++, name: vidName, file: file, segments: segments }; clips.push(c0); }
+        c0.file = file; c0.missing = false; c0.T = T; c0.VW = VW; c0.VH = VH;
+        c0.paths = paths; c0.pieces = pieces; c0.segments = segments;
+        c0.inMs = inMs; c0.outMs = outMs; c0.tNow = tNow;
+        clipAt = clips.indexOf(c0);
+      }
+      reelAt = -1; breakUntil = 0; reelPreview = false; paintReelInfo(); paintClips();
+      autosaveSoon();
       setFreezeMode(true, false); setHold(3000);
       // One frame at a time is right for landing on a tip-in and hopeless for
       // crossing a half-hour game. Start at 2s on a clip; Shift+arrow is still
@@ -1800,41 +1932,72 @@
   function drawingCount() {
     return paths.length + pieces.filter(function (p) { return p.delay != null; }).length;
   }
-  function openClipAsked(f) {
-    // Drawings and reel segments are both tied to times in the clip, so both
-    // are the same question: carry them onto this clip, or start clean.
+  var pendingClipIdx = -1;
+  function openClipAsked(idx) {
+    var c = clips[idx];
+    if (!c || !c.file) return;
+    pendingClipIdx = idx;
+    // Marks and segments left on the board by an older session are tied to
+    // times, so they only make sense on the same footage: carry them onto this
+    // clip, or start it clean. A clip's own marks never come into this.
     var n = drawingCount(), s = segments.length;
-    if (!n && !s) { loadVideoFile(f); return; }
-    pendingClip = f;
+    if (!n && !s) { switchClip(idx); return; }
     var what = [];
     if (n) what.push('<b>' + n + (n === 1 ? ' drawing' : ' drawings') + '</b>');
     if (s) what.push('<b>' + s + (s === 1 ? ' reel segment' : ' reel segments') + '</b>');
-    $('keepMsg').innerHTML = 'You have ' + what.join(' and ') + ' on the board. ' +
+    $('keepMsg').innerHTML = 'You have ' + what.join(' and ') + ' on the board from before. ' +
       'They are tied to times in the clip, so kept ones land on <b>' +
-      f.name.replace(/[<>&]/g, '') + '</b> at the same timestamps.' +
-      '<br><br>Keep them if you are reopening the same clip.';
+      c.name.replace(/[<>&]/g, '') + '</b> at the same timestamps.' +
+      '<br><br>Keep them if this is the same clip they were drawn on.';
     $('keepClear').textContent = s && n ? 'Clear all' : (s ? 'Clear reel' : 'Clear drawings');
     $('keepModal').classList.add('show');
   }
-  function closeKeep() { $('keepModal').classList.remove('show'); pendingClip = null; }
-  $('keepCancel').onclick = closeKeep;
-  $('keepKeep').onclick = function () { var f = pendingClip; closeKeep(); if (f) loadVideoFile(f); };
+  function closeKeep() { $('keepModal').classList.remove('show'); }
+  $('keepCancel').onclick = function () { closeKeep(); pendingClipIdx = -1; };
+  $('keepKeep').onclick = function () {
+    var i = pendingClipIdx; closeKeep(); pendingClipIdx = -1;
+    var c = clips[i];
+    if (!c) return;
+    // the board's marks become that clip's marks
+    c.paths = paths; c.pieces = pieces; c.segments = segments;
+    switchClip(i);
+  };
   $('keepClear').onclick = function () {
-    var f = pendingClip; closeKeep();
+    var i = pendingClipIdx; closeKeep(); pendingClipIdx = -1;
     pushUndo();
     paths = []; pieces = [];
     scenes[currentScene].paths = paths; scenes[currentScene].pieces = pieces;
     segments = []; reelAt = -1; breakUntil = 0; reelPreview = false; paintReelInfo();
     selOne(null); updateInspector(); lastSig = '';
-    if (f) loadVideoFile(f);
+    if (clips[i]) { clips[i].paths = []; clips[i].pieces = []; clips[i].segments = []; switchClip(i); }
     toast('Cleared — starting fresh on the new clip');
   };
 
   $('vidFile').addEventListener('change', function (e) {
-    var f = e.target.files[0];
+    var fs = [].slice.call(e.target.files || []);
     e.target.value = '';
     try { e.target.blur(); } catch (x) { }   // or the picker keeps the keys
-    if (f) openClipAsked(f);
+    if (!fs.length) return;
+    // A saved clip waiting for its file: this pick belongs to that row.
+    if (pendingPick >= 0 && clips[pendingPick]) {
+      var c = clips[pendingPick], want = pendingPick; pendingPick = -1;
+      if (fs[0].name !== c.name &&
+          !window.confirm('That clip was ' + c.name + '. Use ' + fs[0].name + ' instead?\n\n' +
+                          'Its marks are timestamps, so they only land right on the same footage.')) return;
+      c.file = fs[0]; c.missing = false;
+      switchClip(want);
+      return;
+    }
+    pendingPick = -1;
+    var wasEmpty = !clips.length, first = clips.length;
+    fs.forEach(function (f) { addClip(f, true); });
+    autosaveSoon();
+    if (fs.length > 1) toast('Added ' + fs.length + ' clips');
+    // Marks on the board from before any clip existed (an older session) are
+    // still the keep-or-clear question. Otherwise each clip owns its own marks
+    // and there is nothing to ask.
+    if (wasEmpty && (drawingCount() || segments.length)) { openClipAsked(first); return; }
+    if (!vid && clips[first]) switchClip(first);
   });
   $('vidOpen').onclick = openVideo;
   $('vidRemove').onclick = removeVideo;
@@ -2600,7 +2763,25 @@
       // The reel is tied to timestamps exactly as the drawings are, so it is
       // kept the same way. A reload used to bring the lines back and lose
       // every segment.
-      reel: { segments: segments.slice(), breakMs: breakMs }
+      reel: { segments: segments.slice(), breakMs: breakMs },
+      // Every clip in the session: its marks, its segments, its in/out. The
+      // FILE cannot be saved — no browser may keep one across a reload — so
+      // the name is saved and the file is asked for again.
+      clips: clipsData()
+    };
+  }
+  function clipsData() {
+    stashClip();
+    return {
+      at: clipAt,
+      list: clips.map(function (c) {
+        return {
+          name: c.name, T: c.T || 0, inMs: c.inMs || 0, outMs: c.outMs || 0, tNow: c.tNow || 0,
+          segments: (c.segments || []).slice(),
+          pieces: (c.pieces || []).map(function (p) { var q = Object.assign({}, p); q.img = undefined; q._src = p._src || null; return q; }),
+          paths: (c.paths || []).map(function (p) { var q = Object.assign({}, p); q._lut = undefined; return q; })
+        };
+      })
     };
   }
   var lastSaved = '';
@@ -2608,7 +2789,7 @@
     try {
       var d = boardData();
       // a reel with no drawings is still work worth keeping
-      var empty = !segments.length && d.scenes.every(function (s) { return !s.pieces.length && !s.paths.length; });
+      var empty = !segments.length && !clips.length && d.scenes.every(function (s) { return !s.pieces.length && !s.paths.length; });
       if (empty) { localStorage.removeItem(AKEY); lastSaved = ''; return; }
       var json = JSON.stringify(d);
       if (json === lastSaved) return;
@@ -2644,6 +2825,20 @@
         segments = r.segments.map(function (s) { var o = { in: +s.in, out: +s.out }; if (s.label) o.label = String(s.label); return o; });
         if (r.breakMs != null) setBreak(r.breakMs);
         paintReelInfo();
+      }
+      var ck = o.data.clips;
+      if (ck && ck.list && ck.list.length) {
+        clips = ck.list.map(function (c) {
+          return { id: clipUid++, name: c.name, file: null, url: null, missing: true,
+                   T: c.T || 0, inMs: c.inMs || 0, outMs: c.outMs || 0, tNow: c.tNow || 0,
+                   segments: (c.segments || []), pieces: (c.pieces || []), paths: (c.paths || []) };
+        });
+        clipAt = -1;
+        paintClips();
+        toast(clips.length === 1
+          ? 'Your clip and its marks are here — click it to pick the file again'
+          : clips.length + ' clips and their marks are here — click one to pick its file again');
+        return;
       }
       toast('Picked up where you left off — File ▸ New to start fresh');
     } catch (e) { }

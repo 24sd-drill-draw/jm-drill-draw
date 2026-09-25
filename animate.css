@@ -474,3 +474,27 @@ body.light-theme .seg,body.light-theme .zoomctl button{background:rgba(255,255,2
 .kd-hk{display:inline-block;min-width:15px;height:15px;padding:0 3px;margin:0 1px;border-radius:3px;
   border:1px solid var(--muted);border-bottom-width:2px;font:800 9.5px/13px system-ui,sans-serif;
   text-align:center;color:var(--ink);background:rgba(255,255,255,.06);vertical-align:1px}
+
+/* The clips strip: every video open in this session, each with its own marks
+   and its own reel segments. */
+.kd-clips{display:flex;flex-wrap:wrap;gap:5px;align-items:center;padding:5px 9px;
+  border-bottom:1px solid var(--line);background:var(--navy2);min-height:0}
+.kd-clips:empty{display:none}
+.kd-clip{position:relative;display:flex;align-items:center;gap:6px;padding:4px 20px 4px 7px;
+  border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--muted);
+  font:700 11px/1 system-ui,sans-serif;cursor:pointer}
+.kd-clip b{display:grid;place-items:center;width:15px;height:15px;border-radius:4px;
+  background:var(--line);color:var(--ink);font-size:9px}
+.kd-clip:hover{color:var(--ink);border-color:var(--muted)}
+.kd-clip.on{background:var(--accent);border-color:var(--accent);color:#0E1013}
+.kd-clip.on b{background:rgba(0,0,0,.25);color:#0E1013}
+.kd-clip.need{border-style:dashed;opacity:.75}
+.kd-clipn{font-style:normal;padding:1px 5px;border-radius:7px;background:rgba(0,0,0,.25);font-size:9px}
+.kd-clip.on .kd-clipn{background:rgba(0,0,0,.2)}
+.kd-clipx{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:13px;height:13px;
+  border-radius:50%;font:800 10px/13px system-ui,sans-serif;font-style:normal;text-align:center;
+  background:transparent;color:inherit;opacity:.55}
+.kd-clipx:hover{background:#E8313A;color:#fff;opacity:1}
+.kd-clipadd{padding:4px 9px;border:1px dashed var(--line);border-radius:7px;background:transparent;
+  color:var(--muted);font:700 11px/1 system-ui,sans-serif;cursor:pointer}
+.kd-clipadd:hover{color:var(--accent);border-color:var(--accent)}
