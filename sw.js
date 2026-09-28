@@ -9,10 +9,10 @@
 // browser's own storage and never went over the network. Video is never
 // stored: clips are opened from disk and are not requests this worker sees.
 
-var CACHE = 'jmdd-offline-v1';
+var CACHE = 'jmdd-offline-v2';
 var CORE = [
   './', 'index.html', 'film-room.html', 'rink-lab.html',
-  'app.js', 'animate-ui.js', 'animate.css', 'style.css',
+  'app.js', 'animate-ui.js', 'animate.css', 'style.css', 'vendor-mp4box.js', 'vendor-mp4muxer.js', 'repack.js',
   'images/logo-krakenS.png', 'images/logo-youthS.png', 'images/logo-anchorage.png',
   'images/logo-anchorLight.png', 'images/logo-anchorNavy.png',
   'images/ref-cones.png', 'images/ref-flow.png', 'images/ref-stations.png', 'images/ref-swing.png'

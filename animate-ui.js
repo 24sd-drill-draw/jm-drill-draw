@@ -2736,7 +2736,17 @@
         (native ? ' at ' + native.w + '×' + native.h : '') +
         (fps ? ' · ' + fps + 'fps' : '') +
         (withAudio ? ' with audio' : ' (no audio)');
-      askVideoName(blob, ext, suggested, info);
+      // Rewrap the recording into an ordinary MP4 before it is handed over:
+      // Chrome records a streaming MP4 that WhatsApp, Clipchamp and iPhone
+      // Photos will not open. Nothing is re-encoded. If the repack cannot do
+      // it, the original file is offered rather than nothing.
+      toast('Packing the video for sharing…');
+      var ready = (typeof repackMp4 === 'function') ? repackMp4(blob) : Promise.resolve(blob);
+      ready.then(function (out) {
+        var fixed = out !== blob && out.size > 0;
+        askVideoName(out && out.size ? out : blob, ext, suggested,
+          info + (fixed ? ' · plays in WhatsApp too' : ''));
+      });
     };
 
     exporting = true;
