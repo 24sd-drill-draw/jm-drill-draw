@@ -2897,6 +2897,25 @@
       clips: clipsData()
     };
   }
+  // File ▸ Save drill wrote the marks of the board and nothing else, so a
+  // saved file quietly lost every clip, segment and caption. Same shape as the
+  // autosave, so one restore reads both.
+  var _buildDrillData = buildDrillData;
+  buildDrillData = function () {
+    var d = _buildDrillData.apply(this, arguments);
+    if (clips.length || segments.length) {
+      d.reel = { segments: segments.slice(), breakMs: breakMs };
+      d.clips = clipsData();
+    }
+    return d;
+  };
+  var _loadData = loadData;
+  loadData = function (o) {
+    var r = _loadData.apply(this, arguments);
+    try { if (o && (o.clips || o.reel)) restoreReelAndClips(o); } catch (e) { }
+    return r;
+  };
+
   function clipsData() {
     stashClip();
     return {
@@ -2954,30 +2973,32 @@
     if (!o || !o.data || !o.data.scenes) return;
     if (pieces.length || paths.length) return;   // never clobber a live board
     try {
-      loadData(o.data);
-      var r = o.data.reel;
-      if (r && r.segments && r.segments.length) {
-        // keep the caption: this copied only in/out, so a reload lost every caption
-        segments = r.segments.map(function (s) { var o = { in: +s.in, out: +s.out }; if (s.label) o.label = String(s.label); return o; });
-        if (r.breakMs != null) setBreak(r.breakMs);
-        paintReelInfo();
-      }
-      var ck = o.data.clips;
-      if (ck && ck.list && ck.list.length) {
-        clips = ck.list.map(function (c) {
-          return { id: clipUid++, name: c.name, file: null, url: null, missing: true,
-                   T: c.T || 0, inMs: c.inMs || 0, outMs: c.outMs || 0, tNow: c.tNow || 0,
-                   segments: (c.segments || []), pieces: (c.pieces || []), paths: (c.paths || []) };
-        });
-        clipAt = -1;
-        paintClips();
-        toast(clips.length === 1
-          ? 'Your clip and its marks are here — click it to pick the file again'
-          : clips.length + ' clips and their marks are here — click one to pick its file again');
-        return;
-      }
-      toast('Picked up where you left off — File ▸ New to start fresh');
+      loadData(o.data);      // the wrapper brings back the reel and the clips
+      if (!clips.length) toast('Picked up where you left off — File ▸ New to start fresh');
     } catch (e) { }
+  }
+
+  // The reel and the clips, out of an autosave or out of a saved drill file.
+  function restoreReelAndClips(d) {
+    var r = d.reel;
+    if (r && r.segments && r.segments.length) {
+      // keep the caption: this copied only in/out, so a reload lost every caption
+      segments = r.segments.map(function (s) { var q = { in: +s.in, out: +s.out }; if (s.label) q.label = String(s.label); return q; });
+      if (r.breakMs != null) setBreak(r.breakMs);
+      paintReelInfo();
+    }
+    var ck = d.clips;
+    if (!ck || !ck.list || !ck.list.length) return;
+    clips = ck.list.map(function (c) {
+      return { id: clipUid++, name: c.name, file: null, url: null, missing: true,
+               T: c.T || 0, inMs: c.inMs || 0, outMs: c.outMs || 0, tNow: c.tNow || 0,
+               segments: (c.segments || []), pieces: (c.pieces || []), paths: (c.paths || []) };
+    });
+    clipAt = -1;
+    paintClips(); paintReelInfo();
+    toast(clips.length === 1
+      ? 'Your clip and its marks are here — click it to pick the file again'
+      : clips.length + ' clips and their marks are here — click one to pick its file again');
   }
 
   // ---------------------------------------------------------
