@@ -498,3 +498,22 @@ body.light-theme .seg,body.light-theme .zoomctl button{background:rgba(255,255,2
 .kd-clipadd{padding:4px 9px;border:1px dashed var(--line);border-radius:7px;background:transparent;
   color:var(--muted);font:700 11px/1 system-ui,sans-serif;cursor:pointer}
 .kd-clipadd:hover{color:var(--accent);border-color:var(--accent)}
+
+/* The clip list: every cut in the session, times and all, like a sheet. */
+.kd-listhead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px;
+  font:700 10.5px/1.3 system-ui,sans-serif;color:var(--muted)}
+.kd-listbtns button{padding:3px 7px;margin-left:4px;border:1px solid var(--line);border-radius:5px;
+  background:var(--panel);color:var(--muted);font:700 10px/1 system-ui,sans-serif;cursor:pointer}
+.kd-listbtns button:hover{color:var(--accent);border-color:var(--accent)}
+.kd-listwrap{max-height:52vh;overflow:auto}
+.kd-list{width:100%;border-collapse:collapse;font:600 11px/1.3 system-ui,sans-serif}
+.kd-list th{position:sticky;top:0;background:var(--navy2);color:var(--muted);text-align:left;
+  font-size:9px;letter-spacing:.6px;text-transform:uppercase;padding:4px 4px;border-bottom:1px solid var(--line)}
+.kd-list td{padding:4px;border-bottom:1px solid rgba(255,255,255,.05);white-space:nowrap;cursor:pointer}
+.kd-list tr:hover td{background:rgba(255,255,255,.05)}
+.kd-list tr.here td:nth-child(3){color:var(--accent)}
+.kd-list tr.off td{opacity:.42}
+.kd-list td.nm{max-width:90px;overflow:hidden;text-overflow:ellipsis}
+.kd-list td.cap{color:var(--ink)}
+.kd-list td.cap i{color:var(--muted);font-size:10px}
+.kd-list input[type=checkbox]{accent-color:var(--accent);cursor:pointer}

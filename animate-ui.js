@@ -2213,18 +2213,113 @@
   function reelList() {
     var out = [];
     if (!clips.length) {
-      segments.forEach(function (s) { out.push({ ci: -1, seg: s }); });
+      segments.forEach(function (s) { if (!s.off) out.push({ ci: -1, seg: s }); });
       return out;
     }
     clips.forEach(function (c, ci) {
       if (!c.file) return;
       var segs = (ci === clipAt ? segments : c.segments) || [];
       segs.slice().sort(function (a, b) { return a.in - b.in; }).forEach(function (s) {
+        if (s.off) return;                // unticked in the clip list: not in this export
         out.push({ ci: ci, seg: s, name: c.name });
       });
     });
     return out;
   }
+  // ---------------------------------------------------------
+  // The clip list: every cut in the session, in the order the reel plays them,
+  // with its times and its caption — and a tick that says whether it goes in
+  // the next export. Untick three of eight and Export writes the other five.
+  // ---------------------------------------------------------
+  function allSegments() {          // every cut, ticked or not
+    var out = [];
+    if (!clips.length) {
+      segments.forEach(function (s, i) { out.push({ ci: -1, si: i, seg: s, name: vidName || 'clip' }); });
+      return out;
+    }
+    clips.forEach(function (c, ci) {
+      var segs = (ci === clipAt ? segments : c.segments) || [];
+      segs.forEach(function (s, si) { out.push({ ci: ci, si: si, seg: s, name: c.name, noFile: !c.file }); });
+    });
+    return out;
+  }
+  function paintList() {
+    var el = $('kdList');
+    if (!el) return;
+    var rows = allSegments(), on = 0, total = 0;
+    var h = '<tr><th></th><th>#</th><th>Clip</th><th>In</th><th>Out</th><th>Length</th><th>Caption</th></tr>';
+    rows.forEach(function (e, i) {
+      var s = e.seg, use = s.off !== true && !e.noFile;
+      if (use) { on++; total += Math.max(0, s.out - s.in); }
+      h += '<tr class="' + (use ? '' : 'off') + (e.ci === clipAt ? ' here' : '') + '" data-row="' + i + '">' +
+        '<td><input type="checkbox" data-tick="' + i + '"' + (s.off ? '' : ' checked') +
+        (e.noFile ? ' disabled title="Pick this clip\'s file first"' : '') + '></td>' +
+        '<td>' + (i + 1) + '</td>' +
+        '<td class="nm" title="' + String(e.name).replace(/[<>&"]/g, '') + '">' + shortName(e.name) + '</td>' +
+        '<td>' + fmtT(s.in) + '</td><td>' + fmtT(s.out) + '</td><td>' + fmtT(s.out - s.in) + '</td>' +
+        '<td class="cap" data-cap="' + i + '">' + (s.label ? String(s.label).replace(/[<>&]/g, '') : '<i>add…</i>') + '</td></tr>';
+    });
+    el.innerHTML = h;
+    $('kdListSum').textContent = rows.length
+      ? on + ' of ' + rows.length + ' ticked · ' + fmtT(total + Math.max(0, on - 1) * breakMs) + ' of video'
+      : 'No cuts yet';
+  }
+  function listRow(i) { return allSegments()[i]; }
+  $('kdList').addEventListener('click', function (e) {
+    var t = e.target.closest ? e.target.closest('[data-tick]') : null;
+    if (t) {
+      var r = listRow(+t.dataset.tick);
+      if (r) { if (t.checked) delete r.seg.off; else r.seg.off = true; paintList(); paintReelInfo(); lastSig = ''; render(); autosaveSoon(); }
+      return;
+    }
+    var cap = e.target.closest ? e.target.closest('[data-cap]') : null;
+    if (cap) {
+      var rc = listRow(+cap.dataset.cap);
+      if (!rc) return;
+      var v = window.prompt('Caption for this cut (shows lower left while it plays):', rc.seg.label || '');
+      if (v === null) return;
+      v = v.trim(); if (v) rc.seg.label = v; else delete rc.seg.label;
+      paintList(); lastSig = ''; render(); autosaveSoon();
+      return;
+    }
+    var row = e.target.closest ? e.target.closest('[data-row]') : null;
+    if (!row) return;
+    var rr = listRow(+row.dataset.row);
+    if (!rr) return;
+    if (rr.noFile) { toast('Pick the file for ' + rr.name + ' first'); return; }
+    var where = rr.seg.in;
+    if (rr.ci >= 0 && rr.ci !== clipAt) {
+      // tell the clip where to open, rather than racing its own saved playhead
+      clips[rr.ci].tNow = where;
+      switchClip(rr.ci);
+    } else {
+      tNow = clamp(where, 0, T); playing = false; setPlayUI();
+      rearmHoldsFrom(tNow); syncScrub(); render();
+    }
+    paintList();
+    toast('Cut ' + (+row.dataset.row + 1) + ' — ' + fmtT(rr.seg.in) + ' to ' + fmtT(rr.seg.out));
+  });
+  $('kdListAll').onclick = function () {
+    allSegments().forEach(function (e) { delete e.seg.off; });
+    paintList(); paintReelInfo(); autosaveSoon();
+  };
+  $('kdListNone').onclick = function () {
+    allSegments().forEach(function (e) { e.seg.off = true; });
+    paintList(); paintReelInfo(); autosaveSoon();
+  };
+  $('kdListCopy').onclick = function () {
+    var out = ['#\tClip\tIn\tOut\tLength\tCaption\tIn export'];
+    allSegments().forEach(function (e, i) {
+      out.push([i + 1, e.name, fmtT(e.seg.in), fmtT(e.seg.out), fmtT(e.seg.out - e.seg.in),
+                e.seg.label || '', (e.seg.off || e.noFile) ? 'no' : 'yes'].join('\t'));
+    });
+    var txt = out.join('\n');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(function () { toast('Table copied — paste it into Excel'); },
+        function () { toast('Could not copy'); });
+    } else toast('Could not copy');
+  };
+
   function reelClipCount() {
     var seen = {};
     reelList().forEach(function (e) { seen[e.ci] = 1; });
@@ -2254,6 +2349,7 @@
     $('kdClearSegs').disabled = !segments.length;
     $('kdPlayReel').disabled = !n;
     paintClips();
+    paintList();
   }
   function addSegment() {
     if (!vid) { toast('Open a clip first'); return; }

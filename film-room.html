@@ -182,6 +182,7 @@
       <div class="kd-rtabs">
         <button type="button" class="on" data-rtab="props">Properties</button>
         <button type="button" data-rtab="scene">Surface</button>
+        <button type="button" data-rtab="list" title="Every cut you have made, across every clip: times, length, caption. Tick the ones to export">Clip list</button>
         <button type="button" data-rtab="notes">Notes</button>
       </div>
       <div class="kd-rbody">
@@ -251,6 +252,20 @@
               <option value="uploadref">Upload&hellip;</option>
             </select>
           </div>
+        </div>
+
+        <!-- Every segment in the session, in the order the reel plays them. -->
+        <div class="kd-rtab" data-rtab="list">
+          <div class="kd-listhead">
+            <span id="kdListSum">No cuts yet</span>
+            <span class="kd-listbtns">
+              <button type="button" id="kdListAll" title="Tick every cut">All</button>
+              <button type="button" id="kdListNone" title="Untick every cut">None</button>
+              <button type="button" id="kdListCopy" title="Copy the table to paste into Excel">Copy table</button>
+            </span>
+          </div>
+          <div class="kd-listwrap"><table class="kd-list" id="kdList"></table></div>
+          <p class="kd-tip" style="margin:8px 0 0">A ticked cut goes in the export. Click a row to jump to it; click its caption to rename it.</p>
         </div>
 
         <div class="kd-rtab" data-rtab="notes">
