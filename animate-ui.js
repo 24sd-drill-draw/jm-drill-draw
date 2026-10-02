@@ -1792,6 +1792,15 @@
         '<i class="kd-clipx" data-close="' + i + '" title="Close this clip">&times;</i></button>';
     });
     h += '<button type="button" class="kd-clipadd" id="kdClipAdd" title="Open another video. Each clip keeps its own marks and segments">&#43; Clip</button>';
+    // After a reload every clip is waiting for its file. Picking them one at a
+    // time is four trips through the file dialog; this takes them all in one,
+    // matching each file to its clip by name.
+    var need = clips.filter(function (c) { return !c.file; }).length;
+    if (need) {
+      h += '<button type="button" class="kd-clipadd need" id="kdPickAll" title="Pick the game files for the ' +
+        need + ' clip' + (need === 1 ? '' : 's') + ' waiting. Select them all at once; each one finds its own marks by file name">' +
+        '&#9888; ' + need + ' waiting — pick the file' + (need === 1 ? '' : 's') + '</button>';
+    }
     bar.innerHTML = h;
   }
   function shortName(n) {
@@ -1801,7 +1810,7 @@
   $('kdClips').addEventListener('click', function (e) {
     var x = e.target.closest ? e.target.closest('.kd-clipx') : null;
     if (x) { e.stopPropagation(); removeClip(+x.dataset.close); return; }
-    if (e.target.closest('#kdClipAdd')) { openVideo(); return; }
+    if (e.target.closest('#kdClipAdd') || e.target.closest('#kdPickAll')) { pendingPick = -1; openVideo(); return; }
     var b = e.target.closest ? e.target.closest('.kd-clip') : null;
     if (!b) return;
     var i = +b.dataset.clip;

@@ -535,3 +535,6 @@ body.light-theme .seg,body.light-theme .zoomctl button{background:rgba(255,255,2
 .kd-list th:nth-child(3),.kd-list td:nth-child(3){width:34px}
 .kd-list td.nm{white-space:nowrap;overflow:visible}
 .kd-list tr.needfile td.nm{text-decoration:underline dotted}
+/* "N waiting — pick the files" sits in the clip strip until they are all in. */
+.kd-clipadd.need{border-style:solid;border-color:#E7B416;color:#E7B416}
+.kd-clipadd.need:hover{background:rgba(231,180,22,.12);color:#E7B416;border-color:#E7B416}
