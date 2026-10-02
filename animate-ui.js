@@ -651,7 +651,10 @@
     // inMs/outMs belong here: without them, dragging a trim handle left the
     // track rebuild — and so the "N marks · … out" readout — showing stale
     // numbers that disagreed with the trim.
-    var s = T + '|' + Math.round(inMs) + '|' + Math.round(outMs) + '|' +
+    // The clip's name is in here because the track is labelled with it:
+    // switching to a clip of the same length left the old game's name sitting
+    // over the new clip's track.
+    var s = vidName + '|' + T + '|' + Math.round(inMs) + '|' + Math.round(outMs) + '|' +
       (sel ? sel.kind + sel.id : '-') + '|';
     motionPaths().forEach(function (p) {
       s += p.id + ',' + p.delay + ',' + p.dur + ',' + p.owner + ',' + p.color + ',' + (p.hidden ? 1 : 0) + ',' + (p.freeze ? 1 : 0) + ';';
