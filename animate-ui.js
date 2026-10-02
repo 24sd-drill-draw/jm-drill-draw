@@ -3059,6 +3059,26 @@
       clips: clipsData()
     };
   }
+  // Save drill offers the clip's own name, so the .json and the video it
+  // belongs to end up named the same and sit together in the folder. On
+  // several clips it is the first one's name plus how many more.
+  var _saveBtn = $('exportBtn');
+  if (_saveBtn) {
+    _saveBtn.addEventListener('click', function () {
+      var inp = $('drillNameInput');
+      // "Drill 1" is the engine's placeholder, not a name anyone chose, so it
+      // gives way to the clip's name. A real name you typed stands.
+      var now = (inp ? inp.value : '').trim();
+      if (!inp || (now && !/^drill\s*\d*$/i.test(now))) return;
+      var base = clips.length ? clips[0].name : vidName;
+      if (!base) return;
+      base = base.replace(/\.[^.]+$/, '');
+      if (clips.length > 1) base += ' +' + (clips.length - 1);
+      inp.value = base;
+      setTimeout(function () { inp.select(); }, 90);
+    });
+  }
+
   // File ▸ Save drill wrote the marks of the board and nothing else, so a
   // saved file quietly lost every clip, segment and caption. Same shape as the
   // autosave, so one restore reads both.
