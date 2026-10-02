@@ -517,3 +517,6 @@ body.light-theme .seg,body.light-theme .zoomctl button{background:rgba(255,255,2
 .kd-list td.cap{color:var(--ink)}
 .kd-list td.cap i{color:var(--muted);font-size:10px}
 .kd-list input[type=checkbox]{accent-color:var(--accent);cursor:pointer}
+/* A cut whose clip has not been given its file yet: click it to pick the file. */
+.kd-list tr.needfile td.nm{font-style:italic}
+.kd-list tr.needfile td.nm::after{content:' ⋯'}

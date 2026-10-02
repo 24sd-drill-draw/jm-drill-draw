@@ -2246,14 +2246,16 @@
   function paintList() {
     var el = $('kdList');
     if (!el) return;
-    var rows = allSegments(), on = 0, total = 0;
+    var rows = allSegments(), on = 0, total = 0, waiting = 0;
     var h = '<tr><th></th><th>#</th><th>Clip</th><th>In</th><th>Out</th><th>Length</th><th>Caption</th></tr>';
     rows.forEach(function (e, i) {
-      var s = e.seg, use = s.off !== true && !e.noFile;
+      var s = e.seg, use = s.off !== true;
       if (use) { on++; total += Math.max(0, s.out - s.in); }
-      h += '<tr class="' + (use ? '' : 'off') + (e.ci === clipAt ? ' here' : '') + '" data-row="' + i + '">' +
+      if (e.noFile) waiting++;
+      h += '<tr class="' + (use ? '' : 'off') + (e.noFile ? ' needfile' : '') +
+        (e.ci === clipAt ? ' here' : '') + '" data-row="' + i + '">' +
         '<td><input type="checkbox" data-tick="' + i + '"' + (s.off ? '' : ' checked') +
-        (e.noFile ? ' disabled title="Pick this clip\'s file first"' : '') + '></td>' +
+        (e.noFile ? ' title="Ticked, but this clip is still waiting for its file"' : '') + '></td>' +
         '<td>' + (i + 1) + '</td>' +
         '<td class="nm" title="' + String(e.name).replace(/[<>&"]/g, '') + '">' + shortName(e.name) + '</td>' +
         '<td>' + fmtT(s.in) + '</td><td>' + fmtT(s.out) + '</td><td>' + fmtT(s.out - s.in) + '</td>' +
@@ -2261,7 +2263,8 @@
     });
     el.innerHTML = h;
     $('kdListSum').textContent = rows.length
-      ? on + ' of ' + rows.length + ' ticked · ' + fmtT(total + Math.max(0, on - 1) * breakMs) + ' of video'
+      ? on + ' of ' + rows.length + ' ticked · ' + fmtT(total + Math.max(0, on - 1) * breakMs) + ' of video' +
+        (waiting ? ' · ' + waiting + ' waiting for a file' : '')
       : 'No cuts yet';
   }
   function listRow(i) { return allSegments()[i]; }
@@ -2286,7 +2289,9 @@
     if (!row) return;
     var rr = listRow(+row.dataset.row);
     if (!rr) return;
-    if (rr.noFile) { toast('Pick the file for ' + rr.name + ' first'); return; }
+    // A cut whose clip is still waiting for its file: open the picker for that
+    // clip rather than refusing the click.
+    if (rr.noFile) { pendingPick = rr.ci; toast('Pick the file for ' + rr.name); openVideo(); return; }
     var where = rr.seg.in;
     if (rr.ci >= 0 && rr.ci !== clipAt) {
       // tell the clip where to open, rather than racing its own saved playhead
