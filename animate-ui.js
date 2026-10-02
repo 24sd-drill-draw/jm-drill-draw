@@ -2274,6 +2274,35 @@
       : 'No cuts yet';
   }
   function listRow(i) { return allSegments()[i]; }
+
+  // Play ONE cut, start to finish, and stop. Deciding whether a cut is worth
+  // keeping means watching it, not parking the playhead on its first frame.
+  // It runs through the reel engine with a one-entry running order, so the
+  // clip swap, the pauses and the end are all handled the way they already are.
+  function playCut(e, n) {
+    if (playing) { playing = false; setPlayUI(); if (vid) vid.pause(); }
+    reelSeq = [{ ci: e.ci, seg: e.seg, name: e.name }];
+    reelAt = -1; breakUntil = 0; reelSwitching = false; reelPreview = true;
+    resetHolds();
+    if (e.ci >= 0 && e.ci !== clipAt) {
+      // load it through the reel's own loader, which says when the clip has
+      // landed on the frame — a timer guessed, and usually guessed too early.
+      // reelPreview goes on after the load, so the picture takes this clip's
+      // own shape rather than keeping the last one's.
+      reelPreview = false;
+      reelLoadClip(e.ci, e.seg.in, function (ok) {
+        if (!ok) { toast('Could not open ' + e.name); return; }
+        reelPreview = true;
+        if (!playing) togglePlay();
+        paintList();
+      });
+    } else {
+      tNow = clamp(e.seg.in, 0, T); syncScrub();
+      togglePlay();
+    }
+    paintList();
+    toast('Cut ' + n + (e.seg.label ? ' — ' + e.seg.label : '') + ' · ' + fmtT(e.seg.out - e.seg.in));
+  }
   $('kdList').addEventListener('click', function (e) {
     var t = e.target.closest ? e.target.closest('[data-tick]') : null;
     if (t) {
@@ -2298,17 +2327,7 @@
     // A cut whose clip is still waiting for its file: open the picker for that
     // clip rather than refusing the click.
     if (rr.noFile) { pendingPick = rr.ci; toast('Pick the file for ' + rr.name); openVideo(); return; }
-    var where = rr.seg.in;
-    if (rr.ci >= 0 && rr.ci !== clipAt) {
-      // tell the clip where to open, rather than racing its own saved playhead
-      clips[rr.ci].tNow = where;
-      switchClip(rr.ci);
-    } else {
-      tNow = clamp(where, 0, T); playing = false; setPlayUI();
-      rearmHoldsFrom(tNow); syncScrub(); render();
-    }
-    paintList();
-    toast('Cut ' + (+row.dataset.row + 1) + ' — ' + fmtT(rr.seg.in) + ' to ' + fmtT(rr.seg.out));
+    playCut(rr, +row.dataset.row + 1);
   });
   $('kdListAll').onclick = function () {
     allSegments().forEach(function (e) { delete e.seg.off; });
@@ -2345,7 +2364,11 @@
   var reelPreview = false;
   var reelSeq = null;        // the running order, fixed while a reel plays
   var reelSwitching = false; // a clip is loading behind the card
-  function reelActive() { return onReel() && (reelPreview || exporting); }
+  // A single cut played from the clip list has its own one-entry running
+  // order, so it counts as a reel even when nothing is ticked.
+  function reelActive() {
+    return (reelPreview || exporting) && (onReel() || !!(reelSeq && reelSeq.length));
+  }
   function reelTotal() {
     var list = reelList(), t = 0;
     list.forEach(function (e) { t += Math.max(0, e.seg.out - e.seg.in); });
