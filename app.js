@@ -1698,7 +1698,7 @@ function paintMark(p,scr,col){
   }
   else if(p.type==='shot'){ shotDouble(scr,col); }
   else if(p.type==='arrow'){ strokePoly(scr); arrowHead(scr,col); }
-  else if(p.type==='web'){ drawWeb(scr,col); }
+  else if(p.type==='web'){ drawWeb(scr,col,p.area); }
   else if(p.type==='bar'){ strokePoly(scr); }               // plain segment, no head
   else if(p.type==='ring'){
     // Always draw the ellipse that BOUNDS the points, never the points
@@ -1865,7 +1865,11 @@ function convexHull(pts){
     while(hi.length>=2&&cross(hi[hi.length-2],hi[hi.length-1],q)<=0) hi.pop(); hi.push(q); }
   lo.pop(); hi.pop(); return lo.concat(hi);
 }
-function drawWeb(scr,col){
+// `area` draws the SHAPE only: the outline round the outside and the fill,
+// with none of the mesh inside it. On footage that is what a coach means by
+// circling a zone — the interior hairlines are a drill-board reading, and over
+// players they are just scribble.
+function drawWeb(scr,col,area){
   const n=scr.length; if(n<2) return;
   // deliberately much thinner than the other marks — this is a blanket, not a line
   const lw=Math.max(0.6, 0.16*cam.s*_wmul);
@@ -1881,6 +1885,20 @@ function drawWeb(scr,col){
       ctx.closePath();
       ctx.globalAlpha=0.10*_opa; ctx.fillStyle=col; ctx.fill();
     }
+  }
+
+  if(area){
+    // just the boundary, drawn fatter than the mesh hairline so it reads as a
+    // ring round the area rather than a web
+    const path=(n>=3)?convexHull(scr):scr;
+    const ow=Math.max(1.4, 0.5*cam.s*_wmul);
+    ctx.beginPath(); ctx.moveTo(path[0][0],path[0][1]);
+    for(let i=1;i<path.length;i++) ctx.lineTo(path[i][0],path[i][1]);
+    if(path.length>=3) ctx.closePath();
+    ctx.globalAlpha=0.35*_opa; ctx.strokeStyle='rgba(0,0,0,1)'; ctx.lineWidth=ow+1.4; ctx.stroke();
+    ctx.globalAlpha=_opa; ctx.strokeStyle=col; ctx.lineWidth=ow; ctx.stroke();
+    ctx.restore();
+    return;
   }
 
   // every pair joined. A dark halo under the hairline keeps it readable on
@@ -2382,7 +2400,9 @@ cv.addEventListener('pointerdown',e=>{
   if(tool==='web'){
     if(!webBuilding){
       pushUndo();
-      const np={id:id(),type:'web',color:(activeColor||'#E8313A'),pts:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,freeze:markFreeze,_lut:null};
+      // On footage a web means "this area", so it is drawn as a ring with no
+      // mesh inside. On a drill board the mesh is the reading, so it stays.
+      const np={id:id(),type:'web',color:(activeColor||'#E8313A'),pts:[{x:wx,y:wy}],owner:null,delay:markStart(),dur:markSpan(),w:markW,op:markOp,freeze:markFreeze,area:(rinkConfig==='video'),_lut:null};
       paths.push(np); webBuilding={path:np}; selOne('path',np.id);
       toast('Click each player or corner — double-click or Enter to close the web');
     } else {
