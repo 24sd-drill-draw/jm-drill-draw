@@ -2310,6 +2310,17 @@
       if (r) { if (t.checked) delete r.seg.off; else r.seg.off = true; paintList(); paintReelInfo(); lastSig = ''; render(); autosaveSoon(); }
       return;
     }
+    // The clip badge is the one place that asks for a file, and only when the
+    // clip has none.
+    var nm = e.target.closest ? e.target.closest('td.nm') : null;
+    if (nm) {
+      var rn = listRow(+nm.parentNode.dataset.row);
+      if (rn && rn.ci >= 0) {
+        if (!clips[rn.ci].file) { pendingPick = rn.ci; toast('Pick the file for ' + rn.name); openVideo(); }
+        else switchClip(rn.ci);
+      }
+      return;
+    }
     var cap = e.target.closest ? e.target.closest('[data-cap]') : null;
     if (cap) {
       var rc = listRow(+cap.dataset.cap);
@@ -2324,9 +2335,13 @@
     if (!row) return;
     var rr = listRow(+row.dataset.row);
     if (!rr) return;
-    // A cut whose clip is still waiting for its file: open the picker for that
-    // clip rather than refusing the click.
-    if (rr.noFile) { pendingPick = rr.ci; toast('Pick the file for ' + rr.name); openVideo(); return; }
+    // A cut whose clip has no file loaded cannot be played. Say so and stop —
+    // opening the file picker on a plain row click put a Windows dialog in
+    // front of someone who only wanted to watch a cut.
+    if (rr.noFile) {
+      toast(rr.name + ' is not loaded. Click its C' + (rr.ci + 1) + ' here, or its tab below, to pick the file');
+      return;
+    }
     playCut(rr, +row.dataset.row + 1);
   });
   $('kdListAll').onclick = function () {

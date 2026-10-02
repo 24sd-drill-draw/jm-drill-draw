@@ -531,3 +531,7 @@ body.light-theme .seg,body.light-theme .zoomctl button{background:rgba(255,255,2
 .kd-list td.cap{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .kd-list td.nm{max-width:none;color:var(--accent);font-weight:800}
 .kd-list tr.needfile td.nm{color:var(--muted)}
+/* Wide enough for the C1 badge; the clip's name is on hover. */
+.kd-list th:nth-child(3),.kd-list td:nth-child(3){width:34px}
+.kd-list td.nm{white-space:nowrap;overflow:visible}
+.kd-list tr.needfile td.nm{text-decoration:underline dotted}
