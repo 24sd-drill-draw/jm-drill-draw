@@ -520,3 +520,14 @@ body.light-theme .seg,body.light-theme .zoomctl button{background:rgba(255,255,2
 /* A cut whose clip has not been given its file yet: click it to pick the file. */
 .kd-list tr.needfile td.nm{font-style:italic}
 .kd-list tr.needfile td.nm::after{content:' ⋯'}
+/* Fixed columns, no sideways scrolling: the caption must always be visible. */
+.kd-listwrap{overflow-x:hidden}
+.kd-list{table-layout:fixed}
+.kd-list th:nth-child(1),.kd-list td:nth-child(1){width:20px}
+.kd-list th:nth-child(2),.kd-list td:nth-child(2){width:22px;color:var(--muted)}
+.kd-list th:nth-child(3),.kd-list td:nth-child(3){width:26px}
+.kd-list th:nth-child(4),.kd-list td:nth-child(4){width:40px}
+.kd-list th:nth-child(5),.kd-list td:nth-child(5){width:40px}
+.kd-list td.cap{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kd-list td.nm{max-width:none;color:var(--accent);font-weight:800}
+.kd-list tr.needfile td.nm{color:var(--muted)}

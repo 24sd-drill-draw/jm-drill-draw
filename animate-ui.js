@@ -2247,7 +2247,9 @@
     var el = $('kdList');
     if (!el) return;
     var rows = allSegments(), on = 0, total = 0, waiting = 0;
-    var h = '<tr><th></th><th>#</th><th>Clip</th><th>In</th><th>Out</th><th>Length</th><th>Caption</th></tr>';
+    // Narrow panel, so the clip is a number with its name on hover and the
+    // caption — the part worth reading — gets what is left.
+    var h = '<tr><th></th><th>#</th><th>Clip</th><th>In</th><th>Len</th><th>Caption</th></tr>';
     rows.forEach(function (e, i) {
       var s = e.seg, use = s.off !== true;
       if (use) { on++; total += Math.max(0, s.out - s.in); }
@@ -2257,9 +2259,13 @@
         '<td><input type="checkbox" data-tick="' + i + '"' + (s.off ? '' : ' checked') +
         (e.noFile ? ' title="Ticked, but this clip is still waiting for its file"' : '') + '></td>' +
         '<td>' + (i + 1) + '</td>' +
-        '<td class="nm" title="' + String(e.name).replace(/[<>&"]/g, '') + '">' + shortName(e.name) + '</td>' +
-        '<td>' + fmtT(s.in) + '</td><td>' + fmtT(s.out) + '</td><td>' + fmtT(s.out - s.in) + '</td>' +
-        '<td class="cap" data-cap="' + i + '">' + (s.label ? String(s.label).replace(/[<>&]/g, '') : '<i>add…</i>') + '</td></tr>';
+        '<td class="nm" title="' + String(e.name).replace(/[<>&"]/g, '') +
+        (e.noFile ? ' — waiting for its file; click to pick it' : '') + '">' +
+        (e.ci >= 0 ? 'C' + (e.ci + 1) : '–') + '</td>' +
+        '<td title="' + fmtT(s.in) + ' to ' + fmtT(s.out) + '">' + fmtT(s.in) + '</td>' +
+        '<td>' + fmtT(s.out - s.in) + '</td>' +
+        '<td class="cap" data-cap="' + i + '" title="' + (s.label ? String(s.label).replace(/[<>&"]/g, '') : 'Click to name this cut') + '">' +
+        (s.label ? String(s.label).replace(/[<>&]/g, '') : '<i>add…</i>') + '</td></tr>';
     });
     el.innerHTML = h;
     $('kdListSum').textContent = rows.length
@@ -2347,10 +2353,15 @@
   }
   function paintReelInfo() {
     var n = reelList().length, cn = reelClipCount();
+    // Say when cuts are being left out, or this count and the clip list's own
+    // count disagree with nothing to explain the gap.
+    var waiting = allSegments().filter(function (e) { return e.noFile && !e.seg.off; }).length;
     $('kdReelInfo').textContent = n
       ? n + (n === 1 ? ' segment' : ' segments') +
-        (cn > 1 ? ' from ' + cn + ' clips' : '') + ' → one video, ' + fmtT(reelTotal())
-      : 'reel empty — Export uses in/out';
+        (cn > 1 ? ' from ' + cn + ' clips' : '') + ' → one video, ' + fmtT(reelTotal()) +
+        (waiting ? ' · ' + waiting + ' more need their file' : '')
+      : (waiting ? waiting + ' cuts waiting for their files — click a clip to pick one'
+                 : 'reel empty — Export uses in/out');
     $('kdClearSegs').disabled = !segments.length;
     $('kdPlayReel').disabled = !n;
     paintClips();
@@ -2485,7 +2496,7 @@
     if (v === null) return;
     v = v.trim();
     if (v) s.label = v; else delete s.label;
-    lastSig = ''; render();
+    lastSig = ''; render(); paintList();
     toast(v ? 'Segment ' + (i + 1) + ' captioned "' + v + '"' : 'Caption removed from segment ' + (i + 1));
     autosaveSoon();
   }
