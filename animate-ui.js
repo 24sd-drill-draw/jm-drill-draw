@@ -1441,16 +1441,33 @@
   }
   // Paint the last good frame until 'seeked' says the new one is there. A
   // 500ms cap, so a seek that never reports back cannot freeze the picture.
-  var seeking = false, seekGuard = null;
+  // Waiting on the 'seeked' EVENT was not enough: one left over from an
+  // earlier jump fires straight away and lets the keyframe through, which is
+  // the backwards jump you see. Wait for an actual new FRAME instead
+  // (requestVideoFrameCallback), and while the element says it is seeking.
+  var holdFrame = false, seekGuard = null;
   function holdWhileSeeking() {
     if (!vid) return;
-    seeking = true;
+    holdFrame = true;
     clearTimeout(seekGuard);
-    seekGuard = setTimeout(done, 500);
-    vid.addEventListener('seeked', done, { once: true });
-    function done() { clearTimeout(seekGuard); seeking = false; lastCache = 0; render(); }
+    seekGuard = setTimeout(release, 900);     // never freeze the picture for good
+    if (vid.requestVideoFrameCallback) {
+      // The first frame the browser presents after a seek is often the
+      // KEYFRAME it decodes from, seconds earlier — that is the backwards
+      // jump. Keep waiting until the frame on offer is the one asked for.
+      var want = tNow / 1000, tries = 0;
+      var wait = function (now, meta) {
+        var at = meta && meta.mediaTime != null ? meta.mediaTime : vid.currentTime;
+        if (Math.abs(at - want) <= 0.15 || ++tries > 12) return release();
+        vid.requestVideoFrameCallback(wait);
+      };
+      vid.requestVideoFrameCallback(wait);
+    } else {
+      vid.addEventListener('seeked', function () { setTimeout(release, 30); }, { once: true });
+    }
   }
-  function isSeeking() { return seeking; }
+  function release() { clearTimeout(seekGuard); holdFrame = false; lastCache = 0; render(); }
+  function isSeeking() { return holdFrame || !!(vid && vid.seeking); }
   $('kdPrevF').onclick = function () { step(-1); };
   $('kdNextF').onclick = function () { step(1); };
 
