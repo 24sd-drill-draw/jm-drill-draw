@@ -3047,8 +3047,24 @@
   // ---------------------------------------------------------
   // 7. Hook the engine's render loop
   // ---------------------------------------------------------
+  // The engine repaints on every animation frame whether or not anything has
+  // changed. Parked on a frame, that is a 3440x1440 canvas and a 1080p video
+  // redrawn sixty times a second for nothing, which on a laptop shows up as
+  // everything feeling rough. While nothing is moving, paint about twelve
+  // times a second instead; the moment something IS moving — playing, a drag,
+  // a seek, the break card, a recording — it goes back to every frame.
+  var idlePaint = 0, pressed = false;
+  document.addEventListener('pointerdown', function () { pressed = true; }, true);
+  document.addEventListener('pointerup', function () { pressed = false; }, true);
+  document.addEventListener('pointercancel', function () { pressed = false; }, true);
+
   var _render = render;
   render = function () {
+    if (!playing && !pressed && !exporting && !breakUntil && !isSeeking()) {
+      var now = performance.now();
+      if (now - idlePaint < 80) return;
+      idlePaint = now;
+    } else idlePaint = performance.now();
     // Stopping a reel preview part-way (space, a click, the play button)
     // hands playback back to the playhead; the next Play is an ordinary one.
     if (reelPreview && !playing && !breakUntil) { reelPreview = false; reelAt = -1; }
