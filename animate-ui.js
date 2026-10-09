@@ -1431,9 +1431,26 @@
     } else {
       playing = false; setPlayUI();
       if (back) rearmHoldsFrom(tNow);
+      // Hold the frame that is already on screen until the decoder has landed
+      // on the new one. Without this every press flashed whatever half-decoded
+      // picture the seek passed through, which on a run of presses reads as a
+      // strobe.
+      holdWhileSeeking();
     }
     syncScrub(); render();
   }
+  // Paint the last good frame until 'seeked' says the new one is there. A
+  // 500ms cap, so a seek that never reports back cannot freeze the picture.
+  var seeking = false, seekGuard = null;
+  function holdWhileSeeking() {
+    if (!vid) return;
+    seeking = true;
+    clearTimeout(seekGuard);
+    seekGuard = setTimeout(done, 500);
+    vid.addEventListener('seeked', done, { once: true });
+    function done() { clearTimeout(seekGuard); seeking = false; lastCache = 0; render(); }
+  }
+  function isSeeking() { return seeking; }
   $('kdPrevF').onclick = function () { step(-1); };
   $('kdNextF').onclick = function () { step(1); };
 
@@ -1535,7 +1552,12 @@
       return;
     }
     var drew = false;
-    if (vid && vid.readyState >= 2) {
+    // mid-step: the frame on screen stays put rather than flickering through
+    // the seek
+    if (!playing && isSeeking() && seenFrame && frameCache) {
+      try { ctx.drawImage(frameCache, a[0], a[1], w, h); drew = true; } catch (e) { }
+    }
+    if (!drew && vid && vid.readyState >= 2) {
       // Fit, never stretch: on a reel the picture keeps the size the first
       // clip set, so a clip shot in another shape is boxed inside it rather
       // than squashed to fit.
