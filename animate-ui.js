@@ -1428,6 +1428,9 @@
     if (playing && vid) {
       try { vid.currentTime = tNow / 1000; } catch (e) { }
       if (back) rearmHoldsFrom(tNow);
+      // Stepping while it rolls seeks too, and a seek shows the keyframe
+      // first: the same backwards flash, just harder to catch.
+      holdWhileSeeking();
     } else {
       playing = false; setPlayUI();
       if (back) rearmHoldsFrom(tNow);
@@ -1450,7 +1453,8 @@
     if (!vid) return;
     holdFrame = true;
     clearTimeout(seekGuard);
-    seekGuard = setTimeout(release, 900);     // never freeze the picture for good
+    // While it rolls, a long hold reads as a stall, so give up sooner there.
+    seekGuard = setTimeout(release, playing ? 400 : 900);
     if (vid.requestVideoFrameCallback) {
       // The first frame the browser presents after a seek is often the
       // KEYFRAME it decodes from, seconds earlier — that is the backwards
@@ -1520,12 +1524,11 @@
   var stalledSince = 0;       // how long the clip has had nothing to show
   function keepFrame() {
     if (!vid || !vid.videoWidth) return;
-    // The cache only covers the gap in a seek, so copying frames while the clip
-    // is running is work for nothing — and a full-size frame copy is not free
-    // on a big file.
-    if (playing) return;
+    // The cache covers the gap in a seek — including a seek made WHILE the
+    // clip rolls, which is why it is kept up to date during playback too,
+    // just less often. A stale cache would mean holding an old picture.
     var now = performance.now();
-    if (now - lastCache < 180) return;
+    if (now - lastCache < (playing ? 250 : 180)) return;
     lastCache = now;
     if (!frameCache) { frameCache = document.createElement('canvas'); frameCtx = frameCache.getContext('2d'); }
     if (frameCache.width !== vid.videoWidth) { frameCache.width = vid.videoWidth; frameCache.height = vid.videoHeight; }
@@ -1571,7 +1574,7 @@
     var drew = false;
     // mid-step: the frame on screen stays put rather than flickering through
     // the seek
-    if (!playing && isSeeking() && seenFrame && frameCache) {
+    if (isSeeking() && seenFrame && frameCache) {
       try { ctx.drawImage(frameCache, a[0], a[1], w, h); drew = true; } catch (e) { }
     }
     if (!drew && vid && vid.readyState >= 2) {
