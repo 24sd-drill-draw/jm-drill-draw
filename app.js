@@ -3385,25 +3385,47 @@ function sheetDate(iso){
   if(isNaN(d)) return iso;
   return d.toLocaleDateString(undefined,{weekday:'short', month:'short', day:'numeric', year:'numeric'});
 }
+// Down to print size rather than shipping eight 2400px pictures into the sheet.
+// Nothing on paper beats a 1100px box four inches wide, and a sheet of
+// full-size shots takes seconds to open.
+function shrinkShot(full){
+  const W=1100, H=Math.max(1, Math.round(full.height*(W/full.width)));
+  const c=document.createElement('canvas'); c.width=W; c.height=H;
+  const cx=c.getContext('2d'); cx.fillStyle='#FFFFFF'; cx.fillRect(0,0,W,H);
+  cx.drawImage(full,0,0,W,H);
+  return c.toDataURL('image/jpeg',0.86);
+}
+// An empty sheet of ice on the board's current surface, for the slots no drill
+// has been drawn into yet.
+function blankShot(){
+  const savedPieces=pieces, savedPaths=paths;
+  pieces=[]; paths=[];
+  let url=null;
+  try{ url=shrinkShot(boardShot()); }
+  finally{ pieces=savedPieces; paths=savedPaths; render(); }
+  return url;
+}
 function practiceSheet(){
   syncScene();
   const back=currentScene;
   const slots=[];
   for(let i=0;i<scenes.length;i++){
     loadScene(i);                       // each slot prints on its own surface and view
-    const full=boardShot();
-    // Down to print size here rather than shipping eight 2400px pictures into
-    // the print window. Nothing on paper beats a 1100px box four inches wide,
-    // and a sheet of full-size shots takes seconds to open.
-    const W=1100, H=Math.max(1, Math.round(full.height*(W/full.width)));
-    const c=document.createElement('canvas'); c.width=W; c.height=H;
-    const cx=c.getContext('2d'); cx.fillStyle='#FFFFFF'; cx.fillRect(0,0,W,H);
-    cx.drawImage(full,0,0,W,H);
     const s=scenes[i];
     slots.push({n:i+1, name:s.name||('Drill '+(i+1)), notes:s.notes||'', equip:s.equip||'',
-      url:c.toDataURL('image/jpeg',0.86)});
+      url:shrinkShot(boardShot())});
   }
   loadScene(back);
+
+  // Always a full sheet. The template he prints is two pages of four rinks
+  // whatever is on it, and a back page that stops halfway is a page he cannot
+  // use at the rink - the empty ones are what tomorrow's drills get drawn on.
+  const target=Math.max(8, Math.ceil(slots.length/4)*4);
+  if(slots.length<target){
+    const blank=blankShot();
+    for(let i=slots.length;i<target;i++)
+      slots.push({n:i+1, name:'', notes:'', equip:'', url:blank});
+  }
 
   const h=sheetHead(), esc=escapeHtml;
   const pages=[]; for(let i=0;i<slots.length;i+=4) pages.push(slots.slice(i,i+4));
@@ -3436,7 +3458,8 @@ function practiceSheet(){
         // The big numbers down the margin were Josh's own marker pen on a blank
         // template, not part of the sheet. The slot number rides on the title
         // instead, which says the same thing and gives the rink the width back.
-        '<div class="ttl"><i>'+s.n+'.</i> '+esc(s.name)+'</div>'+
+        // An unused slot gets the empty title box off the blank template.
+        '<div class="ttl">'+(s.name?'<i>'+s.n+'.</i> '+esc(s.name):'&nbsp;')+'</div>'+
         '<div class="lines"><div class="ntext">'+esc(s.notes)+'</div>'+
           (s.equip?'<div class="eq"><b>Equipment:</b> '+esc(s.equip)+'</div>':'')+
         '</div>'+
