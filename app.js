@@ -2980,8 +2980,14 @@ function buildDrillData(){
   return {v:2,showTrap,centerLogo,rinkSize,
     customLogo: LOGO_SRC.custom||null,
     currentScene,
+    sheet: sheetHead(),
     scenes: scenes.map(s=>({
       name:s.name, rinkType:s.rinkType||'full',
+      // Notes and equipment were typed on screen and then dropped on the way
+      // out - nothing wrote them into the file, so every drill came back blank
+      // when you reopened it. They are the lines beside the rink on the
+      // practice sheet, so they have to survive the round trip.
+      notes:s.notes||'', equip:s.equip||'',
       pieces:s.pieces.map(p=>({...p,img:undefined,_src:p._src||null})),
       paths:s.paths.map(p=>({...p,_lut:undefined}))
     }))};
@@ -3102,6 +3108,7 @@ function loadData(o){
     scenes=o.scenes.map(s=>{
       const sc=makeScene(s.name||'Drill');
       sc.rinkType=s.rinkType||'full';
+      sc.notes=s.notes||''; sc.equip=s.equip||'';
       sc.pieces=(s.pieces||[]).map(p=>{ const q={...p}; if(p._src){const img=new Image();img.src=p._src;q.img=img;} return q; });
       sc.paths=(s.paths||[]).map(p=>({...p,_lut:null}));
       return sc;
@@ -3119,6 +3126,9 @@ function loadData(o){
   pieces=s.pieces; paths=s.paths; undoStack=s.undoStack; redoStack=s.redoStack;
   rinkConfig=s.rinkType||'full'; document.getElementById('rinkSel').value=rinkConfig;
   uid=Math.max(1,...scenes.flatMap(sc=>[...sc.pieces.map(p=>p.id||0),...sc.paths.map(p=>p.id||0)]))+1;
+  const _nt=document.getElementById('drillNotes'); if(_nt) _nt.value=s.notes||'';
+  const _eq=document.getElementById('equipNotes'); if(_eq) _eq.value=s.equip||'';
+  applySheetHead(o.sheet);
   selOne(null); currentView=defaultView(); buildLayoutSeg(); buildViewSeg();
   applyView(viewPresets()[0]); updateInspector(); updateSceneTabs(); render();
   toast('Practice loaded — '+scenes.length+' drill'+(scenes.length>1?'s':'')); }
@@ -3268,8 +3278,124 @@ document.getElementById('printBtn').onclick=()=>{
     '<script>window.onload=function(){window.print();}<\/script><\/body><\/html>');
   w.document.close();
 };
-document.getElementById('drillNotes').addEventListener('input',()=>{ scenes[currentScene].notes=document.getElementById('drillNotes').value; });
-document.getElementById('equipNotes').addEventListener('input',()=>{ scenes[currentScene].equip=document.getElementById('equipNotes').value; });
+document.getElementById('drillNotes').addEventListener('input',()=>{ scenes[currentScene].notes=document.getElementById('drillNotes').value; autosave(); });
+document.getElementById('equipNotes').addEventListener('input',()=>{ scenes[currentScene].equip=document.getElementById('equipNotes').value; autosave(); });
+
+// =========================================================
+//  PRACTICE SHEET — every drill tab, four rinks to a page
+// =========================================================
+// The sheet Josh fills in by hand is a Publisher template: a crest and
+// TEAM/COACH/DATE/TIME across the top, four blank rinks down the page with
+// ruled lines beside each one, and a second page for rinks 5-8. This prints
+// that sheet with the drills already drawn in. Drill tab 1 is rink 1, tab 5
+// starts page 2, so the slots are the tabs you already switch between.
+function sheetHead(){
+  const v=i=>{ const el=document.getElementById(i); return el?el.value:''; };
+  return {team:v('shTeam'), coach:v('shCoach'), date:v('shDate'), time:v('shTime')};
+}
+function applySheetHead(h){
+  if(!h) return;
+  const set=(i,val)=>{ const el=document.getElementById(i); if(el&&val!=null) el.value=val; };
+  set('shTeam',h.team); set('shCoach',h.coach); set('shDate',h.date); set('shTime',h.time);
+}
+// The crest, as data. The print window is a blank document with no address of
+// its own, so a relative path into images/ resolves to nothing there.
+function logoDataURL(){
+  const k=centerLogo;
+  if(!k || k==='none') return null;
+  if(k==='custom') return LOGO_SRC.custom||null;
+  const im=LOGO_IMG[k];
+  if(!im || !im.complete || !im.naturalWidth) return null;
+  const c=document.createElement('canvas');
+  c.width=im.naturalWidth; c.height=im.naturalHeight;
+  c.getContext('2d').drawImage(im,0,0);
+  try{ return c.toDataURL('image/png'); }catch(e){ return null; }
+}
+function sheetDate(iso){
+  if(!iso) return '';
+  const p=iso.split('-'); if(p.length!==3) return iso;
+  const d=new Date(+p[0], +p[1]-1, +p[2]);
+  if(isNaN(d)) return iso;
+  return d.toLocaleDateString(undefined,{weekday:'short', month:'short', day:'numeric', year:'numeric'});
+}
+function practiceSheet(){
+  syncScene();
+  const back=currentScene;
+  const slots=[];
+  for(let i=0;i<scenes.length;i++){
+    loadScene(i);                       // each slot prints on its own surface and view
+    const full=boardShot();
+    // Down to print size here rather than shipping eight 2400px pictures into
+    // the print window. Nothing on paper beats a 1100px box four inches wide,
+    // and a sheet of full-size shots takes seconds to open.
+    const W=1100, H=Math.max(1, Math.round(full.height*(W/full.width)));
+    const c=document.createElement('canvas'); c.width=W; c.height=H;
+    const cx=c.getContext('2d'); cx.fillStyle='#FFFFFF'; cx.fillRect(0,0,W,H);
+    cx.drawImage(full,0,0,W,H);
+    const s=scenes[i];
+    slots.push({n:i+1, name:s.name||('Drill '+(i+1)), notes:s.notes||'', equip:s.equip||'',
+      url:c.toDataURL('image/jpeg',0.86)});
+  }
+  loadScene(back);
+
+  const h=sheetHead(), crest=logoDataURL(), esc=escapeHtml;
+  const pages=[]; for(let i=0;i<slots.length;i+=4) pages.push(slots.slice(i,i+4));
+  const hdr=(pno)=>'<div class="hdr">'+
+      (crest?'<img class="crest" src="'+crest+'">':'<div class="crest"></div>')+
+      '<div class="fields">'+
+        '<div><b>TEAM:</b> <span>'+esc(h.team)+'</span></div>'+
+        '<div><b>COACH:</b> <span>'+esc(h.coach)+'</span></div>'+
+        '<div><b>DATE:</b> <span>'+esc(sheetDate(h.date))+'</span></div>'+
+        '<div><b>TIME:</b> <span>'+esc(h.time)+'</span></div>'+
+      '</div>'+
+      (pages.length>1?'<div class="pg">'+pno+' of '+pages.length+'</div>':'')+
+    '</div>';
+  const row=(s)=>'<div class="row">'+
+      '<div class="num">'+s.n+'</div>'+
+      '<img class="rink" src="'+s.url+'">'+
+      '<div class="lines"><div class="dname">'+esc(s.name)+'</div>'+
+        '<div class="ntext">'+esc(s.notes)+'</div>'+
+        (s.equip?'<div class="eq"><b>Equipment:</b> '+esc(s.equip)+'</div>':'')+
+      '</div></div>';
+  const body=pages.map((pg,i)=>'<div class="page">'+hdr(i+1)+pg.map(row).join('')+'</div>').join('');
+  const title=(h.team?h.team+' — ':'')+'Practice sheet'+(h.date?' '+h.date:'');
+
+  const w=window.open('','_blank','width=1000,height=900');
+  if(!w){ toast('Allow pop-ups for this site to print the sheet'); return; }
+  w.document.write('<!doctype html><html><head><title>'+esc(title)+'<\/title><style>'+
+    '@page{size:letter portrait;margin:9mm}'+
+    '*{margin:0;padding:0;box-sizing:border-box}'+
+    'body{background:#fff;color:#111;font:12px/1.35 system-ui,Segoe UI,Arial,sans-serif}'+
+    '.page{page-break-after:always}'+
+    '.page:last-child{page-break-after:auto}'+
+    '.hdr{display:flex;align-items:center;gap:14px;border-bottom:2px solid #111;'+
+      'padding-bottom:6px;margin-bottom:9px}'+
+    '.crest{width:120px;height:54px;object-fit:contain}'+
+    '.fields{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:3px 20px;font-size:12.5px}'+
+    '.fields b{letter-spacing:.5px}'+
+    '.fields span{border-bottom:1px solid #111;display:inline-block;min-width:120px;padding:0 3px}'+
+    '.pg{font-size:11px;color:#555;white-space:nowrap}'+
+    '.row{display:flex;gap:8px;margin-bottom:8px;page-break-inside:avoid}'+
+    '.num{width:20px;font:800 19px/1 system-ui;color:#E9072B;padding-top:4px;text-align:center}'+
+    // the lines column stretches to whatever the rink picture is tall
+    '.rink{width:62%;height:auto;border:1px solid #111;align-self:flex-start}'+
+    '.lines{flex:1;border:1px solid #111;padding:1px 7px 0;overflow:hidden;'+
+      'background-image:repeating-linear-gradient(#fff 0 19px,#A8B4BE 19px 20px);'+
+      'line-height:20px;font-size:12px}'+
+    '.dname{font-weight:800;text-transform:uppercase;letter-spacing:.4px}'+
+    '.ntext{white-space:pre-wrap}'+
+    '.eq{color:#1a5276}'+
+    '<\/style><\/head><body>'+body+
+    '<script>window.onload=function(){window.print();}<\/script><\/body><\/html>');
+  w.document.close();
+}
+// Guarded: app.js is loaded by Film Room too, and that page has no sheet button.
+// An unguarded onclick here would throw on load and take the whole clip page down.
+const _sheetBtn=document.getElementById('sheetBtn');
+if(_sheetBtn) _sheetBtn.onclick=practiceSheet;
+['shTeam','shCoach','shDate','shTime'].forEach(i=>{
+  const el=document.getElementById(i); if(el) el.addEventListener('input', autosave);
+});
 
 // =========================================================
 //  BOOT
