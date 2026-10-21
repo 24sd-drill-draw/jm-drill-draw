@@ -3413,11 +3413,17 @@ function linesForDate(iso){
   const k=Object.keys(LINES.days).filter(x=>x.indexOf(iso)===0).sort()[0];
   return k ? {key:k, day:LINES.days[k]} : null;
 }
+// Last name only. "Lucas Kornylo" is a cell and a half wide; "Kornylo" is who
+// you are looking for when you glance down the sheet.
+function lastName(n){
+  const p=String(n||'').trim().split(/\s+/);
+  return p.length>1 ? p.slice(1).join(' ') : (p[0]||'');
+}
 function playerCell(id){
-  if(!id) return '';
+  if(!id) return {num:'', last:''};
   const r=LINES.roster && LINES.roster[id];
-  if(r) return r.num ? r.num : (r.name||id);
-  return id;                       // no roster loaded: the card's own key still reads
+  if(!r) return {num:'', last:id};   // no roster loaded: the card's own key still reads
+  return {num:r.num||'', last:lastName(r.name)||r.num||id};
 }
 let _logoTarget='f';
 function wireSheetLogos(){
@@ -3511,8 +3517,9 @@ function practiceSheet(){
         if(!pid) return '<td></td>';
         const jk=(found.day.jersey||{})[pid];
         const col=JERSEY[jk];
-        const dot=col?'<i class="jz" style="background:'+col.hex+'"></i>':'';
-        return '<td>'+dot+esc(playerCell(pid))+'</td>';
+        const dot=col?'<i class="jz" style="background:'+col.hex+'" title="'+esc(col.n)+'"></i>':'';
+        const p=playerCell(pid);
+        return '<td>'+dot+(p.num?'<b>'+esc(p.num)+'</b> ':'')+esc(p.last)+'</td>';
       }).join('')+'</tr>';
     }
     return t+'</table>';
@@ -3565,11 +3572,15 @@ function practiceSheet(){
     // page 2: the lineup grid, blank to fill in at the rink
     // table-layout:fixed, or the columns size themselves off their contents and
     // C and G come out half the width of LW with nothing in any of them
-    '.lineup{margin-left:auto;width:54%;border-collapse:collapse;table-layout:fixed;font-size:11px}'+
+    // wider than the fields box on the front: a last name needs the room a bare
+    // number did not
+    '.lineup{margin-left:auto;width:72%;border-collapse:collapse;table-layout:fixed;font-size:9.5px}'+
     '.lineup col{width:16.666%}'+
-    '.lineup th,.lineup td{border:1px solid #111;text-align:center;overflow:hidden}'+
-    '.lineup th{font-weight:800;letter-spacing:.5px;background:#F2F5F7;height:16px;font-size:10px}'+
-    '.lineup td{height:21px;font-weight:700}'+
+    '.lineup th,.lineup td{border:1px solid #111;text-align:center;overflow:hidden;'+
+      'white-space:nowrap;padding:0 2px}'+
+    '.lineup th{font-weight:800;letter-spacing:.5px;background:#F2F5F7;height:15px;font-size:9.5px}'+
+    '.lineup td{height:20px;font-weight:600}'+
+    '.lineup td b{font-weight:800}'+
     // the jersey colour as a square beside the number, so it survives a mono
     // printer as a shape rather than vanishing into a grey cell
     '.jz{display:inline-block;width:8px;height:8px;border:1px solid #111;margin-right:4px;'+
