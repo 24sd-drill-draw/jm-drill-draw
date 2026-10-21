@@ -3340,22 +3340,26 @@ function practiceSheet(){
 
   const h=sheetHead(), crest=logoDataURL(), esc=escapeHtml;
   const pages=[]; for(let i=0;i<slots.length;i+=4) pages.push(slots.slice(i,i+4));
+  // Laid out like the Publisher sheet Josh has always used: crest top left, the
+  // TEAM/COACH/DATE/TIME box top right, big numbers down the left margin, and
+  // each rink paired with a small title box above its ruled lines.
+  const fld=(lbl,val)=>'<div class="f"><b>'+lbl+':</b><span>'+esc(val)+'</span></div>';
   const hdr=(pno)=>'<div class="hdr">'+
       (crest?'<img class="crest" src="'+crest+'">':'<div class="crest"></div>')+
       '<div class="fields">'+
-        '<div><b>TEAM:</b> <span>'+esc(h.team)+'</span></div>'+
-        '<div><b>COACH:</b> <span>'+esc(h.coach)+'</span></div>'+
-        '<div><b>DATE:</b> <span>'+esc(sheetDate(h.date))+'</span></div>'+
-        '<div><b>TIME:</b> <span>'+esc(h.time)+'</span></div>'+
+        fld('TEAM',h.team)+fld('COACH',h.coach)+
+        fld('DATE',sheetDate(h.date))+fld('TIME',h.time)+
       '</div>'+
       (pages.length>1?'<div class="pg">'+pno+' of '+pages.length+'</div>':'')+
     '</div>';
   const row=(s)=>'<div class="row">'+
       '<div class="num">'+s.n+'</div>'+
       '<img class="rink" src="'+s.url+'">'+
-      '<div class="lines"><div class="dname">'+esc(s.name)+'</div>'+
-        '<div class="ntext">'+esc(s.notes)+'</div>'+
-        (s.equip?'<div class="eq"><b>Equipment:</b> '+esc(s.equip)+'</div>':'')+
+      '<div class="col">'+
+        '<div class="ttl">'+esc(s.name)+'</div>'+
+        '<div class="lines"><div class="ntext">'+esc(s.notes)+'</div>'+
+          (s.equip?'<div class="eq"><b>Equipment:</b> '+esc(s.equip)+'</div>':'')+
+        '</div>'+
       '</div></div>';
   const body=pages.map((pg,i)=>'<div class="page">'+hdr(i+1)+pg.map(row).join('')+'</div>').join('');
   const title=(h.team?h.team+' — ':'')+'Practice sheet'+(h.date?' '+h.date:'');
@@ -3366,23 +3370,29 @@ function practiceSheet(){
     '@page{size:letter portrait;margin:9mm}'+
     '*{margin:0;padding:0;box-sizing:border-box}'+
     'body{background:#fff;color:#111;font:12px/1.35 system-ui,Segoe UI,Arial,sans-serif}'+
-    '.page{page-break-after:always}'+
+    '.page{position:relative;page-break-after:always}'+
     '.page:last-child{page-break-after:auto}'+
-    '.hdr{display:flex;align-items:center;gap:14px;border-bottom:2px solid #111;'+
-      'padding-bottom:6px;margin-bottom:9px}'+
-    '.crest{width:120px;height:54px;object-fit:contain}'+
-    '.fields{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:3px 20px;font-size:12.5px}'+
-    '.fields b{letter-spacing:.5px}'+
-    '.fields span{border-bottom:1px solid #111;display:inline-block;min-width:120px;padding:0 3px}'+
-    '.pg{font-size:11px;color:#555;white-space:nowrap}'+
-    '.row{display:flex;gap:8px;margin-bottom:8px;page-break-inside:avoid}'+
-    '.num{width:20px;font:800 19px/1 system-ui;color:#E9072B;padding-top:4px;text-align:center}'+
-    // the lines column stretches to whatever the rink picture is tall
-    '.rink{width:62%;height:auto;border:1px solid #111;align-self:flex-start}'+
-    '.lines{flex:1;border:1px solid #111;padding:1px 7px 0;overflow:hidden;'+
-      'background-image:repeating-linear-gradient(#fff 0 19px,#A8B4BE 19px 20px);'+
+    // header: crest left, the fields box right, nothing underlining the page
+    '.hdr{display:flex;align-items:flex-start;gap:16px;margin-bottom:10px}'+
+    '.crest{height:66px;max-width:230px;object-fit:contain;object-position:left top}'+
+    '.fields{margin-left:auto;width:330px;font-size:11.5px}'+
+    '.f{display:flex;align-items:baseline;gap:6px;margin-bottom:3px}'+
+    '.f b{width:52px;letter-spacing:.5px;flex:0 0 auto}'+
+    '.f span{flex:1;border-bottom:1px solid #111;min-height:15px;padding:0 3px}'+
+    '.pg{position:absolute;right:0;top:0;font-size:10px;color:#777}'+
+    '.row{display:flex;align-items:stretch;gap:7px;margin-bottom:9px;page-break-inside:avoid}'+
+    // the numbers run down the left margin, the way they are marked on the
+    // sheet Josh fills in by hand
+    '.num{width:44px;flex:0 0 44px;font:800 46px/1 system-ui;color:#E6007E;'+
+      'display:flex;align-items:center;justify-content:center}'+
+    '.rink{width:56%;height:auto;border:1px solid #111;border-radius:12px;align-self:flex-start}'+
+    // title box on top, ruled lines filling the rest - one block per rink
+    '.col{flex:1;display:flex;flex-direction:column;min-width:0}'+
+    '.ttl{border:1px solid #111;padding:1px 6px;font-weight:800;font-size:11px;'+
+      'text-transform:uppercase;letter-spacing:.4px;white-space:nowrap;overflow:hidden}'+
+    '.lines{flex:1;border:1px solid #111;border-top:0;padding:1px 6px 0;overflow:hidden;'+
+      'background-image:repeating-linear-gradient(#fff 0 19px,#111 19px 20px);'+
       'line-height:20px;font-size:12px}'+
-    '.dname{font-weight:800;text-transform:uppercase;letter-spacing:.4px}'+
     '.ntext{white-space:pre-wrap}'+
     '.eq{color:#1a5276}'+
     '<\/style><\/head><body>'+body+
