@@ -3353,10 +3353,12 @@ function practiceSheet(){
       (pages.length>1?'<div class="pg">'+pno+' of '+pages.length+'</div>':'')+
     '</div>';
   const row=(s)=>'<div class="row">'+
-      '<div class="num">'+s.n+'</div>'+
       '<img class="rink" src="'+s.url+'">'+
       '<div class="col">'+
-        '<div class="ttl">'+esc(s.name)+'</div>'+
+        // The big numbers down the margin were Josh's own marker pen on a blank
+        // template, not part of the sheet. The slot number rides on the title
+        // instead, which says the same thing and gives the rink the width back.
+        '<div class="ttl"><i>'+s.n+'.</i> '+esc(s.name)+'</div>'+
         '<div class="lines"><div class="ntext">'+esc(s.notes)+'</div>'+
           (s.equip?'<div class="eq"><b>Equipment:</b> '+esc(s.equip)+'</div>':'')+
         '</div>'+
@@ -3381,15 +3383,12 @@ function practiceSheet(){
     '.f span{flex:1;border-bottom:1px solid #111;min-height:15px;padding:0 3px}'+
     '.pg{position:absolute;right:0;top:0;font-size:10px;color:#777}'+
     '.row{display:flex;align-items:stretch;gap:7px;margin-bottom:9px;page-break-inside:avoid}'+
-    // the numbers run down the left margin, the way they are marked on the
-    // sheet Josh fills in by hand
-    '.num{width:44px;flex:0 0 44px;font:800 46px/1 system-ui;color:#E6007E;'+
-      'display:flex;align-items:center;justify-content:center}'+
-    '.rink{width:56%;height:auto;border:1px solid #111;border-radius:12px;align-self:flex-start}'+
+    '.rink{width:62%;height:auto;border:1px solid #111;border-radius:12px;align-self:flex-start}'+
     // title box on top, ruled lines filling the rest - one block per rink
     '.col{flex:1;display:flex;flex-direction:column;min-width:0}'+
     '.ttl{border:1px solid #111;padding:1px 6px;font-weight:800;font-size:11px;'+
       'text-transform:uppercase;letter-spacing:.4px;white-space:nowrap;overflow:hidden}'+
+    '.ttl i{font-style:normal;color:#555}'+
     '.lines{flex:1;border:1px solid #111;border-top:0;padding:1px 6px 0;overflow:hidden;'+
       'background-image:repeating-linear-gradient(#fff 0 19px,#111 19px 20px);'+
       'line-height:20px;font-size:12px}'+
