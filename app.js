@@ -3289,19 +3289,43 @@ document.getElementById('equipNotes').addEventListener('input',()=>{ scenes[curr
 // ruled lines beside each one, and a second page for rinks 5-8. This prints
 // that sheet with the drills already drawn in. Drill tab 1 is rink 1, tab 5
 // starts page 2, so the slots are the tabs you already switch between.
+// Front and back carry different crests on the sheet Josh prints - the wide
+// Seattle Kraken wordmark on page 1, the Jr Kraken lockup on page 2 - and
+// neither is the centre-ice logo. So each page picks its own, and an upload is
+// remembered in this browser as well as written into the file.
+const SHEET_LOGO_KEY='jmdd.sheetLogos.v1';
+let sheetLogoF='centre', sheetLogoB='centre';
+const SHEET_UP={f:null, b:null};
 function sheetHead(){
   const v=i=>{ const el=document.getElementById(i); return el?el.value:''; };
-  return {team:v('shTeam'), coach:v('shCoach'), date:v('shDate'), time:v('shTime')};
+  return {team:v('shTeam'), coach:v('shCoach'), date:v('shDate'), time:v('shTime'),
+    logoF:sheetLogoF, logoB:sheetLogoB, upF:SHEET_UP.f||null, upB:SHEET_UP.b||null};
 }
 function applySheetHead(h){
   if(!h) return;
   const set=(i,val)=>{ const el=document.getElementById(i); if(el&&val!=null) el.value=val; };
   set('shTeam',h.team); set('shCoach',h.coach); set('shDate',h.date); set('shTime',h.time);
+  if(h.upF) SHEET_UP.f=h.upF;
+  if(h.upB) SHEET_UP.b=h.upB;
+  if(h.logoF) sheetLogoF=h.logoF;
+  if(h.logoB) sheetLogoB=h.logoB;
+  saveSheetLogos(); buildSheetLogoSels();
 }
-// The crest, as data. The print window is a blank document with no address of
-// its own, so a relative path into images/ resolves to nothing there.
-function logoDataURL(){
-  const k=centerLogo;
+function saveSheetLogos(){
+  try{ localStorage.setItem(SHEET_LOGO_KEY, JSON.stringify(
+    {f:sheetLogoF, b:sheetLogoB, upF:SHEET_UP.f, upB:SHEET_UP.b})); }catch(e){}
+}
+function loadSheetLogos(){
+  try{
+    const o=JSON.parse(localStorage.getItem(SHEET_LOGO_KEY)||'null');
+    if(!o) return;
+    sheetLogoF=o.f||'centre'; sheetLogoB=o.b||'centre';
+    SHEET_UP.f=o.upF||null; SHEET_UP.b=o.upB||null;
+  }catch(e){}
+}
+// A picture for the print window, which is a blank document with no address of
+// its own - a relative path into images/ resolves to nothing there.
+function builtinLogoURL(k){
   if(!k || k==='none') return null;
   if(k==='custom') return LOGO_SRC.custom||null;
   const im=LOGO_IMG[k];
@@ -3310,6 +3334,49 @@ function logoDataURL(){
   c.width=im.naturalWidth; c.height=im.naturalHeight;
   c.getContext('2d').drawImage(im,0,0);
   try{ return c.toDataURL('image/png'); }catch(e){ return null; }
+}
+function logoDataURL(){ return builtinLogoURL(centerLogo); }
+function crestURL(which){
+  const pick = which==='b' ? sheetLogoB : sheetLogoF;
+  if(pick==='upload') return SHEET_UP[which]||null;
+  if(pick==='centre') return logoDataURL();
+  return builtinLogoURL(pick);
+}
+function buildSheetLogoSels(){
+  [['shLogoF','f'],['shLogoB','b']].forEach(([id,which])=>{
+    const sel=document.getElementById(id); if(!sel) return;
+    const cur = which==='b' ? sheetLogoB : sheetLogoF;
+    let html='<option value="centre">Same as Centre</option><option value="none">No crest</option>';
+    for(const k in LOGO_NAMES) html+='<option value="'+k+'">'+LOGO_NAMES[k]+'</option>';
+    if(SHEET_UP[which]) html+='<option value="upload">Uploaded crest</option>';
+    html+='<option value="pick">Upload…</option>';
+    sel.innerHTML=html;
+    sel.value=cur;
+  });
+}
+let _logoTarget='f';
+function wireSheetLogos(){
+  const file=document.getElementById('shLogoFile');
+  [['shLogoF','f'],['shLogoB','b']].forEach(([id,which])=>{
+    const sel=document.getElementById(id); if(!sel||!file) return;
+    sel.onchange=()=>{
+      if(sel.value==='pick'){ _logoTarget=which; file.click();
+        sel.value = which==='b'?sheetLogoB:sheetLogoF; return; }
+      if(which==='b') sheetLogoB=sel.value; else sheetLogoF=sel.value;
+      saveSheetLogos(); autosave();
+    };
+  });
+  if(file) file.onchange=e=>{
+    const f=e.target.files[0]; if(!f) return;
+    const r=new FileReader();
+    r.onload=()=>{
+      SHEET_UP[_logoTarget]=r.result;
+      if(_logoTarget==='b') sheetLogoB='upload'; else sheetLogoF='upload';
+      saveSheetLogos(); buildSheetLogoSels(); autosave();
+      toast('Crest set for the '+(_logoTarget==='b'?'back':'front')+' page');
+    };
+    r.readAsDataURL(f); e.target.value='';
+  };
 }
 function sheetDate(iso){
   if(!iso) return '';
@@ -3338,20 +3405,31 @@ function practiceSheet(){
   }
   loadScene(back);
 
-  const h=sheetHead(), crest=logoDataURL(), esc=escapeHtml;
+  const h=sheetHead(), esc=escapeHtml;
   const pages=[]; for(let i=0;i<slots.length;i+=4) pages.push(slots.slice(i,i+4));
+  // Page 1 states the practice; page 2 carries the lineup, blank to fill in at
+  // the rink. That is what is on the back of the sheet he already uses.
+  const LINEUP_COLS=['LW','C','RW','LD','RD','G'], LINEUP_ROWS=4;
+  const lineupHTML=()=>{
+    let t='<table class="lineup"><tr>'+LINEUP_COLS.map(c=>'<th>'+c+'</th>').join('')+'</tr>';
+    for(let r=0;r<LINEUP_ROWS;r++) t+='<tr>'+LINEUP_COLS.map(()=>'<td></td>').join('')+'</tr>';
+    return t+'</table>';
+  };
   // Laid out like the Publisher sheet Josh has always used: crest top left, the
   // TEAM/COACH/DATE/TIME box top right, big numbers down the left margin, and
   // each rink paired with a small title box above its ruled lines.
   const fld=(lbl,val)=>'<div class="f"><b>'+lbl+':</b><span>'+esc(val)+'</span></div>';
-  const hdr=(pno)=>'<div class="hdr">'+
+  const hdr=(pno)=>{
+    const crest = crestURL(pno===1?'f':'b');
+    const right = pno===1
+      ? '<div class="fields">'+fld('TEAM',h.team)+fld('COACH',h.coach)+
+          fld('DATE',sheetDate(h.date))+fld('TIME',h.time)+'</div>'
+      : lineupHTML();
+    return '<div class="hdr">'+
       (crest?'<img class="crest" src="'+crest+'">':'<div class="crest"></div>')+
-      '<div class="fields">'+
-        fld('TEAM',h.team)+fld('COACH',h.coach)+
-        fld('DATE',sheetDate(h.date))+fld('TIME',h.time)+
-      '</div>'+
-      (pages.length>1?'<div class="pg">'+pno+' of '+pages.length+'</div>':'')+
+      right+
     '</div>';
+  };
   const row=(s)=>'<div class="row">'+
       '<img class="rink" src="'+s.url+'">'+
       '<div class="col">'+
@@ -3377,11 +3455,16 @@ function practiceSheet(){
     // header: crest left, the fields box right, nothing underlining the page
     '.hdr{display:flex;align-items:flex-start;gap:16px;margin-bottom:10px}'+
     '.crest{height:66px;max-width:230px;object-fit:contain;object-position:left top}'+
-    '.fields{margin-left:auto;width:330px;font-size:11.5px}'+
-    '.f{display:flex;align-items:baseline;gap:6px;margin-bottom:3px}'+
-    '.f b{width:52px;letter-spacing:.5px;flex:0 0 auto}'+
-    '.f span{flex:1;border-bottom:1px solid #111;min-height:15px;padding:0 3px}'+
-    '.pg{position:absolute;right:0;top:0;font-size:10px;color:#777}'+
+    // the fields are a bordered block on his sheet, one ruled cell per line
+    '.fields{margin-left:auto;width:54%;font-size:11.5px;border:1px solid #111;border-bottom:0}'+
+    '.f{display:flex;align-items:center;gap:6px;border-bottom:1px solid #111;'+
+      'padding:2px 5px;min-height:19px}'+
+    '.f b{width:50px;letter-spacing:.5px;flex:0 0 auto}'+
+    '.f span{flex:1}'+
+    // page 2: the lineup grid, blank to fill in at the rink
+    '.lineup{margin-left:auto;width:54%;border-collapse:collapse;font-size:10.5px}'+
+    '.lineup th,.lineup td{border:1px solid #111;height:17px;text-align:center}'+
+    '.lineup th{font-weight:800;letter-spacing:.5px;background:#F2F5F7}'+
     '.row{display:flex;align-items:stretch;gap:7px;margin-bottom:9px;page-break-inside:avoid}'+
     '.rink{width:62%;height:auto;border:1px solid #111;border-radius:12px;align-self:flex-start}'+
     // title box on top, ruled lines filling the rest - one block per rink
@@ -3401,7 +3484,10 @@ function practiceSheet(){
 // Guarded: app.js is loaded by Film Room too, and that page has no sheet button.
 // An unguarded onclick here would throw on load and take the whole clip page down.
 const _sheetBtn=document.getElementById('sheetBtn');
-if(_sheetBtn) _sheetBtn.onclick=practiceSheet;
+if(_sheetBtn){
+  _sheetBtn.onclick=practiceSheet;
+  loadSheetLogos(); buildSheetLogoSels(); wireSheetLogos();
+}
 ['shTeam','shCoach','shDate','shTime'].forEach(i=>{
   const el=document.getElementById(i); if(el) el.addEventListener('input', autosave);
 });

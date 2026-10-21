@@ -190,6 +190,9 @@
   .sheet-head input#shTeam{width:170px}
   .sheet-head input#shCoach{width:120px}
   .sheet-head input#shTime{width:110px}
+  .sheet-head select.shlogo{background:var(--panel);border:1px solid var(--line);border-radius:6px;
+    color:var(--ink);padding:4px 6px;font:12px/1.3 inherit;text-transform:none;letter-spacing:0;
+    -webkit-appearance:menulist}
 
   .equip-bar{display:flex;align-items:center;gap:8px}
   .equip-lbl{font-size:11px;font-weight:700;color:var(--accent);white-space:nowrap;text-transform:uppercase;letter-spacing:.5px}
