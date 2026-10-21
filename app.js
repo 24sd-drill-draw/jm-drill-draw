@@ -3444,9 +3444,7 @@ function practiceSheet(){
   const body=pages.map((pg,i)=>'<div class="page">'+hdr(i+1)+pg.map(row).join('')+'</div>').join('');
   const title=(h.team?h.team+' — ':'')+'Practice sheet'+(h.date?' '+h.date:'');
 
-  const w=window.open('','_blank','width=1000,height=900');
-  if(!w){ toast('Allow pop-ups for this site to print the sheet'); return; }
-  w.document.write('<!doctype html><html><head><title>'+esc(title)+'<\/title><style>'+
+  const html='<!doctype html><html><head><title>'+esc(title)+'<\/title><style>'+
     '@page{size:letter portrait;margin:9mm}'+
     '*{margin:0;padding:0;box-sizing:border-box}'+
     'body{background:#fff;color:#111;font:12px/1.35 system-ui,Segoe UI,Arial,sans-serif}'+
@@ -3477,9 +3475,35 @@ function practiceSheet(){
       'line-height:20px;font-size:12px}'+
     '.ntext{white-space:pre-wrap}'+
     '.eq{color:#1a5276}'+
-    '<\/style><\/head><body>'+body+
-    '<script>window.onload=function(){window.print();}<\/script><\/body><\/html>');
-  w.document.close();
+    '<\/style><\/head><body>'+body+'<\/body><\/html>';
+  showSheetPreview(html, safeFileName(title));
+}
+// The sheet used to open in a second window that printed itself. A blocked
+// pop-up turned the whole feature into a toast - pressing the button appeared
+// to do nothing - and you never saw the sheet before it went to paper. It is
+// an iframe on this page now: you read it first, then print from the bar.
+function showSheetPreview(html, fname){
+  let ov=document.getElementById('sheetPrev');
+  if(ov) ov.remove();
+  ov=document.createElement('div');
+  ov.id='sheetPrev';
+  ov.innerHTML='<div class="sp-bar">'+
+      '<span class="sp-ttl">Practice sheet</span>'+
+      '<span class="sp-hint">Print sends it to paper. For a file, pick <b>Save as PDF</b> as the printer.</span>'+
+      '<button class="tbtn" id="spPrint">🖨 Print / Save as PDF</button>'+
+      '<button class="tbtn ghost" id="spClose">Close</button>'+
+    '</div><div class="sp-body"><iframe id="spFrame" title="Practice sheet preview"><\/iframe><\/div>';
+  document.body.appendChild(ov);
+  const fr=ov.querySelector('#spFrame');
+  fr.srcdoc=html;
+  const close=()=>{ ov.remove(); document.removeEventListener('keydown',esc); };
+  const esc=e=>{ if(e.key==='Escape') close(); };
+  document.addEventListener('keydown',esc);
+  ov.querySelector('#spClose').onclick=close;
+  ov.querySelector('#spPrint').onclick=()=>{
+    try{ fr.contentWindow.focus(); fr.contentWindow.print(); }
+    catch(err){ toast('Could not open the print dialog'); }
+  };
 }
 // Guarded: app.js is loaded by Film Room too, and that page has no sheet button.
 // An unguarded onclick here would throw on load and take the whole clip page down.
