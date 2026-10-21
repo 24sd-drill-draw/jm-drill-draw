@@ -3433,7 +3433,8 @@ function practiceSheet(){
   // the rink. That is what is on the back of the sheet he already uses.
   const LINEUP_COLS=['LW','C','RW','LD','RD','G'], LINEUP_ROWS=4;
   const lineupHTML=()=>{
-    let t='<table class="lineup"><tr>'+LINEUP_COLS.map(c=>'<th>'+c+'</th>').join('')+'</tr>';
+    let t='<table class="lineup">'+LINEUP_COLS.map(()=>'<col>').join('')+
+      '<tr>'+LINEUP_COLS.map(c=>'<th>'+c+'</th>').join('')+'</tr>';
     for(let r=0;r<LINEUP_ROWS;r++) t+='<tr>'+LINEUP_COLS.map(()=>'<td></td>').join('')+'</tr>';
     return t+'</table>';
   };
@@ -3483,9 +3484,13 @@ function practiceSheet(){
     '.f b{width:50px;letter-spacing:.5px;flex:0 0 auto}'+
     '.f span{flex:1}'+
     // page 2: the lineup grid, blank to fill in at the rink
-    '.lineup{margin-left:auto;width:54%;border-collapse:collapse;font-size:10.5px}'+
-    '.lineup th,.lineup td{border:1px solid #111;height:17px;text-align:center}'+
-    '.lineup th{font-weight:800;letter-spacing:.5px;background:#F2F5F7}'+
+    // table-layout:fixed, or the columns size themselves off their contents and
+    // C and G come out half the width of LW with nothing in any of them
+    '.lineup{margin-left:auto;width:54%;border-collapse:collapse;table-layout:fixed;font-size:11px}'+
+    '.lineup col{width:16.666%}'+
+    '.lineup th,.lineup td{border:1px solid #111;text-align:center;overflow:hidden}'+
+    '.lineup th{font-weight:800;letter-spacing:.5px;background:#F2F5F7;height:16px;font-size:10px}'+
+    '.lineup td{height:21px}'+
     '.row{display:flex;align-items:stretch;gap:7px;margin-bottom:9px;page-break-inside:avoid}'+
     '.rink{width:62%;height:auto;border:1px solid #111;border-radius:12px;align-self:flex-start}'+
     // title box on top, ruled lines filling the rest - one block per rink
