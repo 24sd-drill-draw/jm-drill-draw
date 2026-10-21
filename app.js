@@ -3354,6 +3354,71 @@ function buildSheetLogoSels(){
     sel.value=cur;
   });
 }
+// =========================================================
+//  LINES FROM THE LINE-UP CARD
+// =========================================================
+// The lines live in the line-up card on the Kraken site, behind the coach key,
+// in that browser's storage. This is a public page on another domain: it cannot
+// read that, and it has no business asking a gated site for player names. So
+// the card's own "Export all days" file does the travelling. It is held in this
+// browser, written into nothing, and uploaded nowhere.
+const LINES_KEY='jmdd.lines.v1';
+let LINES={days:null, roster:null, from:'', rosterFrom:''};
+// The card's jersey palette, by its storage letter. Do not renumber: these
+// letters are what the card wrote down.
+const JERSEY={n:{n:'Navy',hex:'#001628'}, w:{n:'White',hex:'#FFFFFF'}, r:{n:'Red',hex:'#E9072B'},
+  c:{n:'Baby blue',hex:'#99D9D9'}, y:{n:'Yellow',hex:'#F5C518'}, g:{n:'Green',hex:'#2E9E5B'},
+  o:{n:'Orange',hex:'#E08A3C'}, p:{n:'Purple',hex:'#7A5AA8'}};
+// Four lines across: forwards, then the pair, then the goalie on that line.
+const LINE_ROWS=[
+  ['f1l','f1c','f1r','d1l','d1r','g1'],
+  ['f2l','f2c','f2r','d2l','d2r','g2'],
+  ['f3l','f3c','f3r','d3l','d3r',null],
+  ['f4l','f4c','f4r','d4l','d4r',null]
+];
+function saveLines(){
+  try{ localStorage.setItem(LINES_KEY, JSON.stringify(LINES)); }catch(e){}
+}
+function loadLines(){
+  try{ const o=JSON.parse(localStorage.getItem(LINES_KEY)||'null'); if(o) LINES=o; }catch(e){}
+}
+function linesNote(){
+  const el=document.getElementById('linesNote'); if(!el) return;
+  const bits=[];
+  if(LINES.days){ const k=Object.keys(LINES.days); bits.push(k.length+' day'+(k.length===1?'':'s')); }
+  if(LINES.roster) bits.push('roster');
+  el.textContent = bits.length ? '✓ '+bits.join(' + ') : 'no lines loaded';
+  el.classList.toggle('on', bits.length>0);
+  el.title = bits.length ? 'Loaded from '+[LINES.from,LINES.rosterFrom].filter(Boolean).join(' and ')
+    : 'Export all days from the line-up card, and roster.json, then load them here';
+}
+// One picker, both files: the export has days, the roster has players, so there
+// is nothing to choose between and no wrong order to get them in.
+function takeLinesFile(obj, fname){
+  if(obj && obj.days && typeof obj.days==='object'){
+    LINES.days=obj.days; LINES.from=fname; return 'lines';
+  }
+  if(obj && Array.isArray(obj.players)){
+    const map={};
+    obj.players.forEach(p=>{ if(p&&p.id) map[p.id]={num:p.num||'', name:p.name||''}; });
+    LINES.roster=map; LINES.rosterFrom=fname; return 'roster';
+  }
+  return null;
+}
+// The card keys a day by its date, with a suffix for a second ice time. Josh's
+// Wednesday has two; the bare date is Ice 1.
+function linesForDate(iso){
+  if(!iso || !LINES.days) return null;
+  if(LINES.days[iso]) return {key:iso, day:LINES.days[iso]};
+  const k=Object.keys(LINES.days).filter(x=>x.indexOf(iso)===0).sort()[0];
+  return k ? {key:k, day:LINES.days[k]} : null;
+}
+function playerCell(id){
+  if(!id) return '';
+  const r=LINES.roster && LINES.roster[id];
+  if(r) return r.num ? r.num : (r.name||id);
+  return id;                       // no roster loaded: the card's own key still reads
+}
 let _logoTarget='f';
 function wireSheetLogos(){
   const file=document.getElementById('shLogoFile');
@@ -3432,10 +3497,24 @@ function practiceSheet(){
   // Page 1 states the practice; page 2 carries the lineup, blank to fill in at
   // the rink. That is what is on the back of the sheet he already uses.
   const LINEUP_COLS=['LW','C','RW','LD','RD','G'], LINEUP_ROWS=4;
+  // Filled from the line-up card's export when it holds this date, blank when it
+  // does not - a grid you can still write on beats a grid that is not there.
+  const found=linesForDate(h.date);
   const lineupHTML=()=>{
     let t='<table class="lineup">'+LINEUP_COLS.map(()=>'<col>').join('')+
       '<tr>'+LINEUP_COLS.map(c=>'<th>'+c+'</th>').join('')+'</tr>';
-    for(let r=0;r<LINEUP_ROWS;r++) t+='<tr>'+LINEUP_COLS.map(()=>'<td></td>').join('')+'</tr>';
+    for(let r=0;r<LINEUP_ROWS;r++){
+      const row=LINE_ROWS[r]||[];
+      t+='<tr>'+LINEUP_COLS.map((_,c)=>{
+        const slot=row[c];
+        const pid=(found && slot) ? (found.day.slots||{})[slot] : null;
+        if(!pid) return '<td></td>';
+        const jk=(found.day.jersey||{})[pid];
+        const col=JERSEY[jk];
+        const dot=col?'<i class="jz" style="background:'+col.hex+'"></i>':'';
+        return '<td>'+dot+esc(playerCell(pid))+'</td>';
+      }).join('')+'</tr>';
+    }
     return t+'</table>';
   };
   // Laid out like the Publisher sheet Josh has always used: crest top left, the
@@ -3490,7 +3569,11 @@ function practiceSheet(){
     '.lineup col{width:16.666%}'+
     '.lineup th,.lineup td{border:1px solid #111;text-align:center;overflow:hidden}'+
     '.lineup th{font-weight:800;letter-spacing:.5px;background:#F2F5F7;height:16px;font-size:10px}'+
-    '.lineup td{height:21px}'+
+    '.lineup td{height:21px;font-weight:700}'+
+    // the jersey colour as a square beside the number, so it survives a mono
+    // printer as a shape rather than vanishing into a grey cell
+    '.jz{display:inline-block;width:8px;height:8px;border:1px solid #111;margin-right:4px;'+
+      'vertical-align:middle;print-color-adjust:exact;-webkit-print-color-adjust:exact}'+
     '.row{display:flex;align-items:stretch;gap:7px;margin-bottom:9px;page-break-inside:avoid}'+
     '.rink{width:62%;height:auto;border:1px solid #111;border-radius:12px;align-self:flex-start}'+
     // title box on top, ruled lines filling the rest - one block per rink
@@ -3539,7 +3622,38 @@ const _sheetBtn=document.getElementById('sheetBtn');
 if(_sheetBtn){
   _sheetBtn.onclick=practiceSheet;
   loadSheetLogos(); buildSheetLogoSels(); wireSheetLogos();
+  loadLines(); linesNote();
+  const _linesBtn=document.getElementById('linesBtn');
+  const _linesFile=document.getElementById('linesFile');
+  if(_linesBtn && _linesFile){
+    _linesBtn.onclick=()=>_linesFile.click();
+    _linesFile.onchange=e=>{
+      const files=[...e.target.files]; if(!files.length) return;
+      let got=[], bad=0, left=files.length;
+      files.forEach(f=>{
+        const r=new FileReader();
+        r.onload=()=>{
+          let o=null;
+          try{ o=JSON.parse(r.result); }catch(err){}
+          const kind=o?takeLinesFile(o,f.name):null;
+          if(kind) got.push(kind); else bad++;
+          if(--left===0){
+            saveLines(); linesNote();
+            if(got.length){
+              const d=shDateValue();
+              const hit=linesForDate(d);
+              toast(got.join(' and ')+' loaded'+(hit?' — '+hit.key+' is on the sheet':
+                (d?' — nothing saved for '+d+' yet':'')));
+            } else toast('That file is not the line-up export or the roster');
+          }
+        };
+        r.readAsText(f);
+      });
+      e.target.value='';
+    };
+  }
 }
+function shDateValue(){ const el=document.getElementById('shDate'); return el?el.value:''; }
 ['shTeam','shCoach','shDate','shTime'].forEach(i=>{
   const el=document.getElementById(i); if(el) el.addEventListener('input', autosave);
 });
