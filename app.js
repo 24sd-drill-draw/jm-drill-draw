@@ -3227,7 +3227,21 @@ function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.
 // =========================================================
 //  DEMO: 1 D breaks out 2 F's, swing, return 2v1
 // =========================================================
+// The demo lands in a tab of its own unless the one you are on is empty.
+// It used to empty the current drill and build itself there, with nothing on
+// the button to say so: Josh drew a practice, pressed it, and the sheet printed
+// the 2v1 because that is what was on Drill 1 by then. An example you can look
+// at is not worth a drill you drew.
 function loadDemo(){
+  syncScene();
+  if(pieces.length || paths.length){
+    addScene();
+    scenes[currentScene].name='Demo — 2v1 breakout';
+    updateSceneTabs();
+  }
+  buildDemo();
+}
+function buildDemo(){
   pushUndo(); rinkConfig='full'; pieces=[]; paths=[]; uid=1;
   buildLayoutSeg(); currentView=defaultView(); buildViewSeg();
   const D ={id:id(),type:'player',color:COLORS.blue,x:24,y:42.5,num:'4',size:1,rot:0};
@@ -3252,7 +3266,9 @@ function loadDemo(){
   placePuckAtStart(PK);
   T=5000; document.getElementById('speed').value=9;
   fitRect({x:0,y:0,w:RW,h:RH}); selOne(null); updateInspector(); tNow=0; syncScrub(); render();
-  toast('2v1 breakout loaded — press Play');
+  updateSceneTabs(); autosave();
+  toast(scenes.length>1 ? '2v1 breakout loaded in its own tab — press Play'
+                        : '2v1 breakout loaded — press Play');
 }
 document.getElementById('demoBtn').onclick=loadDemo;
 // combined site theme + dark ice toggle
