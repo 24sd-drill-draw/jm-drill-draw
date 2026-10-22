@@ -3378,7 +3378,11 @@ const LINES_KEY='jmdd.lines.v1';
 let LINES={days:null, locked:null, roster:null, from:'', rosterFrom:''};
 // The card's jersey palette, by its storage letter. Do not renumber: these
 // letters are what the card wrote down.
-const JERSEY={n:{n:'Navy',hex:'#001628'}, w:{n:'White',hex:'#FFFFFF'}, r:{n:'Red',hex:'#E9072B'},
+// `print` is what goes on paper where the card's own colour would not read.
+// Navy is #001628 on screen - R0 G22 B40 - and in an 8px square on a laser
+// printer that is a black dot. Josh asked for it a shade lighter so the sheet
+// shows navy as navy; the card is still the authority for what a player wears.
+const JERSEY={n:{n:'Navy',hex:'#001628',print:'#0B2E4F'}, w:{n:'White',hex:'#FFFFFF'}, r:{n:'Red',hex:'#E9072B'},
   c:{n:'Baby blue',hex:'#99D9D9'}, y:{n:'Yellow',hex:'#F5C518'}, g:{n:'Green',hex:'#2E9E5B'},
   o:{n:'Orange',hex:'#E08A3C'}, p:{n:'Purple',hex:'#7A5AA8'}};
 // Four lines across: forwards, then the pair, then the goalie on that line.
@@ -3585,7 +3589,7 @@ function practiceSheet(){
         if(!pid) return '<td></td>';
         const jk=(found.day.jersey||{})[pid];
         const col=JERSEY[jk];
-        const dot=col?'<i class="jz" style="background:'+col.hex+'" title="'+esc(col.n)+'"></i>':'';
+        const dot=col?'<i class="jz" style="background:'+(col.print||col.hex)+'" title="'+esc(col.n)+'"></i>':'';
         const p=playerCell(pid);
         return '<td>'+dot+(p.num?'<b>'+esc(p.num)+'</b> ':'')+esc(p.last)+'</td>';
       }).join('')+'</tr>';
@@ -3713,7 +3717,10 @@ if(_sheetBtn){
   loadLines(); linesNote();
   // the sessions on offer follow the date on the sheet
   const _shDate=document.getElementById('shDate');
-  if(_shDate) _shDate.addEventListener('change', buildSessionSel);
+  // 'input' as well as 'change': a date typed rather than picked only fires
+  // change on blur, and until then the session list belongs to the old date.
+  if(_shDate){ _shDate.addEventListener('change', buildSessionSel);
+    _shDate.addEventListener('input', buildSessionSel); }
   const _shSess=document.getElementById('shSession');
   if(_shSess) _shSess.addEventListener('change', ()=>{ sheetSession=_shSess.value; updateLinesState(); autosave(); });
   buildSessionSel();
