@@ -75,7 +75,16 @@ function drawnXY(px,py){
   const a=px-w/2, b=py-h/2;
   return [w/2-b, h/2+a];            // inverse of ctx.rotate(-90°) about centre
 }
+// The stage changes height for reasons that have nothing to do with the board:
+// a toolbar row wraps, a notes box grows, the window is dragged shorter. The
+// camera used to keep the zoom it was given at the old size, so the rink stayed
+// at a scale the stage could no longer hold and you were left looking at one
+// corner of it. Remember what was last fitted, and refit on a size change -
+// unless you have moved the view yourself, in which case your framing is the
+// one that matters and nothing should touch it.
+let lastFit=null, camMoved=false;
 function fitRect(r,pad=24){
+  lastFit=r; camMoved=false;
   const cw=cv.clientWidth, ch=cv.clientHeight;
   // A short stage can leave less room than the padding asks for, and the
   // subtraction then goes negative — which flips the whole board through the
@@ -2490,7 +2499,7 @@ cv.addEventListener('pointermove',e=>{
   if(passBuilding){ passCursor={x:wx,y:wy}; render(); return; }
   if(webBuilding){ webCursor={x:wx,y:wy}; render(); return; }
   if(shotBuilding){ shotCursor={x:wx,y:wy}; render(); return; }
-  if(panStart){ cam.tx=panStart.tx+(mxy[0]-panStart.x); cam.ty=panStart.ty+(mxy[1]-panStart.y); render(); return; }
+  if(panStart){ cam.tx=panStart.tx+(mxy[0]-panStart.x); cam.ty=panStart.ty+(mxy[1]-panStart.y); camMoved=true; render(); return; }
   if(marquee){ marquee.x1=wx; marquee.y1=wy; render(); return; }
   if(drag && drag.group){ const dx=wx-drag.lastx, dy=wy-drag.lasty; drag.lastx=wx; drag.lasty=wy;
     selPieces().forEach(q=>{ q.x+=dx; q.y+=dy; movePiecePaths(q.id,dx,dy); }); render(); return; }
@@ -2594,7 +2603,7 @@ cv.addEventListener('contextmenu',e=>{
 });
 cv.addEventListener('wheel',e=>{ e.preventDefault();
   const f=e.deltaY<0?1.12:1/1.12; const _m=drawnXY(e.offsetX,e.offsetY), mx=_m[0], my=_m[1];
-  const [wx,wy]=S2W(mx,my); cam.s*=f; cam.tx=mx-wx*cam.s; cam.ty=my-wy*cam.s; render();
+  const [wx,wy]=S2W(mx,my); cam.s*=f; cam.tx=mx-wx*cam.s; cam.ty=my-wy*cam.s; camMoved=true; render();
 },{passive:false});
 
 // ---- touch: pinch-to-zoom + long-press to finish drawing ----
@@ -2630,7 +2639,7 @@ cv.addEventListener('touchmove',e=>{
     const mid=_touchMid(ts[0],ts[1]);
     const rect=cv.getBoundingClientRect();
     const mx=mid.x-rect.left, my=mid.y-rect.top;
-    const [wx,wy]=S2W(mx,my); cam.s*=f; cam.tx=mx-wx*cam.s; cam.ty=my-wy*cam.s; render();
+    const [wx,wy]=S2W(mx,my); cam.s*=f; cam.tx=mx-wx*cam.s; cam.ty=my-wy*cam.s; camMoved=true; render();
   }
 },{passive:false});
 
@@ -2793,7 +2802,7 @@ document.getElementById('zin').onclick=()=>{ zoomBy(1.18); };
 document.getElementById('zout').onclick=()=>{ zoomBy(1/1.18); };
 document.getElementById('zfit').onclick=()=>{ const v=viewPresets().find(p=>p.k===currentView)||viewPresets()[0]; fitRect(v.r); render(); };
 function zoomBy(f){ const mx=cv.clientWidth/2,my=cv.clientHeight/2; const [wx,wy]=S2W(mx,my);
-  cam.s*=f; cam.tx=mx-wx*cam.s; cam.ty=my-wy*cam.s; render(); }
+  cam.s*=f; cam.tx=mx-wx*cam.s; cam.ty=my-wy*cam.s; camMoved=true; render(); }
 
 // image insert
 document.getElementById('imgBtn').onclick=()=>document.getElementById('imgFile').click();
@@ -3676,7 +3685,9 @@ function shDateValue(){ const el=document.getElementById('shDate'); return el?el
 //  BOOT
 // =========================================================
 function resize(){ if(cv.clientWidth<1||cv.clientHeight<1) return; DPR=Math.min(window.devicePixelRatio||1,2);
-  cv.width=cv.clientWidth*DPR; cv.height=cv.clientHeight*DPR; render(); }
+  cv.width=cv.clientWidth*DPR; cv.height=cv.clientHeight*DPR;
+  if(!camMoved && lastFit) fitRect(lastFit);
+  render(); }
 window.addEventListener('resize',resize);
 
 buildTools(); buildSwatches(); buildObjColors(); buildPieceTray(); buildLayoutSeg(); buildViewSeg(); updateSceneTabs();
