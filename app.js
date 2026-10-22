@@ -3399,7 +3399,8 @@ function applySheetHead(h){
 }
 function saveSheetLogos(){
   try{ localStorage.setItem(SHEET_LOGO_KEY, JSON.stringify(
-    {f:sheetLogoF, b:sheetLogoB, upF:SHEET_UP.f, upB:SHEET_UP.b})); }catch(e){}
+    {f:sheetLogoF, b:sheetLogoB, upF:SHEET_UP.f, upB:SHEET_UP.b,
+     atF:SHEET_UP.atF||0, atB:SHEET_UP.atB||0})); }catch(e){}
 }
 function loadSheetLogos(){
   try{
@@ -3407,6 +3408,7 @@ function loadSheetLogos(){
     if(!o) return;
     sheetLogoF=o.f||'centre'; sheetLogoB=o.b||'centre';
     SHEET_UP.f=o.upF||null; SHEET_UP.b=o.upB||null;
+    SHEET_UP.atF=o.atF||0; SHEET_UP.atB=o.atB||0;
   }catch(e){}
 }
 // A picture for the print window, which is a blank document with no address of
@@ -3500,11 +3502,19 @@ function clearLines(){
 // sheet picks it up on its own.
 function looksLikeLines(n){ return /lineup/i.test(n) && /\.json$/i.test(n); }
 function looksLikeRoster(n){ return /^roster\.json$/i.test(n); }
+// crest.png in that folder is the sheet's header mark. crest-front / crest-back
+// override it per page when the two sides carry different lockups.
+function crestRole(n){
+  const m=String(n).match(/^crest(?:-(front|back))?\.(png|jpe?g|webp|gif)$/i);
+  return m ? (m[1]||'both').toLowerCase() : null;
+}
 async function scanFolderForLines(dir){
-  let lines=null, roster=null;
+  let lines=null, roster=null; const crests={};
   for await (const [name,h] of dir.entries()){
     if(h.kind!=='file') continue;
     try{
+      const role=crestRole(name);
+      if(role){ crests[role]={name, file:await h.getFile()}; continue; }
       if(looksLikeLines(name)){
         const f=await h.getFile();
         // newest wins: a season's worth of exports can pile up in one folder
@@ -3514,7 +3524,31 @@ async function scanFolderForLines(dir){
       }
     }catch(e){}
   }
-  return {lines, roster};
+  return {lines, roster, crests};
+}
+function fileToDataURL(f){
+  return new Promise(res=>{ const r=new FileReader();
+    r.onload=()=>res(r.result); r.onerror=()=>res(null); r.readAsDataURL(f); });
+}
+// Applied only when the file on disk is newer than the one already held, so a
+// crest you uploaded by hand is not overwritten on every load.
+async function applyFolderCrests(crests){
+  if(!crests) return false;
+  const pick=(role)=>crests[role]||crests.both||null;
+  let changed=false;
+  for(const which of ['f','b']){
+    const c=pick(which==='f'?'front':'back');
+    if(!c) continue;
+    const stamp=which==='f'?'atF':'atB';
+    if(SHEET_UP[stamp] && c.file.lastModified<=SHEET_UP[stamp]) continue;
+    const url=await fileToDataURL(c.file);
+    if(!url) continue;
+    SHEET_UP[which]=url; SHEET_UP[stamp]=c.file.lastModified;
+    if(which==='b') sheetLogoB='upload'; else sheetLogoF='upload';
+    changed=true;
+  }
+  if(changed){ saveSheetLogos(); buildSheetLogoSels(); }
+  return changed;
 }
 // quiet: the silent look on load. Loud: the button was pressed and should say
 // what it found, or admit it found nothing.
@@ -3526,7 +3560,12 @@ async function tryFolderLines(quiet){
   } }catch(e){ return false; }
   let found=null;
   try{ found=await scanFolderForLines(dir); }catch(e){ return false; }
-  if(!found || !found.lines) return false;
+  if(!found) return false;
+  const crested=await applyFolderCrests(found.crests);
+  if(!found.lines){
+    if(crested && !quiet) toast('Crest read from '+dir.name);
+    return crested;
+  }
   // Already holding this one: a reload should not keep re-reading the same file.
   if(quiet && LINES.days && LINES.at && found.lines.file.lastModified<=LINES.at) return false;
   const got=[];
@@ -3803,7 +3842,8 @@ function practiceSheet(){
     '.page:last-child{page-break-after:auto}'+
     // header: crest left, the fields box right, nothing underlining the page
     '.hdr{display:flex;align-items:flex-start;gap:16px;margin-bottom:10px}'+
-    '.crest{height:66px;max-width:230px;object-fit:contain;object-position:left top}'+
+    // room for a wide lockup, not just a square crest
+    '.crest{height:72px;max-width:310px;object-fit:contain;object-position:left center}'+
     // the fields are a bordered block on his sheet, one ruled cell per line
     '.fields{margin-left:auto;width:54%;font-size:11.5px;border:1px solid #111;border-bottom:0}'+
     '.f{display:flex;align-items:center;gap:6px;border-bottom:1px solid #111;'+
