@@ -3449,7 +3449,7 @@ function buildSheetLogoSels(){
 // the card's own "Export all days" file does the travelling. It is held in this
 // browser, written into nothing, and uploaded nowhere.
 const LINES_KEY='jmdd.lines.v1';
-let LINES={days:null, locked:null, roster:null, from:'', rosterFrom:''};
+let LINES={days:null, locked:null, roster:null, from:'', rosterFrom:'', at:0};
 // The card's jersey palette, by its storage letter. Do not renumber: these
 // letters are what the card wrote down.
 // `print` is what goes on paper where the card's own colour would not read.
@@ -3490,10 +3490,62 @@ function linesNote(){
   if(x) x.style.display = bits.length ? '' : 'none';
 }
 function clearLines(){
-  LINES={days:null, locked:null, roster:null, from:'', rosterFrom:''};
+  LINES={days:null, locked:null, roster:null, from:'', rosterFrom:'', at:0};
   sheetSession='';
   try{ localStorage.removeItem(LINES_KEY); }catch(e){}
   linesNote(); buildSessionSel(); updateLinesState(); toast('Lines cleared');
+}
+// The folder you granted for the library is the same folder the export belongs
+// in, so look there before asking for anything. Drop a fresh export in and the
+// sheet picks it up on its own.
+function looksLikeLines(n){ return /lineup/i.test(n) && /\.json$/i.test(n); }
+function looksLikeRoster(n){ return /^roster\.json$/i.test(n); }
+async function scanFolderForLines(dir){
+  let lines=null, roster=null;
+  for await (const [name,h] of dir.entries()){
+    if(h.kind!=='file') continue;
+    try{
+      if(looksLikeLines(name)){
+        const f=await h.getFile();
+        // newest wins: a season's worth of exports can pile up in one folder
+        if(!lines || f.lastModified>lines.file.lastModified) lines={name, file:f};
+      } else if(looksLikeRoster(name)){
+        roster={name, file:await h.getFile()};
+      }
+    }catch(e){}
+  }
+  return {lines, roster};
+}
+// quiet: the silent look on load. Loud: the button was pressed and should say
+// what it found, or admit it found nothing.
+async function tryFolderLines(quiet){
+  const dir=await libGet(); if(!dir) return false;
+  try{ if(await dir.queryPermission({mode:'read'})!=='granted'){
+    if(quiet) return false;                       // never prompt on page load
+    if(await dir.requestPermission({mode:'read'})!=='granted') return false;
+  } }catch(e){ return false; }
+  let found=null;
+  try{ found=await scanFolderForLines(dir); }catch(e){ return false; }
+  if(!found || !found.lines) return false;
+  // Already holding this one: a reload should not keep re-reading the same file.
+  if(quiet && LINES.days && LINES.at && found.lines.file.lastModified<=LINES.at) return false;
+  const got=[];
+  try{
+    const o=JSON.parse(await found.lines.file.text());
+    if(takeLinesFile(o, found.lines.name)){ LINES.at=found.lines.file.lastModified; got.push('lines'); }
+  }catch(e){}
+  if(found.roster){
+    try{ const r=JSON.parse(await found.roster.file.text());
+      if(takeLinesFile(r, found.roster.name)) got.push('roster'); }catch(e){}
+  }
+  if(!got.length) return false;
+  saveLines(); linesNote(); buildSessionSel(); updateLinesState();
+  if(!quiet){
+    const d=shDateValue(), hit=linesForDate(d);
+    toast(got.join(' and ')+' read from '+dir.name+(hit?' — '+hit.key+' is on the sheet':
+      (d?' — nothing saved for '+d:'')));
+  }
+  return true;
 }
 // One picker, both files: the export has days, the roster has players, so there
 // is nothing to choose between and no wrong order to get them in.
@@ -3913,6 +3965,10 @@ if(_sheetBtn){
   _sheetBtn.onclick=practiceSheet;
   loadSheetLogos(); buildSheetLogoSels(); wireSheetLogos();
   loadLines(); linesNote();
+  // A silent look in the granted folder on the way in: if a newer export is
+  // sitting there, the sheet is right before you have touched anything. No
+  // prompt - permission that is not already given is left alone.
+  setTimeout(()=>{ tryFolderLines(true).catch(()=>{}); }, 400);
   // the sessions on offer follow the date on the sheet
   const _shDate=document.getElementById('shDate');
   // 'input' as well as 'change': a date typed rather than picked only fires
@@ -3929,7 +3985,11 @@ if(_sheetBtn){
   const _linesBtn=document.getElementById('linesBtn');
   const _linesFile=document.getElementById('linesFile');
   if(_linesBtn && _linesFile){
-    _linesBtn.onclick=()=>_linesFile.click();
+    // The folder first, the picker only if it comes up empty.
+    _linesBtn.onclick=async()=>{
+      if(await tryFolderLines(false)) return;
+      _linesFile.click();
+    };
     _linesFile.onchange=e=>{
       const files=[...e.target.files]; if(!files.length) return;
       let got=[], bad=0, left=files.length;
