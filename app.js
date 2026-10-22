@@ -3417,13 +3417,36 @@ function takeLinesFile(obj, fname){
   }
   return null;
 }
-// The card keys a day by its date, with a suffix for a second ice time. Josh's
-// Wednesday has two; the bare date is Ice 1.
+// The card keys a day by its date, with a suffix for the other sessions: the
+// bare date is Ice 1, '#ice2' the second ice time, '#off' the off-ice. Josh's
+// Wednesday has two ice times and the lines differ between them, so the sheet
+// has to say which one it is printing.
+const SESS_NAME={'':'Ice 1', 'ice2':'Ice 2', 'off':'Off-ice'};
+function sessionsForDate(iso){
+  if(!iso || !LINES.days) return [];
+  return Object.keys(LINES.days)
+    .filter(k=>k===iso || k.indexOf(iso+'#')===0)
+    .sort()
+    .map(k=>({key:k, id:(k.split('#')[1]||''), name:SESS_NAME[k.split('#')[1]||'']||k.split('#')[1]}));
+}
+let sheetSession='';                 // '' = Ice 1, the card's own default
 function linesForDate(iso){
-  if(!iso || !LINES.days) return null;
-  if(LINES.days[iso]) return {key:iso, day:LINES.days[iso]};
-  const k=Object.keys(LINES.days).filter(x=>x.indexOf(iso)===0).sort()[0];
-  return k ? {key:k, day:LINES.days[k]} : null;
+  const list=sessionsForDate(iso);
+  if(!list.length) return null;
+  const want=list.find(s=>s.id===sheetSession) || list[0];
+  return {key:want.key, day:LINES.days[want.key]};
+}
+// Only shown when the date actually holds more than one session - a picker with
+// one thing in it is furniture.
+function buildSessionSel(){
+  const wrap=document.getElementById('shSessionWrap'), sel=document.getElementById('shSession');
+  if(!wrap||!sel) return;
+  const list=sessionsForDate(shDateValue());
+  if(list.length<2){ wrap.style.display='none'; sheetSession=list.length?list[0].id:''; return; }
+  wrap.style.display='';
+  sel.innerHTML=list.map(s=>'<option value="'+s.id+'">'+s.name+'</option>').join('');
+  if(!list.some(s=>s.id===sheetSession)) sheetSession=list[0].id;
+  sel.value=sheetSession;
 }
 // Last name only. "Lucas Kornylo" is a cell and a half wide; "Kornylo" is who
 // you are looking for when you glance down the sheet.
@@ -3646,6 +3669,12 @@ if(_sheetBtn){
   _sheetBtn.onclick=practiceSheet;
   loadSheetLogos(); buildSheetLogoSels(); wireSheetLogos();
   loadLines(); linesNote();
+  // the sessions on offer follow the date on the sheet
+  const _shDate=document.getElementById('shDate');
+  if(_shDate) _shDate.addEventListener('change', buildSessionSel);
+  const _shSess=document.getElementById('shSession');
+  if(_shSess) _shSess.addEventListener('change', ()=>{ sheetSession=_shSess.value; autosave(); });
+  buildSessionSel();
   const _linesBtn=document.getElementById('linesBtn');
   const _linesFile=document.getElementById('linesFile');
   if(_linesBtn && _linesFile){
@@ -3661,11 +3690,12 @@ if(_sheetBtn){
           const kind=o?takeLinesFile(o,f.name):null;
           if(kind) got.push(kind); else bad++;
           if(--left===0){
-            saveLines(); linesNote();
+            saveLines(); linesNote(); buildSessionSel();
             if(got.length){
               const d=shDateValue();
               const hit=linesForDate(d);
-              toast(got.join(' and ')+' loaded'+(hit?' — '+hit.key+' is on the sheet':
+              const many=sessionsForDate(d).length>1 ? ' ('+sessionsForDate(d).length+' sessions — pick one)' : '';
+              toast(got.join(' and ')+' loaded'+(hit?' — '+hit.key+' is on the sheet'+many:
                 (d?' — nothing saved for '+d+' yet':'')));
             } else toast('That file is not the line-up export or the roster');
           }
