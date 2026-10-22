@@ -5,11 +5,14 @@
    A path that starts on a piece becomes that piece's motion track.
    =========================================================== */
 
-const LOGO_SRC={"anchorage": "images/logo-anchorage.png", "krakenS": "images/logo-krakenS.png", "youthS": "images/logo-youthS.png", "anchorLight": "images/logo-anchorLight.png", "anchorNavy": "images/logo-anchorNavy.png"};
-const LOGO_NAMES={anchorage:'Anchorage Academy',krakenS:'Seattle Kraken',youthS:'Kraken (mono)',anchorLight:'Anchor (ice)',anchorNavy:'Anchor (navy)'};
+// Kraken first, and the default. The board is a Kraken board now; Anchorage
+// drops to third rather than off the list - it is still the logo on last
+// season's saved drills, and opening one must still find it.
+const LOGO_SRC={"krakenS": "images/logo-krakenS.png", "youthS": "images/logo-youthS.png", "anchorage": "images/logo-anchorage.png", "anchorLight": "images/logo-anchorLight.png", "anchorNavy": "images/logo-anchorNavy.png"};
+const LOGO_NAMES={krakenS:'Seattle Kraken',youthS:'Kraken (mono)',anchorage:'Anchorage Academy',anchorLight:'Anchor (ice)',anchorNavy:'Anchor (navy)'};
 const LOGO_IMG={};
 for(const k in LOGO_SRC){const im=new Image(); im.src=LOGO_SRC[k]; im.onload=()=>{try{render();}catch(e){}}; LOGO_IMG[k]=im;}
-let centerLogo='anchorage';
+let centerLogo='krakenS';
 const REF_SRC={"stations": "images/ref-stations.png", "swing": "images/ref-swing.png", "flow": "images/ref-flow.png", "cones": "images/ref-cones.png"};
 const REF_NAMES={stations:'10U Stealth (stations)',swing:'Figure-8 swing',flow:'Flow / regroup',cones:'Cone weave'};
 const REF_IMG={};
