@@ -3925,13 +3925,17 @@ function practiceSheet(){
     '.ttl .tnm{overflow:hidden;text-overflow:ellipsis}'+
     '.ttl .tmin{flex:0 0 auto;font-size:10px;letter-spacing:.3px}'+
     '.ttl i{font-style:normal;color:#555}'+
+    // 24px rules against 11px type. At 20px and 12px a sentence ran to three
+    // ruled lines and the box read as striped paper rather than writing - too
+    // many underlines per sentence. Smaller type fits more words on a line and
+    // the wider pitch gives each line air.
     '.lines{flex:1;border:1px solid #111;border-top:0;padding:0 6px;overflow:hidden;'+
-      'position:relative;line-height:20px;font-size:12px}'+
+      'position:relative;line-height:24px;font-size:11px}'+
     '.rules{position:absolute;left:0;right:0;top:0;bottom:0}'+
     // Lighter than the type. At #111 the rule is the same weight as the words
     // and every line reads as struck through; a rule you write over has to sit
     // behind the ink, the way it does on paper.
-    '.rules i{display:block;height:19px;border-bottom:1px solid #9AA7B2}'+
+    '.rules i{display:block;height:23px;border-bottom:1px solid #9AA7B2}'+
     '.txt{position:relative;padding-top:1px}'+
     '.ntext{white-space:pre-wrap}'+
     '.eq{color:#1a5276}'+
