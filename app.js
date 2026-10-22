@@ -3504,6 +3504,61 @@ function clearLines(){
 // in, so look there before asking for anything. Drop a fresh export in and the
 // sheet picks it up on its own.
 function looksLikeLines(n){ return /lineup/i.test(n) && /\.json$/i.test(n); }
+function looksLikeCalendar(n){ return /^calendar\.json$/i.test(n); }
+
+// =========================================================
+//  ICE COUNT — which session of the season this sheet is
+// =========================================================
+// Josh counts every team ice session from August tryouts on. Goalie clinics
+// are NOT team ice: they run inside a practice window - "goalies leave
+// practice" - so counting them would both double-count the hour and flatter
+// the total. They are totalled on their own.
+let CAL=null;                       // {events:[...]} from calendar.json
+function isTeamIce(e){
+  return e && e.kind==='ice' && !e.cancelled && !/goalie/i.test(e.title||'');
+}
+function isGoalieIce(e){
+  return e && e.kind==='ice' && !e.cancelled && /goalie/i.test(e.title||'');
+}
+function eventMinutes(e){
+  const p=s=>{ const m=String(s||'').match(/^(\d{1,2}):(\d{2})$/); return m?(+m[1]*60 + +m[2]):null; };
+  const a=p(e.start), b=p(e.end);
+  if(a==null||b==null) return 0;
+  let d=b-a; if(d<0) d+=1440;         // a session that crosses midnight
+  return (d>0 && d<=360) ? d : 0;
+}
+function teamIceSessions(){
+  if(!CAL || !Array.isArray(CAL.events)) return [];
+  return CAL.events.filter(isTeamIce)
+    .slice()
+    .sort((x,y)=> (x.date===y.date) ? String(x.start).localeCompare(String(y.start))
+                                    : String(x.date).localeCompare(String(y.date)));
+}
+// The sheet's session picker says Ice 1 or Ice 2; the calendar says which ice
+// that is by start time, so the two line up on the day's running order.
+function iceCountFor(iso, sessionId){
+  const list=teamIceSessions();
+  if(!list.length || !iso) return null;
+  const sameDay=list.filter(e=>e.date===iso);
+  if(!sameDay.length) return null;
+  const want = sessionId==='ice2' ? (sameDay[1]||sameDay[0]) : sameDay[0];
+  let n=0, mins=0;
+  for(const e of list){
+    n++; mins+=eventMinutes(e);
+    if(e===want) break;
+  }
+  const total=list.length;
+  const totalMins=list.reduce((m,e)=>m+eventMinutes(e),0);
+  return {n, total, hours:mins/60, seasonHours:totalMins/60};
+}
+function goalieIceHours(uptoISO){
+  if(!CAL || !Array.isArray(CAL.events)) return null;
+  const g=CAL.events.filter(isGoalieIce);
+  const done=g.filter(e=>!uptoISO || String(e.date)<=uptoISO);
+  return {sessions:done.length, hours:done.reduce((m,e)=>m+eventMinutes(e),0)/60,
+          seasonSessions:g.length, seasonHours:g.reduce((m,e)=>m+eventMinutes(e),0)/60};
+}
+function fmtH(h){ return (Math.round(h*10)/10).toFixed(1).replace(/\.0$/,''); }
 function looksLikeRoster(n){ return /^roster\.json$/i.test(n); }
 // crest.png in that folder is the sheet's header mark. crest-front / crest-back
 // override it per page when the two sides carry different lockups.
@@ -3512,12 +3567,13 @@ function crestRole(n){
   return m ? (m[1]||'both').toLowerCase() : null;
 }
 async function scanFolderForLines(dir){
-  let lines=null, roster=null; const crests={};
+  let lines=null, roster=null, cal=null; const crests={};
   for await (const [name,h] of dir.entries()){
     if(h.kind!=='file') continue;
     try{
       const role=crestRole(name);
       if(role){ crests[role]={name, file:await h.getFile()}; continue; }
+      if(looksLikeCalendar(name)){ cal={name, file:await h.getFile()}; continue; }
       if(looksLikeLines(name)){
         const f=await h.getFile();
         // newest wins: a season's worth of exports can pile up in one folder
@@ -3527,7 +3583,7 @@ async function scanFolderForLines(dir){
       }
     }catch(e){}
   }
-  return {lines, roster, crests};
+  return {lines, roster, crests, cal};
 }
 function fileToDataURL(f){
   return new Promise(res=>{ const r=new FileReader();
@@ -3582,6 +3638,12 @@ async function tryFolderLines(quiet){
   let found=null;
   try{ found=await scanFolderForLines(dir); }catch(e){ return false; }
   if(!found) return false;
+  if(found.cal){
+    try{
+      const o=JSON.parse(await found.cal.file.text());
+      if(o && Array.isArray(o.events)){ CAL=o; updateIceCount(); }
+    }catch(e){}
+  }
   const crested=await applyFolderCrests(found.crests);
   if(!found.lines){
     if(crested && !quiet) toast('Crest read from '+dir.name);
@@ -3646,6 +3708,17 @@ function linesForDate(iso){
 // Whether the day about to be printed has been called final. Josh locks a card
 // once the lines are known, so locked means the paper will still be right at the
 // rink; unlocked means they can still move and the sheet is a draft.
+function updateIceCount(){
+  const el=document.getElementById('iceCount'); if(!el) return;
+  const c=iceCountFor(shDateValue(), sheetSession);
+  if(!c){ el.textContent=''; el.className='sh-note'; el.title=''; return; }
+  el.textContent='ice #'+c.n+' · '+fmtH(c.hours)+' h';
+  el.className='sh-note on';
+  const g=goalieIceHours(shDateValue());
+  el.title='Team ice session '+c.n+' of '+c.total+' this season, '+fmtH(c.hours)+
+    ' hours to date of '+fmtH(c.seasonHours)+' scheduled'+
+    (g?'. Goalie clinics are counted apart: '+g.sessions+' so far, '+fmtH(g.hours)+' h':'');
+}
 function updateLinesState(){
   const el=document.getElementById('linesState'); if(!el) return;
   el.className='sh-note';
@@ -3654,6 +3727,7 @@ function updateLinesState(){
   const hit=linesForDate(d);
   if(!hit){ el.textContent='no lines for this date'; return; }
   el.textContent = sessionLabel(hit.key)+(hit.locked ? ' · FINAL — locked' : ' · not locked yet');
+  updateIceCount();
   el.classList.add(hit.locked?'final':'draft');
   el.title = hit.locked
     ? hit.key+' was called final in the line-up card'
@@ -3758,7 +3832,7 @@ function practiceSheet(){
   // change. Printing is the moment they have to be right, so rebuild them here
   // too - a sheet that went to paper saying Ice 1 because a listener never
   // fired is the failure this is guarding.
-  try{ buildSessionSel(); updateLinesState(); }catch(e){}
+  try{ buildSessionSel(); updateLinesState(); updateIceCount(); }catch(e){}
   const back=currentScene;
   const slots=[];
   for(let i=0;i<scenes.length;i++){
@@ -3781,6 +3855,7 @@ function practiceSheet(){
 
   const h=sheetHead(), esc=escapeHtml;
   const planTotal=slots.reduce((n,s)=>n+(s.mins||0),0);
+  const ice=iceCountFor(h.date, sheetSession);
   const pages=[]; for(let i=0;i<slots.length;i+=4) pages.push(slots.slice(i,i+4));
   // Page 1 states the practice; page 2 carries the lineup, blank to fill in at
   // the rink. That is what is on the back of the sheet he already uses.
@@ -3836,7 +3911,9 @@ function practiceSheet(){
     const right = pno===1
       ? '<div class="fields">'+fld('TEAM',h.team)+fld('COACH',h.coach)+
           fld('DATE',sheetDate(h.date))+
-          fld('TIME',h.time+(planTotal?'   ('+planTotal+' min planned)':''))+'</div>'
+          fld('TIME',h.time+(planTotal?'   ('+planTotal+' min planned)':''))+
+          (ice?'<div class="f ice"><b>ON ICE:</b><span>Session '+ice.n+' of the season &nbsp;·&nbsp; '+
+            fmtH(ice.hours)+' hours to date</span></div>':'')+'</div>'
       : ('<div class="rightcol">'+lineupHTML()+benchHTML()+
           // Which card this is, not just whether it was locked. Both of Josh's
           // Wednesday cards are locked, so "FINAL" alone let an Ice 1 sheet
@@ -3901,6 +3978,9 @@ function practiceSheet(){
       'padding:2px 5px;min-height:19px}'+
     '.f b{width:50px;letter-spacing:.5px;flex:0 0 auto}'+
     '.f span{flex:1}'+
+    // the running count reads as a note on the practice, not another blank to fill
+    '.f.ice{background:#F2F5F7;font-size:10.5px}'+
+    '.f.ice span{font-weight:700;letter-spacing:.2px}'+
     // page 2: the lineup grid, blank to fill in at the rink
     // table-layout:fixed, or the columns size themselves off their contents and
     // C and G come out half the width of LW with nothing in any of them
@@ -4131,7 +4211,7 @@ if(_sheetBtn){
   if(_shDate){ _shDate.addEventListener('change', buildSessionSel);
     _shDate.addEventListener('input', buildSessionSel); }
   const _shSess=document.getElementById('shSession');
-  if(_shSess) _shSess.addEventListener('change', ()=>{ sheetSession=_shSess.value; updateLinesState(); autosave(); });
+  if(_shSess) _shSess.addEventListener('change', ()=>{ sheetSession=_shSess.value; updateLinesState(); updateIceCount(); autosave(); });
   buildSessionSel();
   const _libBtn=document.getElementById('libBtn');
   if(_libBtn) _libBtn.onclick=openLibrary;
