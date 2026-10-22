@@ -3543,7 +3543,17 @@ async function applyFolderCrests(crests){
     const c=pick(which==='f'?'front':'back');
     if(!c) continue;
     const stamp=which==='f'?'atF':'atB';
-    if(SHEET_UP[stamp] && c.file.lastModified<=SHEET_UP[stamp]) continue;
+    const sel=()=> which==='b'?sheetLogoB:sheetLogoF;
+    if(SHEET_UP[stamp] && c.file.lastModified<=SHEET_UP[stamp]){
+      // Same file we already hold - but make sure it is still the one chosen.
+      // Restoring a board flips the picker back to whatever that board saved,
+      // and skipping here left the crest in storage and off the sheet.
+      if(SHEET_UP[which] && sel()!=='upload'){
+        if(which==='b') sheetLogoB='upload'; else sheetLogoF='upload';
+        changed=true;
+      }
+      continue;
+    }
     const url=await fileToDataURL(c.file);
     if(!url) continue;
     SHEET_UP[which]=url; SHEET_UP[stamp]=c.file.lastModified;
