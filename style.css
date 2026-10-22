@@ -190,6 +190,9 @@
   .sheet-head input#shTeam{width:170px}
   .sheet-head input#shCoach{width:120px}
   .sheet-head input#shTime{width:110px}
+  .sheet-head .sh-clear{background:none;border:0;color:var(--muted);font-size:15px;
+    line-height:1;padding:0 2px;margin-left:-4px}
+  .sheet-head .sh-clear:hover{color:#ff8a9a}
   .sheet-head .sh-note{font-size:11px;color:var(--muted);white-space:nowrap}
   .sheet-head .sh-note.on{color:var(--accent);font-weight:600}
   .sheet-head select.shlogo{background:var(--panel);border:1px solid var(--line);border-radius:6px;

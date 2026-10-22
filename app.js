@@ -3397,12 +3397,25 @@ function loadLines(){
 function linesNote(){
   const el=document.getElementById('linesNote'); if(!el) return;
   const bits=[];
-  if(LINES.days){ const k=Object.keys(LINES.days); bits.push(k.length+' day'+(k.length===1?'':'s')); }
+  if(LINES.days){
+    const k=Object.keys(LINES.days).sort();
+    // The span of days is the useful part: it says at a glance whether the file
+    // you loaded reaches the practice you are printing.
+    bits.push(k.length+' day'+(k.length===1?'':'s')+(k.length?' '+k[0]+'…'+k[k.length-1].split('#')[0]:''));
+  }
   if(LINES.roster) bits.push('roster');
   el.textContent = bits.length ? '✓ '+bits.join(' + ') : 'no lines loaded';
   el.classList.toggle('on', bits.length>0);
   el.title = bits.length ? 'Loaded from '+[LINES.from,LINES.rosterFrom].filter(Boolean).join(' and ')
     : 'Export all days from the line-up card, and roster.json, then load them here';
+  const x=document.getElementById('linesClear');
+  if(x) x.style.display = bits.length ? '' : 'none';
+}
+function clearLines(){
+  LINES={days:null, roster:null, from:'', rosterFrom:''};
+  sheetSession='';
+  try{ localStorage.removeItem(LINES_KEY); }catch(e){}
+  linesNote(); buildSessionSel(); toast('Lines cleared');
 }
 // One picker, both files: the export has days, the roster has players, so there
 // is nothing to choose between and no wrong order to get them in.
@@ -3675,6 +3688,8 @@ if(_sheetBtn){
   const _shSess=document.getElementById('shSession');
   if(_shSess) _shSess.addEventListener('change', ()=>{ sheetSession=_shSess.value; autosave(); });
   buildSessionSel();
+  const _linesClear=document.getElementById('linesClear');
+  if(_linesClear) _linesClear.onclick=clearLines;
   const _linesBtn=document.getElementById('linesBtn');
   const _linesFile=document.getElementById('linesFile');
   if(_linesBtn && _linesFile){
