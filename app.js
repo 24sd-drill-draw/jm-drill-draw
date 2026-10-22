@@ -216,6 +216,7 @@ function loadScene(idx){
   document.getElementById('rinkSel').value=rinkConfig;
   const nt=document.getElementById('drillNotes'); if(nt) nt.value=s.notes||'';
   const eq=document.getElementById('equipNotes'); if(eq) eq.value=s.equip||'';
+  if(typeof growAllNotes==='function') growAllNotes();   // the next drill's notes are a different length
   selOne(null); building=null; passBuilding=null; webBuilding=null; webCursor=null; shotBuilding=null; skateBuilding=null; skateBackBuilding=null; skateBackCursor=null; skateRevBuilding=null; skateRevCursor=null;
   tNow=0; playing=false;
   try{setPlayUI();}catch(e){}
@@ -3143,6 +3144,7 @@ function loadData(o){
   uid=Math.max(1,...scenes.flatMap(sc=>[...sc.pieces.map(p=>p.id||0),...sc.paths.map(p=>p.id||0)]))+1;
   const _nt=document.getElementById('drillNotes'); if(_nt) _nt.value=s.notes||'';
   const _eq=document.getElementById('equipNotes'); if(_eq) _eq.value=s.equip||'';
+  if(typeof growAllNotes==='function') growAllNotes();
   applySheetHead(o.sheet);
   selOne(null); currentView=defaultView(); buildLayoutSeg(); buildViewSeg();
   applyView(viewPresets()[0]); updateInspector(); updateSceneTabs(); render();
@@ -3309,8 +3311,18 @@ document.getElementById('printBtn').onclick=()=>{
     '<script>window.onload=function(){window.print();}<\/script><\/body><\/html>');
   w.document.close();
 };
-document.getElementById('drillNotes').addEventListener('input',()=>{ scenes[currentScene].notes=document.getElementById('drillNotes').value; autosave(); });
-document.getElementById('equipNotes').addEventListener('input',()=>{ scenes[currentScene].equip=document.getElementById('equipNotes').value; autosave(); });
+// The notes box follows what is in it, up to the cap the stylesheet sets, and
+// you can still drag it taller. Growing the box shortens the stage, and the
+// board refits itself to that, so the rink stays whole either way.
+function growNotes(el){
+  if(!el) return;
+  el.style.height='auto';
+  el.style.height=Math.max(el.scrollHeight, 1)+'px';
+}
+function growAllNotes(){ ['drillNotes','equipNotes'].forEach(i=>growNotes(document.getElementById(i))); }
+document.getElementById('drillNotes').addEventListener('input',function(){ scenes[currentScene].notes=this.value; growNotes(this); autosave(); });
+document.getElementById('equipNotes').addEventListener('input',function(){ scenes[currentScene].equip=this.value; growNotes(this); autosave(); });
+growAllNotes();
 
 // =========================================================
 //  PRACTICE SHEET — every drill tab, four rinks to a page

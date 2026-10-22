@@ -172,8 +172,14 @@
 
   /* drill notes */
   .drill-notes{padding:3px 12px 4px;background:var(--navy2);border-bottom:1px solid var(--line);flex:0 0 auto}
+  /* Three lines to start, grows with what you type, and still draggable past
+     that. A one-line box for "1. Forward to backward, escape, attack with fake
+     and shot. 2. With puck, low through zone..." meant writing a paragraph
+     through a letterbox. */
   .drill-notes textarea{width:100%;background:transparent;border:none;border-radius:0;color:var(--muted);
-    font:12px/1.4 inherit;resize:none;outline:none;padding:2px 0}
+    font:12px/1.45 inherit;resize:vertical;outline:none;padding:2px 0;
+    min-height:50px;max-height:40vh;overflow-y:auto;display:block}
+  .equip-bar textarea{min-height:24px}
   .drill-notes textarea::placeholder{color:var(--line)}
   .drill-notes textarea:focus{color:var(--ink)}
 
