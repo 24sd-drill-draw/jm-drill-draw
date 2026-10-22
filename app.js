@@ -3748,6 +3748,8 @@ function practiceSheet(){
   // Laid out like the Publisher sheet Josh has always used: crest top left, the
   // TEAM/COACH/DATE/TIME box top right, big numbers down the left margin, and
   // each rink paired with a small title box above its ruled lines.
+  // Enough rules to fill the tallest box; the box clips what it does not need.
+  const RULE_ROWS=new Array(16).fill('<i></i>').join('');
   const fld=(lbl,val)=>'<div class="f"><b>'+lbl+':</b><span>'+esc(val)+'</span></div>';
   const hdr=(pno)=>{
     const crest = crestURL(pno===1?'f':'b');
@@ -3777,18 +3779,27 @@ function practiceSheet(){
         // An unused slot gets the empty title box off the blank template.
         '<div class="ttl"><span class="tnm">'+(s.name?'<i>'+s.n+'.</i> '+esc(s.name):'&nbsp;')+'</span>'+
           (s.mins?'<b class="tmin">'+s.mins+' min</b>':'')+'</div>'+
-        '<div class="lines"><div class="ntext">'+esc(s.notes)+'</div>'+
+        // Real ruled elements, not a background gradient. Chrome does not print
+        // background graphics unless the user digs into More settings, so the
+        // lines were on screen and gone on paper - which is exactly what Josh
+        // saw when he said none of the typing was underlined.
+        '<div class="lines"><div class="rules">'+RULE_ROWS+'</div>'+
+          '<div class="txt"><div class="ntext">'+esc(s.notes)+'</div>'+
           (s.equip?'<div class="eq"><b>Equipment:</b> '+esc(s.equip)+'</div>':'')+
-        '</div>'+
+        '</div></div>'+
       '</div></div>';
   const body=pages.map((pg,i)=>'<div class="page">'+hdr(i+1)+pg.map(row).join('')+'</div>').join('');
   const title=(h.team?h.team+' — ':'')+'Practice sheet'+(h.date?' '+h.date:'');
 
   const html='<!doctype html><html><head><title>'+esc(title)+'<\/title><style>'+
-    '@page{size:letter portrait;margin:9mm}'+
+    '@page{size:letter portrait;margin:10mm}'+
     '*{margin:0;padding:0;box-sizing:border-box}'+
-    'body{background:#fff;color:#111;font:12px/1.35 system-ui,Segoe UI,Arial,sans-serif}'+
-    '.page{position:relative;page-break-after:always}'+
+    // print-color-adjust so the jersey squares and the title bars survive a
+    // printer that would otherwise drop every filled area
+    'html,body{width:100%;background:#fff;color:#111;'+
+      'font:12px/1.35 system-ui,Segoe UI,Arial,sans-serif;'+
+      'print-color-adjust:exact;-webkit-print-color-adjust:exact}'+
+    '.page{position:relative;width:100%;page-break-after:always}'+
     '.page:last-child{page-break-after:auto}'+
     // header: crest left, the fields box right, nothing underlining the page
     '.hdr{display:flex;align-items:flex-start;gap:16px;margin-bottom:10px}'+
@@ -3833,9 +3844,14 @@ function practiceSheet(){
     '.ttl .tnm{overflow:hidden;text-overflow:ellipsis}'+
     '.ttl .tmin{flex:0 0 auto;font-size:10px;letter-spacing:.3px}'+
     '.ttl i{font-style:normal;color:#555}'+
-    '.lines{flex:1;border:1px solid #111;border-top:0;padding:1px 6px 0;overflow:hidden;'+
-      'background-image:repeating-linear-gradient(#fff 0 19px,#111 19px 20px);'+
-      'line-height:20px;font-size:12px}'+
+    '.lines{flex:1;border:1px solid #111;border-top:0;padding:0 6px;overflow:hidden;'+
+      'position:relative;line-height:20px;font-size:12px}'+
+    '.rules{position:absolute;left:0;right:0;top:0;bottom:0}'+
+    // Lighter than the type. At #111 the rule is the same weight as the words
+    // and every line reads as struck through; a rule you write over has to sit
+    // behind the ink, the way it does on paper.
+    '.rules i{display:block;height:19px;border-bottom:1px solid #9AA7B2}'+
+    '.txt{position:relative;padding-top:1px}'+
     '.ntext{white-space:pre-wrap}'+
     '.eq{color:#1a5276}'+
     '<\/style><\/head><body>'+body+'<\/body><\/html>';
