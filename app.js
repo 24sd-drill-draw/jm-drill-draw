@@ -3568,6 +3568,7 @@ function takeLinesFile(obj, fname){
 // Wednesday has two ice times and the lines differ between them, so the sheet
 // has to say which one it is printing.
 const SESS_NAME={'':'Ice 1', 'ice2':'Ice 2', 'off':'Off-ice'};
+function sessionLabel(key){ const s=String(key||'').split('#')[1]||''; return SESS_NAME[s]||s||'Ice 1'; }
 function sessionsForDate(iso){
   if(!iso || !LINES.days) return [];
   return Object.keys(LINES.days)
@@ -3592,7 +3593,7 @@ function updateLinesState(){
   if(!LINES.days || !d){ el.textContent=''; return; }
   const hit=linesForDate(d);
   if(!hit){ el.textContent='no lines for this date'; return; }
-  el.textContent = hit.locked ? 'FINAL — locked' : 'not locked yet';
+  el.textContent = sessionLabel(hit.key)+(hit.locked ? ' · FINAL — locked' : ' · not locked yet');
   el.classList.add(hit.locked?'final':'draft');
   el.title = hit.locked
     ? hit.key+' was called final in the line-up card'
@@ -3616,6 +3617,17 @@ function buildSessionSel(){
 function lastName(n){
   const p=String(n||'').trim().split(/\s+/);
   return p.length>1 ? p.slice(1).join(' ') : (p[0]||'');
+}
+// The card gives each player TWO jersey slots - "8 colours, two per player" -
+// so jersey[id] is an array like ["n",""], not a letter. Reading it as a letter
+// found nothing and printed no colour at all, which is how Josh's first sheet
+// came out plain.
+function jerseyDots(v){
+  const keys=Array.isArray(v) ? v.filter(Boolean) : (v?[v]:[]);
+  return keys.slice(0,2).map(k=>{
+    const c=JERSEY[k]; if(!c) return '';
+    return '<i class="jz" style="background:'+(c.print||c.hex)+'" title="'+escapeHtml(c.n)+'"></i>';
+  }).join('');
 }
 function playerCell(id){
   if(!id) return {num:'', last:''};
@@ -3706,6 +3718,17 @@ function practiceSheet(){
   // Filled from the line-up card's export when it holds this date, blank when it
   // does not - a grid you can still write on beats a grid that is not there.
   const found=linesForDate(h.date);
+  // Who is not skating. The card knows - Josh knew it off the top of his head
+  // for Wednesday - and a sheet that lists the lines should say who is out of
+  // them, or you count heads on the ice and come up short.
+  const benchHTML=()=>{
+    if(!found) return '';
+    const names=(found.day.benchOrder||[]).map(id=>{
+      const p=playerCell(id);
+      return (p.num?p.num+' ':'')+p.last;
+    }).filter(Boolean);
+    return names.length ? '<div class="bench"><b>NOT SKATING:</b> '+esc(names.join(' · '))+'</div>' : '';
+  };
   const lineupHTML=()=>{
     let t='<table class="lineup">'+LINEUP_COLS.map(()=>'<col>').join('')+
       '<tr>'+LINEUP_COLS.map(c=>'<th>'+c+'</th>').join('')+'</tr>';
@@ -3715,11 +3738,9 @@ function practiceSheet(){
         const slot=row[c];
         const pid=(found && slot) ? (found.day.slots||{})[slot] : null;
         if(!pid) return '<td></td>';
-        const jk=(found.day.jersey||{})[pid];
-        const col=JERSEY[jk];
-        const dot=col?'<i class="jz" style="background:'+(col.print||col.hex)+'" title="'+esc(col.n)+'"></i>':'';
         const p=playerCell(pid);
-        return '<td>'+dot+(p.num?'<b>'+esc(p.num)+'</b> ':'')+esc(p.last)+'</td>';
+        return '<td>'+jerseyDots((found.day.jersey||{})[pid])+
+          (p.num?'<b>'+esc(p.num)+'</b> ':'')+esc(p.last)+'</td>';
       }).join('')+'</tr>';
     }
     return t+'</table>';
@@ -3734,8 +3755,12 @@ function practiceSheet(){
       ? '<div class="fields">'+fld('TEAM',h.team)+fld('COACH',h.coach)+
           fld('DATE',sheetDate(h.date))+
           fld('TIME',h.time+(planTotal?'   ('+planTotal+' min planned)':''))+'</div>'
-      : ('<div class="rightcol">'+lineupHTML()+
+      : ('<div class="rightcol">'+lineupHTML()+benchHTML()+
+          // Which card this is, not just whether it was locked. Both of Josh's
+          // Wednesday cards are locked, so "FINAL" alone let an Ice 1 sheet
+          // pass for the afternoon one.
           (found?'<div class="lockmark'+(found.locked?' fin':'')+'">'+
+            esc(sessionLabel(found.key))+' · '+
             (found.locked?'FINAL — LOCKED':'NOT LOCKED — lines may change')+'</div>':'')+
         '</div>');
     return '<div class="hdr">'+
@@ -3789,6 +3814,8 @@ function practiceSheet(){
     // the card's own FINAL chip, carried onto the paper
     '.rightcol{margin-left:auto;width:72%}'+
     '.rightcol .lineup{width:100%;margin-left:0}'+
+    '.bench{font-size:9px;padding:2px 0 0;color:#111}'+
+    '.bench b{letter-spacing:.4px}'+
     '.lockmark{font-size:8px;font-weight:800;letter-spacing:.6px;'+
       'padding:1px 0 0;color:#8a8a8a;text-align:right}'+
     '.lockmark.fin{color:#111}'+
