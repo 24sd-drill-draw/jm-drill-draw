@@ -3375,7 +3375,7 @@ function buildSheetLogoSels(){
 // the card's own "Export all days" file does the travelling. It is held in this
 // browser, written into nothing, and uploaded nowhere.
 const LINES_KEY='jmdd.lines.v1';
-let LINES={days:null, roster:null, from:'', rosterFrom:''};
+let LINES={days:null, locked:null, roster:null, from:'', rosterFrom:''};
 // The card's jersey palette, by its storage letter. Do not renumber: these
 // letters are what the card wrote down.
 const JERSEY={n:{n:'Navy',hex:'#001628'}, w:{n:'White',hex:'#FFFFFF'}, r:{n:'Red',hex:'#E9072B'},
@@ -3412,16 +3412,19 @@ function linesNote(){
   if(x) x.style.display = bits.length ? '' : 'none';
 }
 function clearLines(){
-  LINES={days:null, roster:null, from:'', rosterFrom:''};
+  LINES={days:null, locked:null, roster:null, from:'', rosterFrom:''};
   sheetSession='';
   try{ localStorage.removeItem(LINES_KEY); }catch(e){}
-  linesNote(); buildSessionSel(); toast('Lines cleared');
+  linesNote(); buildSessionSel(); updateLinesState(); toast('Lines cleared');
 }
 // One picker, both files: the export has days, the roster has players, so there
 // is nothing to choose between and no wrong order to get them in.
 function takeLinesFile(obj, fname){
   if(obj && obj.days && typeof obj.days==='object'){
-    LINES.days=obj.days; LINES.from=fname; return 'lines';
+    // lockedDays travels with the export. A locked day is one Josh has called
+    // final, so the sheet can say so - and, more usefully, can say when it has
+    // NOT been called yet and the lines may still move under you.
+    LINES.days=obj.days; LINES.locked=obj.lockedDays||{}; LINES.from=fname; return 'lines';
   }
   if(obj && Array.isArray(obj.players)){
     const map={};
@@ -3447,7 +3450,23 @@ function linesForDate(iso){
   const list=sessionsForDate(iso);
   if(!list.length) return null;
   const want=list.find(s=>s.id===sheetSession) || list[0];
-  return {key:want.key, day:LINES.days[want.key]};
+  return {key:want.key, day:LINES.days[want.key], locked:!!(LINES.locked && LINES.locked[want.key])};
+}
+// Whether the day about to be printed has been called final. Josh locks a card
+// once the lines are known, so locked means the paper will still be right at the
+// rink; unlocked means they can still move and the sheet is a draft.
+function updateLinesState(){
+  const el=document.getElementById('linesState'); if(!el) return;
+  el.className='sh-note';
+  const d=shDateValue();
+  if(!LINES.days || !d){ el.textContent=''; return; }
+  const hit=linesForDate(d);
+  if(!hit){ el.textContent='no lines for this date'; return; }
+  el.textContent = hit.locked ? 'FINAL — locked' : 'not locked yet';
+  el.classList.add(hit.locked?'final':'draft');
+  el.title = hit.locked
+    ? hit.key+' was called final in the line-up card'
+    : hit.key+' is still open in the line-up card — these lines can change';
 }
 // Only shown when the date actually holds more than one session - a picker with
 // one thing in it is furniture.
@@ -3455,11 +3474,12 @@ function buildSessionSel(){
   const wrap=document.getElementById('shSessionWrap'), sel=document.getElementById('shSession');
   if(!wrap||!sel) return;
   const list=sessionsForDate(shDateValue());
-  if(list.length<2){ wrap.style.display='none'; sheetSession=list.length?list[0].id:''; return; }
+  if(list.length<2){ wrap.style.display='none'; sheetSession=list.length?list[0].id:''; updateLinesState(); return; }
   wrap.style.display='';
   sel.innerHTML=list.map(s=>'<option value="'+s.id+'">'+s.name+'</option>').join('');
   if(!list.some(s=>s.id===sheetSession)) sheetSession=list[0].id;
   sel.value=sheetSession;
+  updateLinesState();
 }
 // Last name only. "Lucas Kornylo" is a cell and a half wide; "Kornylo" is who
 // you are looking for when you glance down the sheet.
@@ -3581,7 +3601,10 @@ function practiceSheet(){
     const right = pno===1
       ? '<div class="fields">'+fld('TEAM',h.team)+fld('COACH',h.coach)+
           fld('DATE',sheetDate(h.date))+fld('TIME',h.time)+'</div>'
-      : lineupHTML();
+      : ('<div class="rightcol">'+lineupHTML()+
+          (found?'<div class="lockmark'+(found.locked?' fin':'')+'">'+
+            (found.locked?'FINAL — LOCKED':'NOT LOCKED — lines may change')+'</div>':'')+
+        '</div>');
     return '<div class="hdr">'+
       (crest?'<img class="crest" src="'+crest+'">':'<div class="crest"></div>')+
       right+
@@ -3629,6 +3652,12 @@ function practiceSheet(){
     '.lineup th{font-weight:800;letter-spacing:.5px;background:#F2F5F7;height:15px;font-size:9.5px}'+
     '.lineup td{height:20px;font-weight:600}'+
     '.lineup td b{font-weight:800}'+
+    // the card's own FINAL chip, carried onto the paper
+    '.rightcol{margin-left:auto;width:72%}'+
+    '.rightcol .lineup{width:100%;margin-left:0}'+
+    '.lockmark{font-size:8px;font-weight:800;letter-spacing:.6px;'+
+      'padding:1px 0 0;color:#8a8a8a;text-align:right}'+
+    '.lockmark.fin{color:#111}'+
     // the jersey colour as a square beside the number, so it survives a mono
     // printer as a shape rather than vanishing into a grey cell
     '.jz{display:inline-block;width:8px;height:8px;border:1px solid #111;margin-right:4px;'+
@@ -3686,7 +3715,7 @@ if(_sheetBtn){
   const _shDate=document.getElementById('shDate');
   if(_shDate) _shDate.addEventListener('change', buildSessionSel);
   const _shSess=document.getElementById('shSession');
-  if(_shSess) _shSess.addEventListener('change', ()=>{ sheetSession=_shSess.value; autosave(); });
+  if(_shSess) _shSess.addEventListener('change', ()=>{ sheetSession=_shSess.value; updateLinesState(); autosave(); });
   buildSessionSel();
   const _linesClear=document.getElementById('linesClear');
   if(_linesClear) _linesClear.onclick=clearLines;
