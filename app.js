@@ -3861,16 +3861,24 @@ function practiceSheet(){
         // background graphics unless the user digs into More settings, so the
         // lines were on screen and gone on paper - which is exactly what Josh
         // saw when he said none of the typing was underlined.
-        '<div class="lines"><div class="rules">'+RULE_ROWS+'</div>'+
+        // Text first, rules after. Ruling the lines the typing sits on is what
+        // made a sentence look struck through and the box look like striped
+        // paper; the rules are for what gets written at the rink, so they start
+        // where the typing stops.
+        '<div class="lines">'+
           '<div class="txt"><div class="ntext">'+esc(s.notes)+'</div>'+
           (s.equip?'<div class="eq"><b>Equipment:</b> '+esc(s.equip)+'</div>':'')+
-        '</div></div>'+
+          '</div>'+
+          '<div class="rules">'+RULE_ROWS+'</div>'+
+        '</div>'+
       '</div></div>';
   const body=pages.map((pg,i)=>'<div class="page">'+hdr(i+1)+pg.map(row).join('')+'</div>').join('');
   const title=(h.team?h.team+' — ':'')+'Practice sheet'+(h.date?' '+h.date:'');
 
   const html='<!doctype html><html><head><title>'+esc(title)+'<\/title><style>'+
-    '@page{size:letter portrait;margin:10mm}'+
+    // tighter top and bottom than sides: the dead band under the last rink was
+    // page margin, not layout
+    '@page{size:letter portrait;margin:8mm 10mm}'+
     '*{margin:0;padding:0;box-sizing:border-box}'+
     // print-color-adjust so the jersey squares and the title bars survive a
     // printer that would otherwise drop every filled area
@@ -3880,7 +3888,7 @@ function practiceSheet(){
     '.page{position:relative;width:100%;page-break-after:always}'+
     '.page:last-child{page-break-after:auto}'+
     // header: crest left, the fields box right, nothing underlining the page
-    '.hdr{display:flex;align-items:flex-start;gap:16px;margin-bottom:10px}'+
+    '.hdr{display:flex;align-items:flex-start;gap:16px;margin-bottom:7px}'+
     // room for a wide lockup, not just a square crest
     '.crest{height:72px;max-width:310px;object-fit:contain;object-position:left center}'+
     '.backmark{flex:1;display:flex;align-items:center;justify-content:center;min-width:0}'+
@@ -3929,14 +3937,18 @@ function practiceSheet(){
     // ruled lines and the box read as striped paper rather than writing - too
     // many underlines per sentence. Smaller type fits more words on a line and
     // the wider pitch gives each line air.
-    '.lines{flex:1;border:1px solid #111;border-top:0;padding:0 6px;overflow:hidden;'+
-      'position:relative;line-height:24px;font-size:11px}'+
-    '.rules{position:absolute;left:0;right:0;top:0;bottom:0}'+
+    // height:0 with flex:1 - the box must take its height from the rink beside
+    // it, not from the rules inside it. Sized by content, sixteen rules made
+    // every row taller than its own diagram.
+    '.lines{flex:1 1 0;height:0;border:1px solid #111;border-top:0;padding:3px 6px 0;'+
+      'overflow:hidden;display:flex;flex-direction:column;line-height:15px;font-size:11px}'+
+    // takes whatever height the typing leaves, and clips the rules it cannot fit
+    '.rules{flex:1;min-height:0;overflow:hidden;margin-top:4px}'+
     // Lighter than the type. At #111 the rule is the same weight as the words
     // and every line reads as struck through; a rule you write over has to sit
     // behind the ink, the way it does on paper.
-    '.rules i{display:block;height:23px;border-bottom:1px solid #9AA7B2}'+
-    '.txt{position:relative;padding-top:1px}'+
+    '.rules i{display:block;height:21px;border-bottom:1px solid #9AA7B2}'+
+    '.txt{flex:0 0 auto}'+
     '.ntext{white-space:pre-wrap}'+
     '.eq{color:#1a5276}'+
     '<\/style><\/head><body>'+body+'<\/body><\/html>';
