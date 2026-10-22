@@ -2997,6 +2997,7 @@ function buildDrillData(){
   return {v:2,showTrap,centerLogo,rinkSize,
     customLogo: LOGO_SRC.custom||null,
     currentScene,
+    fileName: lastSaveName||'',
     sheet: sheetHead(),
     scenes: scenes.map(s=>({
       name:s.name, rinkType:s.rinkType||'full',
@@ -3043,9 +3044,15 @@ async function doSaveDrill(name){
   a.download=safe+'.json'; a.click();
   toast('"'+safe+'" saved — move it to your Drills folder');
 }
+// The name a FILE was last saved under. A practice is many drills, so the file
+// has a name of its own and the box should offer that back rather than
+// whichever tab happens to be open.
+let lastSaveName='';
 document.getElementById('exportBtn').onclick=()=>{
   const inp=document.getElementById('drillNameInput');
-  inp.value=scenes[currentScene]&&scenes[currentScene].name||'';
+  inp.value = lastSaveName ||
+    (scenes.length>1 ? ((shDateValue()||'')+' practice').trim()
+                     : (scenes[currentScene]&&scenes[currentScene].name||''));
   document.getElementById('saveModal').classList.add('show');
   setTimeout(()=>inp.select(),80);
 };
@@ -3053,10 +3060,15 @@ document.getElementById('saveModalCancel').onclick=()=>document.getElementById('
 document.getElementById('saveModalConfirm').onclick=()=>{
   const name=document.getElementById('drillNameInput').value;
   document.getElementById('saveModal').classList.remove('show');
-  // The name you save under is the drill's name from now on, so the tab, the
-  // JPG filename and the printed heading all say the same thing.
   const clean=name.trim();
-  if(clean && scenes[currentScene]){ scenes[currentScene].name=clean; updateSceneTabs(); }
+  if(clean) lastSaveName=clean;
+  // A one-drill file takes its name from the drill, so the tab, the JPG and the
+  // printed heading all agree. A PRACTICE must not: saving four drills as
+  // "2026-10-22 practice" would rename whichever tab was open and that name
+  // prints in the title box on the sheet.
+  if(clean && scenes.length===1 && scenes[currentScene]){
+    scenes[currentScene].name=clean; updateSceneTabs();
+  }
   doSaveDrill(name);
 };
 document.getElementById('drillNameInput').addEventListener('keydown',e=>{
@@ -3150,6 +3162,7 @@ function loadData(o){
   const _mn=document.getElementById('drillMins'); if(_mn) _mn.value=s.mins||'';
   if(typeof growAllNotes==='function') growAllNotes();
   if(typeof updateMinsTotal==='function') updateMinsTotal();
+  if(o.fileName) lastSaveName=o.fileName;   // Save offers the name it came in under
   applySheetHead(o.sheet);
   selOne(null); currentView=defaultView(); buildLayoutSeg(); buildViewSeg();
   applyView(viewPresets()[0]); updateInspector(); updateSceneTabs(); render();
@@ -3359,11 +3372,15 @@ function updateMinsTotal(){
   el.title = plan>ice ? (plan-ice)+' minutes more than the ice you have'
                       : (ice-plan)+' minutes spare';
 }
-document.getElementById('drillMins').addEventListener('input',function(){
-  scenes[currentScene].mins=this.value; updateMinsTotal(); autosave(); });
-document.getElementById('shTime').addEventListener('input', updateMinsTotal);
-document.getElementById('drillNotes').addEventListener('input',function(){ scenes[currentScene].notes=this.value; growNotes(this); autosave(); });
-document.getElementById('equipNotes').addEventListener('input',function(){ scenes[currentScene].equip=this.value; growNotes(this); autosave(); });
+// Every one of these is guarded. app.js is loaded by Film Room as well, and
+// that page has no Min box and no sheet band: an unguarded addEventListener on
+// a missing element throws, and everything after it in this file stops being
+// wired up - which is how a drill-board feature breaks the clip page.
+function on(id, ev, fn){ const el=document.getElementById(id); if(el) el.addEventListener(ev, fn); return el; }
+on('drillMins','input',function(){ scenes[currentScene].mins=this.value; updateMinsTotal(); autosave(); });
+on('shTime','input', updateMinsTotal);
+on('drillNotes','input',function(){ scenes[currentScene].notes=this.value; growNotes(this); autosave(); });
+on('equipNotes','input',function(){ scenes[currentScene].equip=this.value; growNotes(this); autosave(); });
 growAllNotes();
 updateMinsTotal();
 
