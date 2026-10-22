@@ -3687,10 +3687,12 @@ function lastName(n){
 // came out plain.
 function jerseyDots(v){
   const keys=Array.isArray(v) ? v.filter(Boolean) : (v?[v]:[]);
-  return keys.slice(0,2).map(k=>{
+  const out=keys.slice(0,2).map(k=>{
     const c=JERSEY[k]; if(!c) return '';
     return '<i class="jz" style="background:'+(c.print||c.hex)+'" title="'+escapeHtml(c.n)+'"></i>';
-  }).join('');
+  }).filter(Boolean).join('');
+  // No jersey set: hold the space so the numbers still line up down the column.
+  return out || '<i class="nj"></i>';
 }
 function playerCell(id){
   if(!id) return {num:'', last:''};
@@ -3906,11 +3908,18 @@ function practiceSheet(){
     // number did not
     '.lineup{margin-left:auto;width:72%;border-collapse:collapse;table-layout:fixed;font-size:9.5px}'+
     '.lineup col{width:16.666%}'+
-    '.lineup th,.lineup td{border:1px solid #111;text-align:center;overflow:hidden;'+
-      'white-space:nowrap;padding:0 2px}'+
-    '.lineup th{font-weight:800;letter-spacing:.5px;background:#F2F5F7;height:15px;font-size:9.5px}'+
-    '.lineup td{height:20px;font-weight:600}'+
-    '.lineup td b{font-weight:800}'+
+    // Rows read down a column, so they share a left edge: the jersey squares
+    // line up into a strip you can read the navy/white split off at a glance.
+    // Centred, every square starts wherever its name length puts it.
+    '.lineup th,.lineup td{border:1px solid #111;overflow:hidden;white-space:nowrap}'+
+    '.lineup th{text-align:center;font-weight:800;letter-spacing:.6px;background:#F2F5F7;'+
+      'height:15px;font-size:9.5px;padding:0 2px}'+
+    '.lineup td{height:21px;text-align:left;padding:0 2px 0 3px;font-weight:600;color:#333;'+
+      'font-size:9px;letter-spacing:-.1px}'+
+    // the number carries the row; the surname is support
+    '.lineup td b{font-weight:800;color:#111;font-size:9.5px;'+
+      'font-variant-numeric:tabular-nums;display:inline-block;min-width:13px;text-align:right}'+
+    '.lineup td:empty{background:#FCFDFD}'+
     // the card's own FINAL chip, carried onto the paper
     '.rightcol{margin-left:auto;width:72%}'+
     '.rightcol .lineup{width:100%;margin-left:0}'+
@@ -3921,8 +3930,10 @@ function practiceSheet(){
     '.lockmark.fin{color:#111}'+
     // the jersey colour as a square beside the number, so it survives a mono
     // printer as a shape rather than vanishing into a grey cell
-    '.jz{display:inline-block;width:8px;height:8px;border:1px solid #111;margin-right:4px;'+
-      'vertical-align:middle;print-color-adjust:exact;-webkit-print-color-adjust:exact}'+
+    '.jz{display:inline-block;width:6px;height:6px;border:1px solid #111;margin-right:3px;'+
+      'vertical-align:baseline;print-color-adjust:exact;-webkit-print-color-adjust:exact}'+
+    // a cell with no jersey still starts its number where the others do
+    '.lineup td .nj{display:inline-block;width:6px;margin-right:3px}'+
     '.row{display:flex;align-items:stretch;gap:7px;margin-bottom:9px;page-break-inside:avoid}'+
     '.rink{width:62%;height:auto;border:1px solid #111;border-radius:12px;align-self:flex-start}'+
     // title box on top, ruled lines filling the rest - one block per rink
