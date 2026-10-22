@@ -3391,10 +3391,13 @@ function applySheetHead(h){
   if(!h) return;
   const set=(i,val)=>{ const el=document.getElementById(i); if(el&&val!=null) el.value=val; };
   set('shTeam',h.team); set('shCoach',h.coach); set('shDate',h.date); set('shTime',h.time);
-  if(h.upF) SHEET_UP.f=h.upF;
-  if(h.upB) SHEET_UP.b=h.upB;
-  if(h.logoF) sheetLogoF=h.logoF;
-  if(h.logoB) sheetLogoB=h.logoB;
+  // A crest that came from the drills folder outranks the one saved inside a
+  // board. Restoring yesterday's practice used to drag yesterday's crest back
+  // with it and quietly undo the lockup sitting in the folder.
+  if(h.upF && !SHEET_UP.atF) SHEET_UP.f=h.upF;
+  if(h.upB && !SHEET_UP.atB) SHEET_UP.b=h.upB;
+  if(h.logoF && !SHEET_UP.atF) sheetLogoF=h.logoF;
+  if(h.logoB && !SHEET_UP.atB) sheetLogoB=h.logoB;
   saveSheetLogos(); buildSheetLogoSels();
 }
 function saveSheetLogos(){
