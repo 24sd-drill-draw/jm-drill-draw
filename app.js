@@ -3547,8 +3547,9 @@ function sheetDate(iso){
 // Down to print size rather than shipping eight 2400px pictures into the sheet.
 // Nothing on paper beats a 1100px box four inches wide, and a sheet of
 // full-size shots takes seconds to open.
-function shrinkShot(full){
-  const W=1100, H=Math.max(1, Math.round(full.height*(W/full.width)));
+function shrinkShot(full, W){
+  W=W||1100;
+  const H=Math.max(1, Math.round(full.height*(W/full.width)));
   const c=document.createElement('canvas'); c.width=W; c.height=H;
   const cx=c.getContext('2d'); cx.fillStyle='#FFFFFF'; cx.fillRect(0,0,W,H);
   cx.drawImage(full,0,0,W,H);
@@ -3724,6 +3725,123 @@ function showSheetPreview(html, fname){
     catch(err){ toast('Could not open the print dialog'); }
   };
 }
+// =========================================================
+//  DRILL LIBRARY — your saved drills, as pictures
+// =========================================================
+// "+ Add drill" opens a file picker, so you choose a drill by its filename and
+// find out what it was after it lands. This grants the folder once, draws every
+// drill in it, and lets you add the one you recognise.
+//
+// The folder handle goes in IndexedDB because a directory handle is not a
+// string and localStorage only keeps strings. Chrome still asks to re-confirm
+// the folder after a restart; that is the browser's call, not ours.
+const LIB_DB='jmdd.lib.v1', LIB_STORE='handles', LIB_KEY='drillsDir';
+function libIDB(){
+  return new Promise((res,rej)=>{
+    const r=indexedDB.open(LIB_DB,1);
+    r.onupgradeneeded=()=>{ r.result.createObjectStore(LIB_STORE); };
+    r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);
+  });
+}
+async function libPut(h){ const db=await libIDB(); return new Promise((res,rej)=>{
+  const t=db.transaction(LIB_STORE,'readwrite'); t.objectStore(LIB_STORE).put(h,LIB_KEY);
+  t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); }); }
+async function libGet(){ try{ const db=await libIDB(); return await new Promise((res,rej)=>{
+  const t=db.transaction(LIB_STORE,'readonly'); const q=t.objectStore(LIB_STORE).get(LIB_KEY);
+  q.onsuccess=()=>res(q.result||null); q.onerror=()=>rej(q.error); }); }catch(e){ return null; } }
+
+// A thumbnail is the real board, drawn with that drill's pieces swapped in and
+// put straight back - the same trick the empty rinks on the sheet use.
+function drillThumb(scene){
+  const savedP=pieces, savedT=paths, savedCfg=rinkConfig;
+  let url=null;
+  try{
+    pieces=(scene.pieces||[]).map(p=>({...p}));
+    paths=(scene.paths||[]).map(p=>({...p,_lut:null}));
+    rinkConfig=scene.rinkType||'full';
+    url=shrinkShot(boardShot(), 460);
+  }catch(e){ url=null; }
+  finally{ pieces=savedP; paths=savedT; rinkConfig=savedCfg; render(); }
+  return url;
+}
+async function readDrillFolder(dir){
+  const out=[];
+  for await (const [name,h] of dir.entries()){
+    if(h.kind!=='file' || !/\.json$/i.test(name)) continue;
+    try{
+      const txt=await (await h.getFile()).text();
+      const o=JSON.parse(txt);
+      const scenes0=(o && o.scenes && o.scenes.length) ? o.scenes
+        : [{name:name.replace(/\.json$/i,''), rinkType:o.rinkConfig||'full', pieces:o.pieces||[], paths:o.paths||[]}];
+      out.push({file:name, data:o, drills:scenes0});
+    }catch(e){ /* a file that is not a drill is simply not shown */ }
+  }
+  return out.sort((a,b)=>a.file.localeCompare(b.file));
+}
+async function openLibrary(){
+  let dir=await libGet();
+  try{
+    if(dir){
+      const p=await dir.queryPermission({mode:'read'});
+      if(p!=='granted'){
+        const q=await dir.requestPermission({mode:'read'});
+        if(q!=='granted') dir=null;
+      }
+    }
+    if(!dir){
+      if(!window.showDirectoryPicker){ toast('This browser cannot open a folder — use + Add drill'); return; }
+      dir=await window.showDirectoryPicker({id:'drillsDir', mode:'read'});
+      await libPut(dir);
+    }
+  }catch(err){
+    if(err && err.name==='AbortError') return;      // cancelled: say nothing
+    toast('Could not open that folder'); return;
+  }
+  toast('Reading '+dir.name+'…');
+  const items=await readDrillFolder(dir);
+  if(!items.length){ toast('No drill files in '+dir.name); return; }
+  showLibrary(dir, items);
+}
+function showLibrary(dir, items){
+  let ov=document.getElementById('libPanel'); if(ov) ov.remove();
+  ov=document.createElement('div'); ov.id='libPanel';
+  const cards=[];
+  items.forEach((it,fi)=>{
+    it.drills.forEach((d,di)=>{
+      const url=drillThumb(d);
+      const label=(it.drills.length>1 ? (d.name||('Drill '+(di+1)))+' · ' : '')+it.file.replace(/\.json$/i,'');
+      cards.push('<button class="libcard" data-f="'+fi+'" data-d="'+di+'">'+
+        (url?'<img src="'+url+'">':'<div class="libnone">no picture</div>')+
+        '<span>'+escapeHtml(label)+'</span></button>');
+    });
+  });
+  ov.innerHTML='<div class="lib-bar"><span class="lib-ttl">Drill library</span>'+
+      '<span class="lib-hint">'+escapeHtml(dir.name)+' — click a drill to add it as a new tab</span>'+
+      '<button class="tbtn ghost" id="libFolder">Change folder</button>'+
+      '<button class="tbtn ghost" id="libClose">Close</button></div>'+
+    '<div class="lib-grid">'+cards.join('')+'</div>';
+  document.body.appendChild(ov);
+  const close=()=>{ ov.remove(); document.removeEventListener('keydown',esc); };
+  const esc=e=>{ if(e.key==='Escape') close(); };
+  document.addEventListener('keydown',esc);
+  ov.querySelector('#libClose').onclick=close;
+  ov.querySelector('#libFolder').onclick=async()=>{
+    try{
+      const d=await window.showDirectoryPicker({id:'drillsDir', mode:'read'});
+      await libPut(d); close();
+      const got=await readDrillFolder(d);
+      if(got.length) showLibrary(d,got); else toast('No drill files in '+d.name);
+    }catch(e){ if(e && e.name!=='AbortError') toast('Could not open that folder'); }
+  };
+  ov.querySelectorAll('.libcard').forEach(b=>{
+    b.onclick=()=>{
+      const it=items[+b.dataset.f], di=+b.dataset.d;
+      // one drill out of the file, not the whole file
+      appendData({scenes:[it.drills[di]]}, it.file);
+      close();
+    };
+  });
+}
 // Guarded: app.js is loaded by Film Room too, and that page has no sheet button.
 // An unguarded onclick here would throw on load and take the whole clip page down.
 const _sheetBtn=document.getElementById('sheetBtn');
@@ -3740,6 +3858,8 @@ if(_sheetBtn){
   const _shSess=document.getElementById('shSession');
   if(_shSess) _shSess.addEventListener('change', ()=>{ sheetSession=_shSess.value; updateLinesState(); autosave(); });
   buildSessionSel();
+  const _libBtn=document.getElementById('libBtn');
+  if(_libBtn) _libBtn.onclick=openLibrary;
   const _linesClear=document.getElementById('linesClear');
   if(_linesClear) _linesClear.onclick=clearLines;
   const _linesBtn=document.getElementById('linesBtn');
