@@ -232,6 +232,7 @@ function addScene(){
 function deleteScene(idx){
   if(scenes.length===1){ toast('Need at least one drill'); return; }
   if(!confirm('Delete "'+scenes[idx].name+'"?')) return;
+  keepBeforeWipe();                     // the practice as it stands, before the tab goes
   scenes.splice(idx,1);
   const next=Math.min(idx,scenes.length-1);
   currentScene=next;
@@ -2794,7 +2795,7 @@ function buildLayoutSeg(){
     applyView(viewPresets()[0]); render(); };
   const tc=document.getElementById('trapChk'); if(tc){ tc.checked=showTrap; tc.onchange=()=>{ showTrap=tc.checked; render(); }; }
 }
-document.getElementById('clearBtn').onclick=()=>{ if(pieces.length||paths.length){ pushUndo(); pieces=[]; paths=[]; scenes[currentScene].pieces=pieces; scenes[currentScene].paths=paths; selOne(null); updateInspector(); render();
+document.getElementById('clearBtn').onclick=()=>{ if(pieces.length||paths.length){ keepBeforeWipe(); pushUndo(); pieces=[]; paths=[]; scenes[currentScene].pieces=pieces; scenes[currentScene].paths=paths; selOne(null); updateInspector(); render();
   // Names what it cleared AND what it did not. "Cleared" on a board with five
   // drill tabs open reads as though all five went.
   toast(scenes.length>1 ? 'Cleared this drill - the other '+(scenes.length-1)+' tab'+(scenes.length>2?'s are':' is')+' untouched' : 'Cleared'); } };
@@ -3062,7 +3063,9 @@ document.getElementById('drillNameInput').addEventListener('keydown',e=>{
 // swaps the whole practice for the file. 'append' is Add drill from file..., which
 // brings the file's drills in as extra tabs and leaves what is open alone.
 let _importMode='replace';
-document.getElementById('importBtn').onclick=()=>{ _importMode='replace'; document.getElementById('jsonFile').click(); };
+// Open replaces the whole practice, so the one on screen goes into the history
+// first - that is the difference between swapping files and losing one.
+document.getElementById('importBtn').onclick=()=>{ keepBeforeWipe(); _importMode='replace'; document.getElementById('jsonFile').click(); };
 const _addBtn=document.getElementById('addDrillBtn');
 if(_addBtn) _addBtn.onclick=()=>{ _importMode='append'; document.getElementById('jsonFile').click(); };
 
@@ -3959,11 +3962,47 @@ function autosaveNow(){
     // on the next load, which reads as the app ignoring you.
     if(!hasWork){ localStorage.removeItem(AUTOSAVE_KEY); return; }
     localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({at:Date.now(), data:d}));
+    pushHistory(d);
   }catch(e){
     // Private windows and a full quota both throw. An autosave that cannot write
     // must never interrupt the drawing - it is the backup, not the work.
   }
 }
+// ---- autosave history -----------------------------------------------------
+// One slot was one slot too few. The autosave fires two seconds AFTER a change,
+// so anything that empties the board - Demo drill did it, Clear drill and Open
+// still do - overwrites the only copy of what was there a moment earlier.
+// Josh lost a drill to exactly that. So keep the last few boards, newest last,
+// and offer them.
+const HIST_KEY='jmdd.autosave.history.v1';
+const HIST_MAX=10, HIST_BYTES=2500000;   // well inside a 5MB origin quota
+function readHistory(){
+  try{ const a=JSON.parse(localStorage.getItem(HIST_KEY)||'[]'); return Array.isArray(a)?a:[]; }
+  catch(e){ return []; }
+}
+function pushHistory(d){
+  try{
+    const json=JSON.stringify(d);
+    const hist=readHistory();
+    // No point keeping the same board twice; a drag that changed nothing is not
+    // a version.
+    if(hist.length && hist[hist.length-1].json===json) return;
+    hist.push({at:Date.now(), json});
+    while(hist.length>HIST_MAX) hist.shift();
+    // Trim by size too: eight drills with images can be large, and a quota
+    // error would take the whole autosave down with it.
+    let total=hist.reduce((n,h)=>n+h.json.length,0);
+    while(hist.length>1 && total>HIST_BYTES){ total-=hist.shift().json.length; }
+    localStorage.setItem(HIST_KEY, JSON.stringify(hist));
+  }catch(e){
+    // Out of room: drop the oldest and let the next write try again. The board
+    // on screen is never affected by a failed backup.
+    try{ const h=readHistory(); h.shift(); localStorage.setItem(HIST_KEY, JSON.stringify(h)); }catch(_){}
+  }
+}
+// Before anything that empties or replaces the board, write what is there NOW -
+// ahead of the debounce, which would otherwise only ever capture the aftermath.
+function keepBeforeWipe(){ try{ autosaveNow(); }catch(e){} }
 // Debounced, because pushUndo fires on every drag of every piece.
 function autosave(){ clearTimeout(_autosaveT); _autosaveT=setTimeout(autosaveNow, 2000); }
 // Last chance on the way out, ahead of the debounce.
@@ -4014,8 +4053,58 @@ function offerRestore(){
     'padding:.45em 1em;cursor:pointer;font:inherit';
   yes.onclick=()=>{ bar.remove(); try{ loadData(snap.data); }catch(e){ toast('Could not restore that board'); } };
   no.onclick =()=>{ bar.remove(); try{ localStorage.removeItem(AUTOSAVE_KEY); }catch(e){} };
-  bar.appendChild(txt); bar.appendChild(yes); bar.appendChild(no);
+  bar.appendChild(txt); bar.appendChild(yes);
+
+  // Earlier boards, when there are any older than the one being offered. This is
+  // the way back from a wipe: the newest copy is the aftermath, the one before
+  // it is the work.
+  const hist=readHistory().filter(h=>h.at < snap.at - 1000);
+  if(hist.length){
+    const more=document.createElement('button');
+    more.textContent='Earlier… ('+hist.length+')';
+    more.style.cssText='background:none;color:#9DBCCB;border:1px solid #2A6E86;border-radius:999px;'+
+      'padding:.45em 1em;cursor:pointer;font:inherit';
+    more.onclick=()=>{ bar.remove(); showHistory(); };
+    bar.appendChild(more);
+  }
+  bar.appendChild(no);
   document.body.appendChild(bar);
+}
+// A list of the boards this browser has held, newest first, each described by
+// what is in it rather than by a timestamp alone.
+function showHistory(){
+  const hist=readHistory().slice().reverse();
+  if(!hist.length){ toast('No earlier boards kept'); return; }
+  let ov=document.getElementById('histPanel'); if(ov) ov.remove();
+  ov=document.createElement('div'); ov.id='histPanel';
+  const rows=hist.map((h,i)=>{
+    let d=null; try{ d=JSON.parse(h.json); }catch(e){}
+    const sc=(d&&d.scenes)||[];
+    const n=sc.length;
+    const names=sc.map(s=>s.name).filter(Boolean).slice(0,4).join(', ');
+    const marks=sc.reduce((a,s)=>a+((s.pieces||[]).length+(s.paths||[]).length),0);
+    return '<button class="histrow" data-i="'+i+'">'+
+      '<b>'+_agoText(h.at)+'</b>'+
+      '<span>'+n+' drill'+(n===1?'':'s')+' · '+marks+' piece'+(marks===1?'':'s')+
+      (names?' · '+escapeHtml(names):'')+'</span></button>';
+  }).join('');
+  ov.innerHTML='<div class="lib-bar"><span class="lib-ttl">Earlier boards</span>'+
+      '<span class="lib-hint">Kept in this browser only — newest first. Opening one replaces what is on screen.</span>'+
+      '<button class="tbtn ghost" id="histClose">Close</button></div>'+
+    '<div class="hist-list">'+rows+'</div>';
+  document.body.appendChild(ov);
+  const close=()=>{ ov.remove(); document.removeEventListener('keydown',esc); };
+  const esc=e=>{ if(e.key==='Escape') close(); };
+  document.addEventListener('keydown',esc);
+  ov.querySelector('#histClose').onclick=close;
+  ov.querySelectorAll('.histrow').forEach(b=>{
+    b.onclick=()=>{
+      const h=hist[+b.dataset.i];
+      keepBeforeWipe();                       // the board on screen joins the list too
+      try{ loadData(JSON.parse(h.json)); close(); }
+      catch(e){ toast('Could not open that board'); }
+    };
+  });
 }
 offerRestore();
 
