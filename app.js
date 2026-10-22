@@ -3560,6 +3560,14 @@ async function applyFolderCrests(crests){
     if(which==='b') sheetLogoB='upload'; else sheetLogoF='upload';
     changed=true;
   }
+  // A folder that names a front crest and no back one is saying the two pages
+  // carry different marks. If the back is still holding the front's picture -
+  // from back when a single crest.png drove both - hand it back to the centre
+  // logo rather than printing the same lockup twice.
+  if(crests.front && !crests.back && !crests.both &&
+     sheetLogoB==='upload' && SHEET_UP.b && SHEET_UP.b===SHEET_UP.f){
+    sheetLogoB='centre'; SHEET_UP.b=null; SHEET_UP.atB=0; changed=true;
+  }
   if(changed){ saveSheetLogos(); buildSheetLogoSels(); }
   return changed;
 }
@@ -3813,6 +3821,16 @@ function practiceSheet(){
   const fld=(lbl,val)=>'<div class="f"><b>'+lbl+':</b><span>'+esc(val)+'</span></div>';
   const hdr=(pno)=>{
     const crest = crestURL(pno===1?'f':'b');
+    // Page 2 has no fields block to balance, so the mark is centred in the
+    // space beside the lineup rather than pinned to the corner - which is
+    // where a lone crest looks stranded.
+    if(pno===2) return '<div class="hdr">'+
+      '<div class="backmark">'+(crest?'<img class="crest big" src="'+crest+'">':'')+'</div>'+
+      '<div class="rightcol">'+lineupHTML()+benchHTML()+
+        (found?'<div class="lockmark'+(found.locked?' fin':'')+'">'+
+          esc(sessionLabel(found.key))+' · '+
+          (found.locked?'FINAL — LOCKED':'NOT LOCKED — lines may change')+'</div>':'')+
+      '</div></div>';
     const right = pno===1
       ? '<div class="fields">'+fld('TEAM',h.team)+fld('COACH',h.coach)+
           fld('DATE',sheetDate(h.date))+
@@ -3865,6 +3883,8 @@ function practiceSheet(){
     '.hdr{display:flex;align-items:flex-start;gap:16px;margin-bottom:10px}'+
     // room for a wide lockup, not just a square crest
     '.crest{height:72px;max-width:310px;object-fit:contain;object-position:left center}'+
+    '.backmark{flex:1;display:flex;align-items:center;justify-content:center;min-width:0}'+
+    '.crest.big{height:96px;max-width:200px;object-position:center}'+
     // the fields are a bordered block on his sheet, one ruled cell per line
     '.fields{margin-left:auto;width:54%;font-size:11.5px;border:1px solid #111;border-bottom:0}'+
     '.f{display:flex;align-items:center;gap:6px;border-bottom:1px solid #111;'+
