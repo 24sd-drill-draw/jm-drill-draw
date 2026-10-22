@@ -185,7 +185,7 @@ function buildViewSeg(){
 // =========================================================
 //  SCENES (multi-drill practice)
 // =========================================================
-function makeScene(name){ return {name, pieces:[], paths:[], rinkType:'full', undoStack:[], redoStack:[], notes:'', equip:''}; }
+function makeScene(name){ return {name, pieces:[], paths:[], rinkType:'full', undoStack:[], redoStack:[], notes:'', equip:'', mins:''}; }
 let scenes=[makeScene('Drill 1')];
 let currentScene=0;
 
@@ -205,6 +205,7 @@ function syncScene(){
   scenes[currentScene].redoStack=redoStack;
   const nt=document.getElementById('drillNotes'); if(nt) scenes[currentScene].notes=nt.value;
   const eq=document.getElementById('equipNotes'); if(eq) scenes[currentScene].equip=eq.value;
+  const mn=document.getElementById('drillMins'); if(mn) scenes[currentScene].mins=mn.value;
 }
 function loadScene(idx){
   syncScene();
@@ -216,7 +217,9 @@ function loadScene(idx){
   document.getElementById('rinkSel').value=rinkConfig;
   const nt=document.getElementById('drillNotes'); if(nt) nt.value=s.notes||'';
   const eq=document.getElementById('equipNotes'); if(eq) eq.value=s.equip||'';
+  const mn=document.getElementById('drillMins'); if(mn) mn.value=s.mins||'';
   if(typeof growAllNotes==='function') growAllNotes();   // the next drill's notes are a different length
+  if(typeof updateMinsTotal==='function') updateMinsTotal();
   selOne(null); building=null; passBuilding=null; webBuilding=null; webCursor=null; shotBuilding=null; skateBuilding=null; skateBackBuilding=null; skateBackCursor=null; skateRevBuilding=null; skateRevCursor=null;
   tNow=0; playing=false;
   try{setPlayUI();}catch(e){}
@@ -3001,7 +3004,7 @@ function buildDrillData(){
       // out - nothing wrote them into the file, so every drill came back blank
       // when you reopened it. They are the lines beside the rink on the
       // practice sheet, so they have to survive the round trip.
-      notes:s.notes||'', equip:s.equip||'',
+      notes:s.notes||'', equip:s.equip||'', mins:s.mins||'',
       pieces:s.pieces.map(p=>({...p,img:undefined,_src:p._src||null})),
       paths:s.paths.map(p=>({...p,_lut:undefined}))
     }))};
@@ -3124,7 +3127,7 @@ function loadData(o){
     scenes=o.scenes.map(s=>{
       const sc=makeScene(s.name||'Drill');
       sc.rinkType=s.rinkType||'full';
-      sc.notes=s.notes||''; sc.equip=s.equip||'';
+      sc.notes=s.notes||''; sc.equip=s.equip||''; sc.mins=s.mins||'';
       sc.pieces=(s.pieces||[]).map(p=>{ const q={...p}; if(p._src){const img=new Image();img.src=p._src;q.img=img;} return q; });
       sc.paths=(s.paths||[]).map(p=>({...p,_lut:null}));
       return sc;
@@ -3144,7 +3147,9 @@ function loadData(o){
   uid=Math.max(1,...scenes.flatMap(sc=>[...sc.pieces.map(p=>p.id||0),...sc.paths.map(p=>p.id||0)]))+1;
   const _nt=document.getElementById('drillNotes'); if(_nt) _nt.value=s.notes||'';
   const _eq=document.getElementById('equipNotes'); if(_eq) _eq.value=s.equip||'';
+  const _mn=document.getElementById('drillMins'); if(_mn) _mn.value=s.mins||'';
   if(typeof growAllNotes==='function') growAllNotes();
+  if(typeof updateMinsTotal==='function') updateMinsTotal();
   applySheetHead(o.sheet);
   selOne(null); currentView=defaultView(); buildLayoutSeg(); buildViewSeg();
   applyView(viewPresets()[0]); updateInspector(); updateSceneTabs(); render();
@@ -3320,9 +3325,47 @@ function growNotes(el){
   el.style.height=Math.max(el.scrollHeight, 1)+'px';
 }
 function growAllNotes(){ ['drillNotes','equipNotes'].forEach(i=>growNotes(document.getElementById(i))); }
+// ---- minutes per drill, and what they add up to ---------------------------
+// The question a 4-5pm sheet is really asking is whether the plan fits the
+// hour. Each drill carries its own minutes; the band totals them against the
+// Time field, so you find out while you are building rather than on the ice.
+function planMinutes(){
+  syncScene();
+  return scenes.reduce((n,s)=>n+(parseInt(s.mins,10)||0),0);
+}
+// "1600-1700", "5:40 - 7:00", "4:00pm - 5:00pm" all mean the same thing to a
+// coach, so they have to mean the same thing here.
+function iceMinutes(str){
+  const m=String(str||'').match(/(\d{1,2})[:.]?(\d{2})\s*([ap])?\.?m?\.?\s*(?:-|–|—|to)\s*(\d{1,2})[:.]?(\d{2})\s*([ap])?\.?m?\.?/i);
+  if(!m) return 0;
+  let h1=+m[1], n1=+m[2], h2=+m[4], n2=+m[5];
+  const p1=(m[3]||'').toLowerCase(), p2=(m[6]||'').toLowerCase();
+  if(p1==='p'&&h1<12) h1+=12; if(p1==='a'&&h1===12) h1=0;
+  if(p2==='p'&&h2<12) h2+=12; if(p2==='a'&&h2===12) h2=0;
+  let t1=h1*60+n1, t2=h2*60+n2;
+  if(t2<=t1) t2+=720;                 // 5:40 - 7:00 with no am/pm on either end
+  const d=t2-t1;
+  return (d>0 && d<=360) ? d : 0;     // anything over six hours is a typo, not ice
+}
+function updateMinsTotal(){
+  const el=document.getElementById('minsTotal'); if(!el) return;
+  const plan=planMinutes(), ice=iceMinutes((document.getElementById('shTime')||{}).value);
+  el.className='sh-note';
+  if(!plan){ el.textContent=''; el.title=''; return; }
+  if(!ice){ el.textContent=plan+' min planned'; el.classList.add('on');
+    el.title='Put the ice time in the Time box and this says whether it fits'; return; }
+  el.textContent=plan+' of '+ice+' min';
+  el.classList.add(plan>ice?'over':'fits');
+  el.title = plan>ice ? (plan-ice)+' minutes more than the ice you have'
+                      : (ice-plan)+' minutes spare';
+}
+document.getElementById('drillMins').addEventListener('input',function(){
+  scenes[currentScene].mins=this.value; updateMinsTotal(); autosave(); });
+document.getElementById('shTime').addEventListener('input', updateMinsTotal);
 document.getElementById('drillNotes').addEventListener('input',function(){ scenes[currentScene].notes=this.value; growNotes(this); autosave(); });
 document.getElementById('equipNotes').addEventListener('input',function(){ scenes[currentScene].equip=this.value; growNotes(this); autosave(); });
 growAllNotes();
+updateMinsTotal();
 
 // =========================================================
 //  PRACTICE SHEET — every drill tab, four rinks to a page
@@ -3588,7 +3631,7 @@ function practiceSheet(){
     loadScene(i);                       // each slot prints on its own surface and view
     const s=scenes[i];
     slots.push({n:i+1, name:s.name||('Drill '+(i+1)), notes:s.notes||'', equip:s.equip||'',
-      url:shrinkShot(boardShot())});
+      mins:(parseInt(s.mins,10)||0), url:shrinkShot(boardShot())});
   }
   loadScene(back);
 
@@ -3603,6 +3646,7 @@ function practiceSheet(){
   }
 
   const h=sheetHead(), esc=escapeHtml;
+  const planTotal=slots.reduce((n,s)=>n+(s.mins||0),0);
   const pages=[]; for(let i=0;i<slots.length;i+=4) pages.push(slots.slice(i,i+4));
   // Page 1 states the practice; page 2 carries the lineup, blank to fill in at
   // the rink. That is what is on the back of the sheet he already uses.
@@ -3636,7 +3680,8 @@ function practiceSheet(){
     const crest = crestURL(pno===1?'f':'b');
     const right = pno===1
       ? '<div class="fields">'+fld('TEAM',h.team)+fld('COACH',h.coach)+
-          fld('DATE',sheetDate(h.date))+fld('TIME',h.time)+'</div>'
+          fld('DATE',sheetDate(h.date))+
+          fld('TIME',h.time+(planTotal?'   ('+planTotal+' min planned)':''))+'</div>'
       : ('<div class="rightcol">'+lineupHTML()+
           (found?'<div class="lockmark'+(found.locked?' fin':'')+'">'+
             (found.locked?'FINAL — LOCKED':'NOT LOCKED — lines may change')+'</div>':'')+
@@ -3653,7 +3698,8 @@ function practiceSheet(){
         // template, not part of the sheet. The slot number rides on the title
         // instead, which says the same thing and gives the rink the width back.
         // An unused slot gets the empty title box off the blank template.
-        '<div class="ttl">'+(s.name?'<i>'+s.n+'.</i> '+esc(s.name):'&nbsp;')+'</div>'+
+        '<div class="ttl"><span class="tnm">'+(s.name?'<i>'+s.n+'.</i> '+esc(s.name):'&nbsp;')+'</span>'+
+          (s.mins?'<b class="tmin">'+s.mins+' min</b>':'')+'</div>'+
         '<div class="lines"><div class="ntext">'+esc(s.notes)+'</div>'+
           (s.equip?'<div class="eq"><b>Equipment:</b> '+esc(s.equip)+'</div>':'')+
         '</div>'+
@@ -3703,7 +3749,10 @@ function practiceSheet(){
     // title box on top, ruled lines filling the rest - one block per rink
     '.col{flex:1;display:flex;flex-direction:column;min-width:0}'+
     '.ttl{border:1px solid #111;padding:1px 6px;font-weight:800;font-size:11px;'+
-      'text-transform:uppercase;letter-spacing:.4px;white-space:nowrap;overflow:hidden}'+
+      'text-transform:uppercase;letter-spacing:.4px;white-space:nowrap;overflow:hidden;'+
+      'display:flex;justify-content:space-between;gap:8px;align-items:baseline}'+
+    '.ttl .tnm{overflow:hidden;text-overflow:ellipsis}'+
+    '.ttl .tmin{flex:0 0 auto;font-size:10px;letter-spacing:.3px}'+
     '.ttl i{font-style:normal;color:#555}'+
     '.lines{flex:1;border:1px solid #111;border-top:0;padding:1px 6px 0;overflow:hidden;'+
       'background-image:repeating-linear-gradient(#fff 0 19px,#111 19px 20px);'+
