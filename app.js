@@ -3644,7 +3644,10 @@ function buildSessionSel(){
   const wrap=document.getElementById('shSessionWrap'), sel=document.getElementById('shSession');
   if(!wrap||!sel) return;
   const list=sessionsForDate(shDateValue());
-  if(list.length<2){ wrap.style.display='none'; sheetSession=list.length?list[0].id:''; updateLinesState(); return; }
+  // Shown whenever the date has a card at all, not only when it has two. Hiding
+  // it on a one-session day meant that on a two-session day Josh had no reason
+  // to look for it, and a sheet went to paper as Ice 1.
+  if(!list.length){ wrap.style.display='none'; sheetSession=''; updateLinesState(); return; }
   wrap.style.display='';
   sel.innerHTML=list.map(s=>'<option value="'+s.id+'">'+s.name+'</option>').join('');
   if(!list.some(s=>s.id===sheetSession)) sheetSession=list[0].id;
@@ -3728,6 +3731,11 @@ function blankShot(){
 }
 function practiceSheet(){
   syncScene();
+  // The session list and the lock line are built when the date or the lines
+  // change. Printing is the moment they have to be right, so rebuild them here
+  // too - a sheet that went to paper saying Ice 1 because a listener never
+  // fired is the failure this is guarding.
+  try{ buildSessionSel(); updateLinesState(); }catch(e){}
   const back=currentScene;
   const slots=[];
   for(let i=0;i<scenes.length;i++){
@@ -3991,6 +3999,10 @@ async function openLibrary(){
       if(!window.showDirectoryPicker){ toast('This browser cannot open a folder — use + Add drill'); return; }
       dir=await window.showDirectoryPicker({id:'drillsDir', mode:'read'});
       await libPut(dir);
+      // Granting the folder here is the same grant Lines... needs, so take what
+      // is in it now rather than making Josh press a second button to find out
+      // the crest and the lines were sitting there all along.
+      tryFolderLines(true).catch(()=>{});
     }
   }catch(err){
     if(err && err.name==='AbortError') return;      // cancelled: say nothing
