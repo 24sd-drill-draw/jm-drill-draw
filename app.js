@@ -3378,7 +3378,7 @@ function updateMinsTotal(){
 // wired up - which is how a drill-board feature breaks the clip page.
 function on(id, ev, fn){ const el=document.getElementById(id); if(el) el.addEventListener(ev, fn); return el; }
 on('drillMins','input',function(){ scenes[currentScene].mins=this.value; updateMinsTotal(); autosave(); });
-on('shTime','input', updateMinsTotal);
+on('shTime','input', function(){ autoTime=''; updateMinsTotal(); });   // typed by hand: it is his now
 on('drillNotes','input',function(){ scenes[currentScene].notes=this.value; growNotes(this); autosave(); });
 on('equipNotes','input',function(){ scenes[currentScene].equip=this.value; growNotes(this); autosave(); });
 growAllNotes();
@@ -3719,8 +3719,20 @@ function takeLinesFile(obj, fname){
 // has to say which one it is printing.
 const SESS_NAME={'':'Ice 1', 'ice2':'Ice 2', 'off':'Off-ice'};
 function sessionLabel(key){ const s=String(key||'').split('#')[1]||''; return SESS_NAME[s]||s||'Ice 1'; }
+// The SCHEDULE decides how many ice times a day has. The line-up export only
+// says which of them someone has written lines for - and on a day with no card
+// yet, that used to leave the sheet with no session, no time and no count.
 function sessionsForDate(iso){
-  if(!iso || !LINES.days) return [];
+  if(!iso) return [];
+  const cal=teamIceSessions().filter(e=>e.date===iso);
+  if(cal.length){
+    return cal.slice(0,2).map((e,i)=>({
+      key: i===0 ? iso : iso+'#ice2',
+      id:  i===0 ? ''  : 'ice2',
+      name:i===0 ? 'Ice 1' : 'Ice 2'
+    }));
+  }
+  if(!LINES.days) return [];
   return Object.keys(LINES.days)
     .filter(k=>k===iso || k.indexOf(iso+'#')===0)
     .sort()
@@ -3728,18 +3740,51 @@ function sessionsForDate(iso){
 }
 let sheetSession='';                 // '' = Ice 1, the card's own default
 function linesForDate(iso){
+  if(!LINES.days) return null;
   const list=sessionsForDate(iso);
   if(!list.length) return null;
   const want=list.find(s=>s.id===sheetSession) || list[0];
+  // the schedule may name a session the card has no lines for
+  if(!LINES.days[want.key]) return null;
   return {key:want.key, day:LINES.days[want.key], locked:!!(LINES.locked && LINES.locked[want.key])};
 }
 // Whether the day about to be printed has been called final. Josh locks a card
 // once the lines are known, so locked means the paper will still be right at the
 // rink; unlocked means they can still move and the sheet is a draft.
+// The calendar knows when the ice is. Typing the date and then typing the time
+// it already holds is work the app should not be asking for.
+function calSessionFor(iso, sessionId){
+  const list=teamIceSessions();
+  const sameDay=list.filter(e=>e.date===iso);
+  if(!sameDay.length) return null;
+  return sessionId==='ice2' ? (sameDay[1]||sameDay[0]) : sameDay[0];
+}
+// Written the way Josh writes it: 1855-2010.
+function calTimeFor(iso, sessionId){
+  const e=calSessionFor(iso, sessionId);
+  if(!e || !e.start || !e.end) return '';
+  const strip=s=>String(s).replace(':','');
+  return strip(e.start)+'-'+strip(e.end);
+}
+// Only fills a box that is empty or still holds the last time IT put there.
+// The moment Josh types his own, autoTime is cleared and nothing overwrites him.
+let autoTime='';
+function fillTimeFromCalendar(){
+  const el=document.getElementById('shTime'); if(!el) return;
+  const t=calTimeFor(shDateValue(), sheetSession);
+  if(!t) return;
+  const cur=el.value.trim();
+  if(cur!=='' && cur!==autoTime) return;          // his, not mine
+  if(cur===t){ autoTime=t; return; }
+  el.value=t; autoTime=t;
+  updateMinsTotal();
+  if(typeof autosave==='function') autosave();
+}
 function updateIceCount(){
   const el=document.getElementById('iceCount'); if(!el) return;
   const c=iceCountFor(shDateValue(), sheetSession);
   if(!c){ el.textContent=''; el.className='sh-note'; el.title=''; return; }
+  fillTimeFromCalendar();
   el.textContent='ice #'+c.n+' · '+fmtH(c.hours)+' h';
   el.className='sh-note on';
   const g=goalieIceHours(shDateValue());
@@ -3748,6 +3793,9 @@ function updateIceCount(){
     (g?'. Goalie clinics are counted apart: '+g.sessions+' so far, '+fmtH(g.hours)+' h':'');
 }
 function updateLinesState(){
+  // The ice count comes off the schedule and must not wait on a line-up card -
+  // a practice with no lines set still happens, and still has a number.
+  updateIceCount();
   const el=document.getElementById('linesState'); if(!el) return;
   el.className='sh-note';
   const d=shDateValue();
@@ -3755,7 +3803,6 @@ function updateLinesState(){
   const hit=linesForDate(d);
   if(!hit){ el.textContent='no lines for this date'; return; }
   el.textContent = sessionLabel(hit.key)+(hit.locked ? ' · FINAL — locked' : ' · not locked yet');
-  updateIceCount();
   el.classList.add(hit.locked?'final':'draft');
   el.title = hit.locked
     ? hit.key+' was called final in the line-up card'
