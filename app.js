@@ -3010,8 +3010,23 @@ function buildDrillData(){
       paths:s.paths.map(p=>({...p,_lut:undefined}))
     }))};
 }
-async function doSaveDrill(name){
-  const data=buildDrillData();
+// One drill, on its own, for the bank. No practice header on it: a drill is not
+// a practice, and a date stamped on a reusable drill is a lie by next week.
+function buildOneDrillData(idx){
+  syncScene();
+  const s=scenes[idx]; if(!s) return buildDrillData();
+  return {v:2, showTrap, centerLogo, rinkSize,
+    customLogo: LOGO_SRC.custom||null,
+    currentScene:0,
+    scenes:[{
+      name:s.name, rinkType:s.rinkType||'full',
+      notes:s.notes||'', equip:s.equip||'', mins:s.mins||'',
+      pieces:s.pieces.map(p=>({...p,img:undefined,_src:p._src||null})),
+      paths:s.paths.map(p=>({...p,_lut:undefined}))
+    }]};
+}
+async function doSaveDrill(name, dataIn){
+  const data=dataIn||buildDrillData();
   const safe=safeFileName(name);
   const json=JSON.stringify(data);
   // Preferred: File System Access API — saves straight into a folder you pick (it remembers your Drills
@@ -3048,19 +3063,35 @@ async function doSaveDrill(name){
 // has a name of its own and the box should offer that back rather than
 // whichever tab happens to be open.
 let lastSaveName='';
-document.getElementById('exportBtn').onclick=()=>{
+let _saveMode='practice';
+function openSaveModal(mode){
+  _saveMode=mode;
   const inp=document.getElementById('drillNameInput');
-  inp.value = lastSaveName ||
-    (scenes.length>1 ? ((shDateValue()||'')+' practice').trim()
-                     : (scenes[currentScene]&&scenes[currentScene].name||''));
+  const ttl=document.querySelector('#saveModal h2');
+  if(ttl) ttl.textContent = mode==='drill' ? 'Save this drill' : 'Save practice';
+  inp.value = mode==='drill'
+    ? (scenes[currentScene]&&scenes[currentScene].name||'')
+    : (lastSaveName ||
+       (scenes.length>1 ? ((shDateValue()||'')+' practice').trim()
+                        : (scenes[currentScene]&&scenes[currentScene].name||'')));
   document.getElementById('saveModal').classList.add('show');
   setTimeout(()=>inp.select(),80);
-};
+}
+on('saveDrillBtn','click',()=>openSaveModal('drill'));
+document.getElementById('exportBtn').onclick=()=>openSaveModal('practice');
 document.getElementById('saveModalCancel').onclick=()=>document.getElementById('saveModal').classList.remove('show');
 document.getElementById('saveModalConfirm').onclick=()=>{
   const name=document.getElementById('drillNameInput').value;
   document.getElementById('saveModal').classList.remove('show');
   const clean=name.trim();
+  if(_saveMode==='drill'){
+    // Naming the file names the drill - here they are the same thing, and the
+    // tab should say what the bank will show. The practice's own file name is
+    // left alone, so the next Save practice still offers it.
+    if(clean && scenes[currentScene]){ scenes[currentScene].name=clean; updateSceneTabs(); }
+    doSaveDrill(name, buildOneDrillData(currentScene));
+    return;
+  }
   if(clean) lastSaveName=clean;
   // A one-drill file takes its name from the drill, so the tab, the JPG and the
   // printed heading all agree. A PRACTICE must not: saving four drills as

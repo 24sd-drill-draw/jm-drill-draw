@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Drill Draw</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%230A1622'/><ellipse cx='50' cy='54' rx='34' ry='22' fill='none' stroke='%23EAF6FB' stroke-width='5'/><line x1='16' y1='54' x2='84' y2='54' stroke='%23E8313A' stroke-width='4'/><line x1='50' y1='32' x2='50' y2='76' stroke='%233A9BDC' stroke-width='3'/><circle cx='50' cy='54' r='8' fill='none' stroke='%233A9BDC' stroke-width='3'/></svg>">
-<link rel="stylesheet" href="style.css?v=f62cd8f-202610230350">
+<link rel="stylesheet" href="style.css?v=da99895-202610230426">
 
 
 <div class="app">
@@ -57,7 +57,11 @@
     <button class="tbtn ghost" id="imgBtn" title="Insert a logo or photo for a client">＋ Image</button>
     <button class="tbtn ghost" id="recBtn" title="Record canvas to video (WebM)">⏺ REC</button>
     <button class="tbtn ghost" id="imgExportBtn" title="Export current view as JPG">⬇ JPG</button>
-    <button class="tbtn ghost" id="exportBtn">Save</button>
+    <button class="tbtn ghost" id="exportBtn" title="Save the whole practice — every drill tab — as one file">Save practice</button>
+    <!-- A practice collects tabs; the bank holds one drill per file. Saving the
+         whole board under a drill's name is how a "drill" file ends up with
+         four drills in it. -->
+    <button class="tbtn ghost" id="saveDrillBtn" title="Save only the drill you are on, as its own file for the library">Save drill</button>
     <button class="tbtn ghost" id="importBtn">Open</button>
     <button class="tbtn ghost" id="addDrillBtn" title="Bring a saved file in as extra drill tabs, keeping what you have open">+ Add drill</button>
     <!-- Picking a drill by filename is picking blind. This shows the drawings. -->
@@ -255,7 +259,7 @@
   </div>
 </div>
 
-<script src="app.js?v=f62cd8f-202610230350"></script>
+<script src="app.js?v=da99895-202610230426"></script>
 <script>
   // Offline copy (sw.js): online nothing changes; offline this page still opens.
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function () { });
