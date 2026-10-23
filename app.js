@@ -3378,7 +3378,7 @@ function updateMinsTotal(){
 // wired up - which is how a drill-board feature breaks the clip page.
 function on(id, ev, fn){ const el=document.getElementById(id); if(el) el.addEventListener(ev, fn); return el; }
 on('drillMins','input',function(){ scenes[currentScene].mins=this.value; updateMinsTotal(); autosave(); });
-on('shTime','input', function(){ autoTime=''; updateMinsTotal(); });   // typed by hand: it is his now
+on('shTime','input', function(){ timeTypedByHand(); updateMinsTotal(); });
 on('drillNotes','input',function(){ scenes[currentScene].notes=this.value; growNotes(this); autosave(); });
 on('equipNotes','input',function(){ scenes[currentScene].equip=this.value; growNotes(this); autosave(); });
 growAllNotes();
@@ -3766,17 +3766,27 @@ function calTimeFor(iso, sessionId){
   const strip=s=>String(s).replace(':','');
   return strip(e.start)+'-'+strip(e.end);
 }
-// Only fills a box that is empty or still holds the last time IT put there.
-// The moment Josh types his own, autoTime is cleared and nothing overwrites him.
-let autoTime='';
+// Changing the date changes the time. That is the whole point - the calendar
+// knows when the ice is, and a time left over from another day is just wrong.
+//
+// The one thing that survives is a time Josh typed FOR THIS DATE: he may know
+// something the schedule does not. Type 1830-2000 on the 22nd and it stays on
+// the 22nd; move to the 21st and the 21st's own time takes over.
+// Keyed by date AND session, with the value, so leaving a session and coming
+// back brings his time back rather than whatever the last session put there.
+const TYPED_TIME={};
+function timeKeyNow(){ return shDateValue()+'|'+sheetSession; }
+function timeTypedByHand(){
+  const el=document.getElementById('shTime'); if(!el) return;
+  TYPED_TIME[timeKeyNow()]=el.value;
+}
 function fillTimeFromCalendar(){
   const el=document.getElementById('shTime'); if(!el) return;
+  const mine=TYPED_TIME[timeKeyNow()];
+  if(mine!=null){ if(el.value!==mine){ el.value=mine; updateMinsTotal(); } return; }
   const t=calTimeFor(shDateValue(), sheetSession);
-  if(!t) return;
-  const cur=el.value.trim();
-  if(cur!=='' && cur!==autoTime) return;          // his, not mine
-  if(cur===t){ autoTime=t; return; }
-  el.value=t; autoTime=t;
+  if(!t || el.value.trim()===t) return;
+  el.value=t;
   updateMinsTotal();
   if(typeof autosave==='function') autosave();
 }
