@@ -3689,6 +3689,41 @@ function clearLines(){
 // The folder you granted for the library is the same folder the export belongs
 // in, so look there before asking for anything. Drop a fresh export in and the
 // sheet picks it up on its own.
+// A saved practice is named for its day - "2026-10-21 practice II afternoon,
+// R2 4-5pm". A drill from the bank is not, and must never be offered as one.
+function looksLikePractice(n){ return /\.json$/i.test(n) && /practice/i.test(n) && /\d{4}-\d{2}-\d{2}/.test(n); }
+async function findPracticeFor(iso){
+  if(!iso) return null;
+  const dir=await libGet(); if(!dir) return null;
+  try{ if(await dir.queryPermission({mode:'read'})!=='granted') return null; }catch(e){ return null; }
+  let best=null, more=0;
+  try{
+    for await (const [name,h] of dir.entries()){
+      if(h.kind!=='file' || !looksLikePractice(name) || name.indexOf(iso)<0) continue;
+      const f=await h.getFile();
+      if(best) more++;
+      if(!best || f.lastModified>best.file.lastModified) best={name, file:f};
+    }
+  }catch(e){ return null; }
+  if(best) best.more=more;
+  return best;
+}
+let _dayOffer=null;
+async function offerDayPractice(){
+  const btn=document.getElementById('openDayBtn'); if(!btn) return;
+  const iso=shDateValue();
+  let hit=null;
+  try{ hit=await findPracticeFor(iso); }catch(e){}
+  _dayOffer=hit;
+  const base=hit ? hit.name.replace(/\.json$/i,'') : '';
+  // Nothing to offer, or it is already the practice on the board.
+  if(!hit || base===lastSaveName){ btn.hidden=true; return; }
+  btn.hidden=false;
+  btn.textContent='📂 Open '+base;
+  btn.title='A saved practice for '+iso+' is in your drills folder'+
+    (hit.more?' ('+hit.more+' older one'+(hit.more>1?'s':'')+' too - this is the newest)':'')+
+    '. Opening it REPLACES the drills on the board.';
+}
 function looksLikeLines(n){ return /lineup/i.test(n) && /\.json$/i.test(n); }
 function looksLikeCalendar(n){ return /^calendar\.json$/i.test(n); }
 
@@ -4456,8 +4491,32 @@ if(_sheetBtn){
   const _shDate=document.getElementById('shDate');
   // 'input' as well as 'change': a date typed rather than picked only fires
   // change on blur, and until then the session list belongs to the old date.
+  // Debounced: a typed date fires per keystroke, and each check walks the
+  // folder. A picked date settles well inside this.
+  let _offerT=null;
+  const _offerSoon=()=>{ clearTimeout(_offerT); _offerT=setTimeout(()=>{ offerDayPractice().catch(()=>{}); }, 350); };
   if(_shDate){ _shDate.addEventListener('change', buildSessionSel);
-    _shDate.addEventListener('input', buildSessionSel); }
+    _shDate.addEventListener('input', buildSessionSel);
+    _shDate.addEventListener('change', _offerSoon);
+    _shDate.addEventListener('input', _offerSoon); }
+  // The offer never opens anything on its own. Opening a practice throws away
+  // the drills on the board, so it is a click and then a question - and the
+  // board goes into the autosave history first either way.
+  on('openDayBtn','click', async function(){
+    const hit=_dayOffer; if(!hit) return;
+    const base=hit.name.replace(/\.json$/i,'');
+    const n=scenes.length;
+    if(!confirm('Open "'+base+'"?\n\nThis REPLACES the '+n+' drill'+(n===1?'':'s')+
+      ' on the board with that practice. Save first if you have not.')) return;
+    try{
+      keepBeforeWipe();
+      const o=JSON.parse(await hit.file.text());
+      o.fileName=base;
+      loadData(o);
+      offerDayPractice().catch(()=>{});
+    }catch(e){ toast('Could not open that practice'); }
+  });
+  setTimeout(()=>{ offerDayPractice().catch(()=>{}); }, 700);
   const _shSess=document.getElementById('shSession');
   if(_shSess) _shSess.addEventListener('change', ()=>{ sheetSession=_shSess.value; updateLinesState(); updateIceCount(); autosave(); });
   buildSessionSel();

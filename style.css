@@ -279,3 +279,11 @@
   body.light-theme .scenetab-add{border-color:var(--line)}
 
   /* print — handled via JS printDrill(), no @media print needed */
+
+/* The "open the practice for this day" offer. It sits in the sheet band with
+   the other status notes, but it is a button and has to look pressable - a
+   note you can click but that looks like a note is a feature nobody finds. */
+.sh-open{ cursor:pointer; border:1px solid var(--accent); background:transparent;
+  color:var(--accent); font:inherit; padding:2px 8px; border-radius:5px;
+  max-width:340px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sh-open:hover{ background:var(--accent); color:#04141c; }
