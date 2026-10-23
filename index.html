@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Drill Draw</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%230A1622'/><ellipse cx='50' cy='54' rx='34' ry='22' fill='none' stroke='%23EAF6FB' stroke-width='5'/><line x1='16' y1='54' x2='84' y2='54' stroke='%23E8313A' stroke-width='4'/><line x1='50' y1='32' x2='50' y2='76' stroke='%233A9BDC' stroke-width='3'/><circle cx='50' cy='54' r='8' fill='none' stroke='%233A9BDC' stroke-width='3'/></svg>">
-<link rel="stylesheet" href="style.css?v=nobreak-202610230800">
+<link rel="stylesheet" href="style.css?v=rest2-202610230845">
 
 
 <div class="app">
@@ -123,10 +123,13 @@
     <label class="mins-lbl" title="How long this rink runs. Totalled against the Time above and printed on the sheet.">Min
       <input type="number" id="drillMins" min="0" max="180" step="1" placeholder="–">
     </label>
-    <!-- A block of faceoff plays runs back to back - you walk them through one
-         after another with no water and no trip to the board. Ticking this
-         drops the between-drills minutes after THIS drill only. -->
-    <label class="mins-lbl" id="nobreakWrap" title="Runs straight into the next drill — no water, no board time after this one. Takes the between-drills minutes off the total."><input type="checkbox" id="drillNoBreak"> Straight into next</label>
+    <!-- Rest AFTER this drill. Blank means the Between-drills default; 0 means
+         it runs straight into the next one, which is how a block of faceoff
+         plays is walked through. A long one can also be set longer - a hard
+         battle drill is not followed by the same breather as a warmup. -->
+    <label class="mins-lbl" title="Water and board time AFTER this drill. Blank uses the Between-drills default. 0 runs straight into the next drill.">Rest
+      <input type="number" id="drillRest" min="0" max="30" step="1" placeholder="–">
+    </label>
     <textarea id="drillNotes" rows="1" placeholder="Drill notes…"></textarea>
   </div>
   <div class="drill-notes equip-bar"><span class="equip-lbl">Equipment:</span><textarea id="equipNotes" rows="1" placeholder="e.g. 6 big nets, 20 pads, pucks, pinnies, 3 ringettes…"></textarea></div>
@@ -275,7 +278,7 @@
   </div>
 </div>
 
-<script src="app.js?v=nobreak-202610230800"></script>
+<script src="app.js?v=rest2-202610230845"></script>
 <script>
   // Offline copy (sw.js): online nothing changes; offline this page still opens.
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function () { });
