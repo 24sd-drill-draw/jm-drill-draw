@@ -3064,26 +3064,66 @@ async function doSaveDrill(name, dataIn){
 // whichever tab happens to be open.
 let lastSaveName='';
 let _saveMode='practice';
+// The date buried in a file name, or '' if it carries none. A practice file is
+// named for its day, so this is how the app can tell that the name it is about
+// to offer belongs to a different practice than the one on the board.
+function nameDateISO(s){ const m=String(s||'').match(/\d{4}-\d{2}-\d{2}/); return m?m[0]:''; }
+function practiceNameFor(){
+  const d=shDateValue()||'';
+  const t=((document.getElementById('shTime')||{}).value||'').trim();
+  if(!d) return '';
+  return (d+' practice'+(t?' '+t:'')).trim();
+}
+function saveModalCheck(){
+  const inp=document.getElementById('drillNameInput');
+  const what=document.getElementById('saveWhat');
+  const warn=document.getElementById('saveWarn');
+  if(!inp||!what||!warn) return;
+  const d=shDateValue()||'', t=((document.getElementById('shTime')||{}).value||'').trim();
+  what.textContent = _saveMode==='drill'
+    ? 'Writes this one drill ('+(scenes[currentScene]&&scenes[currentScene].name||'')+'). No date, no practice header.'
+    : 'Writes all '+scenes.length+' drill'+(scenes.length>1?'s':'')+(d?' for '+d:'')+(t?', '+t:'')+'.';
+  const nd=nameDateISO(inp.value);
+  const bad = _saveMode!=='drill' && d && nd && nd!==d;
+  warn.style.display = bad?'block':'none';
+  if(bad) warn.textContent='⚠ That name says '+nd+' but the board is set to '+d+'. Saving will overwrite the '+nd+' practice.';
+}
 function openSaveModal(mode){
   _saveMode=mode;
   const inp=document.getElementById('drillNameInput');
   const ttl=document.querySelector('#saveModal h2');
   if(ttl) ttl.textContent = mode==='drill' ? 'Save this drill' : 'Save practice';
+  // lastSaveName is only offered back while it still belongs to THIS day.
+  // Open the 21st, move the board to the 22nd, draw, and Save used to hand
+  // back "2026-10-21 practice..." - tonight's work pointed at yesterday's file.
+  const keep = lastSaveName &&
+    (!shDateValue() || !nameDateISO(lastSaveName) || nameDateISO(lastSaveName)===shDateValue());
   inp.value = mode==='drill'
     ? (scenes[currentScene]&&scenes[currentScene].name||'')
-    : (lastSaveName ||
+    : ((keep?lastSaveName:'') || practiceNameFor() ||
        (scenes.length>1 ? ((shDateValue()||'')+' practice').trim()
                         : (scenes[currentScene]&&scenes[currentScene].name||'')));
+  saveModalCheck();
   document.getElementById('saveModal').classList.add('show');
   setTimeout(()=>inp.select(),80);
 }
+on('drillNameInput','input',saveModalCheck);
 on('saveDrillBtn','click',()=>openSaveModal('drill'));
 document.getElementById('exportBtn').onclick=()=>openSaveModal('practice');
 document.getElementById('saveModalCancel').onclick=()=>document.getElementById('saveModal').classList.remove('show');
 document.getElementById('saveModalConfirm').onclick=()=>{
   const name=document.getElementById('drillNameInput').value;
-  document.getElementById('saveModal').classList.remove('show');
   const clean=name.trim();
+  // Last stop. A practice name carrying a different day than the board is how
+  // one practice gets written over another, and the file picker will not ask
+  // twice once the name matches something already in the folder.
+  if(_saveMode!=='drill'){
+    const d=shDateValue()||'', nd=nameDateISO(clean);
+    if(d && nd && nd!==d && !confirm('This board is set to '+d+', but the name says '+nd+
+        '.\n\nSaving as "'+clean+'" will overwrite the '+nd+' practice with these '+
+        scenes.length+' drills.\n\nSave anyway?')) return;
+  }
+  document.getElementById('saveModal').classList.remove('show');
   if(_saveMode==='drill'){
     // Naming the file names the drill - here they are the same thing, and the
     // tab should say what the bank will show. The practice's own file name is
