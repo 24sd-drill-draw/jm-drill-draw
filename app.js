@@ -203,7 +203,7 @@ function buildViewSeg(){
 // =========================================================
 //  SCENES (multi-drill practice)
 // =========================================================
-function makeScene(name){ return {name, pieces:[], paths:[], rinkType:'full', undoStack:[], redoStack:[], notes:'', equip:'', mins:''}; }
+function makeScene(name){ return {name, pieces:[], paths:[], rinkType:'full', undoStack:[], redoStack:[], notes:'', equip:'', mins:'', nobreak:false}; }
 let scenes=[makeScene('Drill 1')];
 let currentScene=0;
 
@@ -236,6 +236,7 @@ function loadScene(idx){
   const nt=document.getElementById('drillNotes'); if(nt) nt.value=s.notes||'';
   const eq=document.getElementById('equipNotes'); if(eq) eq.value=s.equip||'';
   const mn=document.getElementById('drillMins'); if(mn) mn.value=s.mins||'';
+  const nb=document.getElementById('drillNoBreak'); if(nb) nb.checked=!!s.nobreak;
   if(typeof growAllNotes==='function') growAllNotes();   // the next drill's notes are a different length
   if(typeof updateMinsTotal==='function') updateMinsTotal();
   selOne(null); building=null; passBuilding=null; webBuilding=null; webCursor=null; shotBuilding=null; skateBuilding=null; skateBackBuilding=null; skateBackCursor=null; skateRevBuilding=null; skateRevCursor=null;
@@ -3035,7 +3036,7 @@ function buildDrillData(){
       // out - nothing wrote them into the file, so every drill came back blank
       // when you reopened it. They are the lines beside the rink on the
       // practice sheet, so they have to survive the round trip.
-      notes:s.notes||'', equip:s.equip||'', mins:s.mins||'',
+      notes:s.notes||'', equip:s.equip||'', mins:s.mins||'', nobreak:!!s.nobreak,
       pieces:s.pieces.map(p=>({...p,img:undefined,_src:p._src||null})),
       paths:s.paths.map(p=>({...p,_lut:undefined}))
     }))};
@@ -3050,7 +3051,7 @@ function buildOneDrillData(idx){
     currentScene:0,
     scenes:[{
       name:s.name, rinkType:s.rinkType||'full',
-      notes:s.notes||'', equip:s.equip||'', mins:s.mins||'',
+      notes:s.notes||'', equip:s.equip||'', mins:s.mins||'', nobreak:!!s.nobreak,
       pieces:s.pieces.map(p=>({...p,img:undefined,_src:p._src||null})),
       paths:s.paths.map(p=>({...p,_lut:undefined}))
     }]};
@@ -3240,7 +3241,7 @@ function loadData(o){
     scenes=o.scenes.map(s=>{
       const sc=makeScene(s.name||'Drill');
       sc.rinkType=s.rinkType||'full';
-      sc.notes=s.notes||''; sc.equip=s.equip||''; sc.mins=s.mins||'';
+      sc.notes=s.notes||''; sc.equip=s.equip||''; sc.mins=s.mins||''; sc.nobreak=!!s.nobreak;
       sc.pieces=(s.pieces||[]).map(p=>{ const q={...p}; if(p._src){const img=new Image();img.src=p._src;q.img=img;} return q; });
       sc.paths=(s.paths||[]).map(p=>({...p,_lut:null}));
       return sc;
@@ -3261,6 +3262,7 @@ function loadData(o){
   const _nt=document.getElementById('drillNotes'); if(_nt) _nt.value=s.notes||'';
   const _eq=document.getElementById('equipNotes'); if(_eq) _eq.value=s.equip||'';
   const _mn=document.getElementById('drillMins'); if(_mn) _mn.value=s.mins||'';
+  const _nb=document.getElementById('drillNoBreak'); if(_nb) _nb.checked=!!s.nobreak;
   if(typeof growAllNotes==='function') growAllNotes();
   if(typeof updateMinsTotal==='function') updateMinsTotal();
   if(o.fileName) lastSaveName=o.fileName;   // Save offers the name it came in under
@@ -3456,7 +3458,15 @@ function gapEach(){
   const v=el ? parseInt(el.value,10) : parseInt(localStorage.getItem(GAP_KEY)||'2',10);
   return (isFinite(v)&&v>=0) ? v : 0;
 }
-function gapCount(){ syncScene(); return Math.max(0, scenes.filter(s=>parseInt(s.mins,10)>0).length-1); }
+// A gap sits BETWEEN two timed drills, so the last one never earns one - and
+// a drill marked "straight into next" hands its gap back. That is how a block
+// of faceoff plays, walked through one after another, costs no water time.
+function gapCount(){
+  syncScene();
+  const t=scenes.filter(s=>parseInt(s.mins,10)>0);
+  let n=0; for(let i=0;i<t.length-1;i++) if(!t[i].nobreak) n++;
+  return n;
+}
 function gapMinutes(){ return gapEach()*gapCount(); }
 // "1600-1700", "5:40 - 7:00", "4:00pm - 5:00pm" all mean the same thing to a
 // coach, so they have to mean the same thing here.
@@ -3495,6 +3505,7 @@ function updateMinsTotal(){
 // wired up - which is how a drill-board feature breaks the clip page.
 function on(id, ev, fn){ const el=document.getElementById(id); if(el) el.addEventListener(ev, fn); return el; }
 on('drillMins','input',function(){ scenes[currentScene].mins=this.value; updateMinsTotal(); autosave(); });
+on('drillNoBreak','change',function(){ scenes[currentScene].nobreak=this.checked; updateMinsTotal(); autosave(); });
 on('shTime','input', function(){ timeTypedByHand(); updateMinsTotal(); });
 // The gap is how Josh runs practice, not a property of one practice, so it
 // lives in this browser and is there again tomorrow.
@@ -4050,7 +4061,7 @@ function practiceSheet(){
     loadScene(i);                       // each slot prints on its own surface and view
     const s=scenes[i];
     slots.push({n:i+1, name:s.name||('Drill '+(i+1)), notes:s.notes||'', equip:s.equip||'',
-      mins:(parseInt(s.mins,10)||0), url:shrinkShot(boardShot())});
+      mins:(parseInt(s.mins,10)||0), nobreak:!!s.nobreak, url:shrinkShot(boardShot())});
   }
   loadScene(back);
 
@@ -4068,7 +4079,9 @@ function practiceSheet(){
   const drillTotal=slots.reduce((n,s)=>n+(s.mins||0),0);
   // The paper has to agree with the band, gap included, or the sheet in his
   // hand says 62 while the board said 72 and one of them is wrong at the rink.
-  const gapPrint=gapEach()*Math.max(0, slots.filter(s=>(s.mins||0)>0).length-1);
+  const _timed=slots.filter(s=>(s.mins||0)>0);
+  let _gaps=0; for(let i=0;i<_timed.length-1;i++) if(!_timed[i].nobreak) _gaps++;
+  const gapPrint=gapEach()*_gaps;
   const planTotal=drillTotal+gapPrint;
   const ice=iceCountFor(h.date, sheetSession);
   const pages=[]; for(let i=0;i<slots.length;i+=4) pages.push(slots.slice(i,i+4));
