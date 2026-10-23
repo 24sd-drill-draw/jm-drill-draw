@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Drill Draw</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%230A1622'/><ellipse cx='50' cy='54' rx='34' ry='22' fill='none' stroke='%23EAF6FB' stroke-width='5'/><line x1='16' y1='54' x2='84' y2='54' stroke='%23E8313A' stroke-width='4'/><line x1='50' y1='32' x2='50' y2='76' stroke='%233A9BDC' stroke-width='3'/><circle cx='50' cy='54' r='8' fill='none' stroke='%233A9BDC' stroke-width='3'/></svg>">
-<link rel="stylesheet" href="style.css?v=savename-202610230520">
+<link rel="stylesheet" href="style.css?v=gap-202610230600">
 
 
 <div class="app">
@@ -82,6 +82,10 @@
     <label>Coach <input type="text" id="shCoach" placeholder="Mizerek"></label>
     <label>Date <input type="date" id="shDate"></label>
     <label>Time <input type="text" id="shTime" placeholder="5:40 – 7:00"></label>
+    <!-- Water, a word at the board, the next drill getting set up: real time
+         that the drill minutes never counted, so a 75-minute plan quietly
+         needed 85. Editable, because it varies. -->
+    <label title="Water, board talk, setting up the next drill. Counted between drills, not after the last one.">Between drills <input type="number" id="shGap" min="0" max="10" step="1" value="2" style="width:44px"> min</label>
     <!-- What the drills add up to, against the ice you have booked. -->
     <span class="sh-note" id="minsTotal"></span>
     <!-- Which session of the season this is, counted off calendar.json. -->
@@ -264,7 +268,7 @@
   </div>
 </div>
 
-<script src="app.js?v=savename-202610230520"></script>
+<script src="app.js?v=gap-202610230600"></script>
 <script>
   // Offline copy (sw.js): online nothing changes; offline this page still opens.
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function () { });

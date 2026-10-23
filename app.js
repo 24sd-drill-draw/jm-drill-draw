@@ -3417,6 +3417,17 @@ function planMinutes(){
   syncScene();
   return scenes.reduce((n,s)=>n+(parseInt(s.mins,10)||0),0);
 }
+// The minutes between drills. Only drills with a time on them count as drills
+// here - a blank slot is not something the team stands around waiting for -
+// and there is no gap after the last one, so six drills make five gaps.
+const GAP_KEY='jmdd.gap.v1';
+function gapEach(){
+  const el=document.getElementById('shGap');
+  const v=el ? parseInt(el.value,10) : parseInt(localStorage.getItem(GAP_KEY)||'2',10);
+  return (isFinite(v)&&v>=0) ? v : 0;
+}
+function gapCount(){ syncScene(); return Math.max(0, scenes.filter(s=>parseInt(s.mins,10)>0).length-1); }
+function gapMinutes(){ return gapEach()*gapCount(); }
 // "1600-1700", "5:40 - 7:00", "4:00pm - 5:00pm" all mean the same thing to a
 // coach, so they have to mean the same thing here.
 function iceMinutes(str){
@@ -3433,15 +3444,20 @@ function iceMinutes(str){
 }
 function updateMinsTotal(){
   const el=document.getElementById('minsTotal'); if(!el) return;
-  const plan=planMinutes(), ice=iceMinutes((document.getElementById('shTime')||{}).value);
+  const drill=planMinutes(), gap=gapMinutes(), plan=drill+gap;
+  const ice=iceMinutes((document.getElementById('shTime')||{}).value);
   el.className='sh-note';
-  if(!plan){ el.textContent=''; el.title=''; return; }
-  if(!ice){ el.textContent=plan+' min planned'; el.classList.add('on');
-    el.title='Put the ice time in the Time box and this says whether it fits'; return; }
-  el.textContent=plan+' of '+ice+' min';
+  if(!drill){ el.textContent=''; el.title=''; return; }
+  // The sum is shown split - 62+10 - because the 10 is an estimate and the 62
+  // is not, and a single number hides which one to argue with.
+  const sum = gap ? (drill+'+'+gap) : String(drill);
+  const why = drill+' min of drills'+(gap?(' + '+gap+' min between ('+gapCount()+' × '+gapEach()+')'):'');
+  if(!ice){ el.textContent=sum+' min planned'; el.classList.add('on');
+    el.title=why+'. Put the ice time in the Time box and this says whether it fits'; return; }
+  el.textContent=sum+' of '+ice+' min';
   el.classList.add(plan>ice?'over':'fits');
-  el.title = plan>ice ? (plan-ice)+' minutes more than the ice you have'
-                      : (ice-plan)+' minutes spare';
+  el.title = why+' — '+(plan>ice ? (plan-ice)+' minutes MORE than the ice you have'
+                                 : (ice-plan)+' minutes spare');
 }
 // Every one of these is guarded. app.js is loaded by Film Room as well, and
 // that page has no Min box and no sheet band: an unguarded addEventListener on
@@ -3450,6 +3466,15 @@ function updateMinsTotal(){
 function on(id, ev, fn){ const el=document.getElementById(id); if(el) el.addEventListener(ev, fn); return el; }
 on('drillMins','input',function(){ scenes[currentScene].mins=this.value; updateMinsTotal(); autosave(); });
 on('shTime','input', function(){ timeTypedByHand(); updateMinsTotal(); });
+// The gap is how Josh runs practice, not a property of one practice, so it
+// lives in this browser and is there again tomorrow.
+(function(){ const el=document.getElementById('shGap'); if(!el) return;
+  const saved=localStorage.getItem(GAP_KEY); if(saved!==null) el.value=saved;
+  el.addEventListener('input', function(){
+    try{ localStorage.setItem(GAP_KEY, String(gapEach())); }catch(e){}
+    updateMinsTotal();
+  });
+})();
 on('drillNotes','input',function(){ scenes[currentScene].notes=this.value; growNotes(this); autosave(); });
 on('equipNotes','input',function(){ scenes[currentScene].equip=this.value; growNotes(this); autosave(); });
 growAllNotes();
@@ -4010,7 +4035,11 @@ function practiceSheet(){
   }
 
   const h=sheetHead(), esc=escapeHtml;
-  const planTotal=slots.reduce((n,s)=>n+(s.mins||0),0);
+  const drillTotal=slots.reduce((n,s)=>n+(s.mins||0),0);
+  // The paper has to agree with the band, gap included, or the sheet in his
+  // hand says 62 while the board said 72 and one of them is wrong at the rink.
+  const gapPrint=gapEach()*Math.max(0, slots.filter(s=>(s.mins||0)>0).length-1);
+  const planTotal=drillTotal+gapPrint;
   const ice=iceCountFor(h.date, sheetSession);
   const pages=[]; for(let i=0;i<slots.length;i+=4) pages.push(slots.slice(i,i+4));
   // Page 1 states the practice; page 2 carries the lineup, blank to fill in at
@@ -4067,7 +4096,7 @@ function practiceSheet(){
     const right = pno===1
       ? '<div class="fields">'+fld('TEAM',h.team)+fld('COACH',h.coach)+
           fld('DATE',sheetDate(h.date))+
-          fld('TIME',h.time+(planTotal?'   ('+planTotal+' min planned)':''))+
+          fld('TIME',h.time+(planTotal?('   ('+planTotal+' min planned'+(gapPrint?', incl '+gapPrint+' between drills':'')+')'):''))+
           (ice?'<div class="f ice"><b>ON ICE:</b><span>Session '+ice.n+' of the season &nbsp;·&nbsp; '+
             fmtH(ice.hours)+' hours to date</span></div>':'')+'</div>'
       : ('<div class="rightcol">'+lineupHTML()+benchHTML()+
