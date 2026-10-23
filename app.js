@@ -49,7 +49,13 @@ let showTrap=true;
 const CONFIGS={
   full:    {label:'Full sheet',      panels:[{ox:0,oy:0,kind:'full'}]},
   half:    {label:'Half sheet',      panels:[{ox:0,oy:0,kind:'halfL'}]},
-  halves:  {label:'Two half sheets', panels:[{ox:0,oy:0,kind:'halfL'},{ox:100+GAP,oy:0,kind:'halfL'}]},
+  halves:  {label:'Two half sheets HORIZONTAL', panels:[{ox:0,oy:0,kind:'halfL'},{ox:100+GAP,oy:0,kind:'halfL'}]},
+  // Josh's faceoff plays are drawn as a zone with the net at the BOTTOM, two
+  // to a page. Stack the two halves in world space and turn the stage a
+  // quarter: each net swings to the bottom and the pair lands side by side, so
+  // the picture is landscape and drops into a practice-sheet slot as it is.
+  // Nothing new is drawn - it is the same half sheet, seen from the end.
+  halvesV: {label:'Two half sheets VERTICAL', panels:[{ox:0,oy:0,kind:'halfL'},{ox:0,oy:RH+GAP,kind:'halfL'}]},
   twofull: {label:'Two full sheets', panels:[{ox:0,oy:0,kind:'full'},{ox:0,oy:RH+GAP,kind:'full'}]},
   field:   {label:'Grass Field',     panels:[{ox:0,oy:0,kind:'field'}]},
   iceplex: {label:'KCI Iceplex',     panels:[{ox:0,oy:0,kind:'iceplex'}]},
@@ -100,7 +106,11 @@ function fitRect(r,pad=24){
 }
 
 // view presets depend on the rink configuration
-function defaultView(){ return rinkConfig==='full'?'full': rinkConfig==='half'?'zone': rinkConfig==='field'?'full':'both'; }
+function defaultView(){ return rinkConfig==='full'?'full': rinkConfig==='half'?'zone': rinkConfig==='field'?'full': rinkConfig==='halvesV'?'bothv':'both'; }
+// The quarter turn a surface is MEANT to be seen at. A vertical pair is only
+// itself turned; everything else is drawn flat, as it always was. The printed
+// sheet asks this too, so the paper shows the drill the way it was drawn.
+function configRot(cfg){ return (cfg||rinkConfig)==='halvesV' ? 90 : 0; }
 // Both ends, because a coach setting up a goalie drill is at whichever end has
 // the ice, not always the left one. Vertical as well: net-front work reads better
 // with the net at the bottom and the play coming up the screen, which is how the
@@ -156,6 +166,14 @@ function viewPresets(){
     {k:'both', t:'Both', r:b},
     {k:'left', t:'Left', r:{x:0,y:0,w:100,h:RH}},
     {k:'right',t:'Right',r:{x:100+GAP,y:0,w:100,h:RH}},
+  ];
+  // Every view here carries the turn - this surface has no flat reading. The
+  // turn sends a bigger world Y to the right of the screen, so the panel at
+  // oy:0 is the one on the left.
+  if(rinkConfig==='halvesV') return [
+    {k:'bothv', t:'Both ↓', r:b, rot:90},
+    {k:'leftv', t:'Left ↓', r:{x:0,y:0,w:100,h:RH}, rot:90},
+    {k:'rightv',t:'Right ↓',r:{x:0,y:RH+GAP,w:100,h:RH}, rot:90},
   ];
   return [
     {k:'both',t:'Both',  r:b},
@@ -784,10 +802,16 @@ function drawRinkBg(p){
   if(centerLogo && LOGO_IMG[centerLogo] && LOGO_IMG[centerLogo].complete && LOGO_IMG[centerLogo].naturalWidth){
     const img=LOGO_IMG[centerLogo]; const ratio=img.naturalWidth/img.naturalHeight;
     let hh=22*s, ww=hh*ratio; const maxW=28*s; if(ww>maxW){ww=maxW; hh=ww/ratio;}
+    const cx=X(RW/2), cy=Y(RH/2);
     ctx.save();
     ctx.beginPath(); boardPath(); ctx.clip();      // never bleed past the boards
     ctx.globalAlpha=0.95;
-    ctx.drawImage(img, X(RW/2)-ww/2, Y(RH/2)-hh/2, ww, hh);
+    // A crest painted on the ice does not turn when you walk to the other end.
+    // clear() turns the whole canvas a quarter for the net-down views, so the
+    // crest is turned back about its own centre and stays upright - the same
+    // thing the player markers already do.
+    if(camRot){ ctx.translate(cx,cy); ctx.rotate(Math.PI/2); ctx.translate(-cx,-cy); }
+    ctx.drawImage(img, cx-ww/2, cy-hh/2, ww, hh);
     ctx.restore();
   }
 }
@@ -2908,10 +2932,16 @@ function boardShot(){
   if(ink){ x=Math.min(x,ink.x-2); y=Math.min(y,ink.y-2); X=Math.max(X,ink.x+ink.w+2); Y=Math.max(Y,ink.y+ink.h+2); }
   const w=X-x, h=Y-y;
   const scale=Math.min(8, Math.max(2, 2400/Math.max(w,h)));   // ~2400px on the long side
-  const W=Math.round(w*scale), H=Math.round(h*scale);
+  // A surface that is meant to be seen turned gets shot turned. Everything
+  // else shoots flat exactly as before, so no existing drill moves.
+  const rot=configRot();
+  const W=Math.round((rot?h:w)*scale), H=Math.round((rot?w:h)*scale);
   const saved={dpr:DPR,s:cam.s,tx:cam.tx,ty:cam.ty,rot:camRot,w:cv.width,h:cv.height};
-  cv.width=W; cv.height=H; DPR=1; camRot=0;
-  cam.s=scale; cam.tx=-x*scale; cam.ty=-y*scale;
+  cv.width=W; cv.height=H; DPR=1; camRot=rot;
+  // clear() turns the canvas a quarter about its own centre, so the offsets
+  // carry that half-difference as well as the world origin.
+  if(rot){ cam.s=scale; cam.tx=(W-H)/2 - x*scale; cam.ty=-y*scale - (W-H)/2; }
+  else   { cam.s=scale; cam.tx=-x*scale; cam.ty=-y*scale; }
   render();
   const shot=document.createElement('canvas'); shot.width=W; shot.height=H;
   const sctx=shot.getContext('2d');
