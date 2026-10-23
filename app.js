@@ -3401,8 +3401,16 @@ let sheetLogoF='centre', sheetLogoB='centre';
 const SHEET_UP={f:null, b:null};
 function sheetHead(){
   const v=i=>{ const el=document.getElementById(i); return el?el.value:''; };
+  // A crest that came from the drills folder is NOT written into the file: the
+  // folder has it, and a 188KB picture inside every save made a four-drill
+  // practice 551KB instead of 26KB. That weight also crowded the autosave
+  // history, which is the thing standing between Josh and a lost board. A
+  // crest he uploaded by hand still travels, because nothing else holds it.
   return {team:v('shTeam'), coach:v('shCoach'), date:v('shDate'), time:v('shTime'),
-    logoF:sheetLogoF, logoB:sheetLogoB, upF:SHEET_UP.f||null, upB:SHEET_UP.b||null};
+    logoF:sheetLogoF, logoB:sheetLogoB,
+    upF: SHEET_UP.atF ? null : (SHEET_UP.f||null),
+    upB: SHEET_UP.atB ? null : (SHEET_UP.b||null),
+    crestFromFolder: !!(SHEET_UP.atF||SHEET_UP.atB)};
 }
 function applySheetHead(h){
   if(!h) return;
@@ -3446,7 +3454,10 @@ function builtinLogoURL(k){
 function logoDataURL(){ return builtinLogoURL(centerLogo); }
 function crestURL(which){
   const pick = which==='b' ? sheetLogoB : sheetLogoF;
-  if(pick==='upload') return SHEET_UP[which]||null;
+  // "upload" with nothing in hand means the crest lives in a drills folder this
+  // browser has not been given. Fall back to the centre logo rather than
+  // printing a sheet with an empty corner.
+  if(pick==='upload') return SHEET_UP[which] || logoDataURL();
   if(pick==='centre') return logoDataURL();
   return builtinLogoURL(pick);
 }
