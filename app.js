@@ -4271,9 +4271,9 @@ function practiceSheet(){
     // header: crest left, the fields box right, nothing underlining the page
     '.hdr{display:flex;align-items:flex-start;gap:16px;margin-bottom:7px}'+
     // room for a wide lockup, not just a square crest
-    '.crest{height:72px;max-width:310px;object-fit:contain;object-position:left center}'+
+    '.crest{height:72px;width:auto;max-width:310px;flex:0 0 auto;object-fit:contain;object-position:left center}'+
     '.backmark{flex:1;display:flex;align-items:center;justify-content:center;min-width:0}'+
-    '.crest.big{height:96px;max-width:200px;object-position:center}'+
+    '.crest.big{height:96px;width:auto;max-width:200px;flex:0 0 auto;object-position:center}'+
     // the fields are a bordered block on his sheet, one ruled cell per line
     '.fields{margin-left:auto;width:54%;font-size:11.5px;border:1px solid #111;border-bottom:0}'+
     '.f{display:flex;align-items:center;gap:6px;border-bottom:1px solid #111;'+
