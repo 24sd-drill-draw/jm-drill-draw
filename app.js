@@ -203,7 +203,7 @@ function buildViewSeg(){
 // =========================================================
 //  SCENES (multi-drill practice)
 // =========================================================
-function makeScene(name){ return {name, pieces:[], paths:[], rinkType:'full', undoStack:[], redoStack:[], notes:'', equip:'', mins:'', rest:''}; }
+function makeScene(name){ return {name, pieces:[], paths:[], rinkType:'full', undoStack:[], redoStack:[], notes:'', equip:'', mins:'', rest:'', dirty:false}; }
 let scenes=[makeScene('Drill 1')];
 let currentScene=0;
 
@@ -269,7 +269,7 @@ function deleteScene(idx){
   updateInspector(); updateSceneTabs(); render();
 }
 function renameScene(idx){
-  const s=prompt('Drill name:',scenes[idx].name); if(s&&s.trim()) scenes[idx].name=s.trim(); updateSceneTabs();
+  const s=prompt('Drill name:',scenes[idx].name); if(s&&s.trim()){ scenes[idx].name=s.trim(); scenes[idx].dirty=true; } updateSceneTabs();
 }
 function duplicateScene(idx){
   syncScene();
@@ -356,9 +356,10 @@ function tabDragEnd(){
 function updateSceneTabs(){
   const bar=document.getElementById('scenebar'); if(!bar)return; bar.innerHTML='';
   scenes.forEach((s,i)=>{
-    const t=document.createElement('button'); t.className='scenetab'+(i===currentScene?' on':'');
+    const t=document.createElement('button'); t.className='scenetab'+(i===currentScene?' on':'')+(s.dirty?' unsaved':'');
     t.textContent=s.name;
-    t.title='Click to open. Drag to reorder. Double-click to rename.';
+    t.title=(s.dirty?'NOT SAVED to a file since you last changed it. ':'Saved - matches a file on disk. ')+
+      'Click to open. Drag to reorder. Double-click to rename.';
     t.style.touchAction='none';       // or the browser pans the tab strip instead
     t.onclick=()=>loadScene(i);
     t.ondblclick=(e)=>{ e.stopPropagation(); renameScene(i); };
@@ -481,7 +482,10 @@ const COLORS={
 let undoStack=scenes[0].undoStack, redoStack=scenes[0].redoStack;
 function snapshot(){ return JSON.stringify({pieces,paths,rinkConfig,uid}); }
 function pushUndo(){ undoStack.push(snapshot()); if(undoStack.length>60)undoStack.shift(); redoStack.length=0;
-  // Every mutation goes through here, so this is the one hook autosave needs.
+  // Every mutation goes through here, so this is the one hook autosave needs -
+  // and the one place that can honestly say a drill no longer matches its file.
+  if(scenes[currentScene] && !scenes[currentScene].dirty){ scenes[currentScene].dirty=true;
+    if(typeof updateSceneTabs==="function") updateSceneTabs(); }
   if(typeof autosave==="function") autosave(); }
 function restore(s){ const o=JSON.parse(s); pieces=o.pieces; paths=o.paths; rinkConfig=o.rinkConfig||'full'; uid=o.uid;
   paths.forEach(p=>p._lut=null);
@@ -3056,6 +3060,14 @@ function buildOneDrillData(idx){
       paths:s.paths.map(p=>({...p,_lut:undefined}))
     }]};
 }
+// Save practice writes every tab, so every tab now matches a file. Save drill
+// writes only the one you are on. Either way the tabs stop warning about work
+// that is already on disk.
+function markSaved(){
+  if(_saveMode==='drill'){ if(scenes[currentScene]) scenes[currentScene].dirty=false; }
+  else scenes.forEach(sc=>sc.dirty=false);
+  updateSceneTabs();
+}
 async function doSaveDrill(name, dataIn){
   const data=dataIn||buildDrillData();
   const safe=safeFileName(name);
@@ -3071,6 +3083,7 @@ async function doSaveDrill(name, dataIn){
       });
       const w=await handle.createWritable();
       await w.write(json); await w.close();
+      markSaved();                 // the tabs now match a file, and should say so
       toast('"'+safe+'" saved');
       return;
     }catch(err){
@@ -3088,6 +3101,7 @@ async function doSaveDrill(name, dataIn){
   const blob=new Blob([json],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
   a.download=safe+'.json'; a.click();
+  markSaved();
   toast('"'+safe+'" saved — move it to your Drills folder');
 }
 // The name a FILE was last saved under. A practice is many drills, so the file
@@ -3225,6 +3239,7 @@ function appendData(o, fname){
     // from the bank and nobody could see why.
     sc.notes=s.notes||''; sc.equip=s.equip||''; sc.mins=s.mins||'';
     sc.rest=(s.rest===0||s.rest)?s.rest:(s.nobreak?0:'');
+    sc.dirty=false;                 // it came out of a file, so it matches one
     scenes.push(sc); added.push(sc);
   });
 
@@ -3249,6 +3264,7 @@ function loadData(o){
       sc.notes=s.notes||''; sc.equip=s.equip||''; sc.mins=s.mins||'';
       // files written before Rest existed carry the tickbox it replaced
       sc.rest=(s.rest===0||s.rest)?s.rest:(s.nobreak?0:'');
+      sc.dirty=false;               // ditto: opened from a file
       sc.pieces=(s.pieces||[]).map(p=>{ const q={...p}; if(p._src){const img=new Image();img.src=p._src;q.img=img;} return q; });
       sc.paths=(s.paths||[]).map(p=>({...p,_lut:null}));
       return sc;
@@ -3524,9 +3540,12 @@ function updateMinsTotal(){
 // that page has no Min box and no sheet band: an unguarded addEventListener on
 // a missing element throws, and everything after it in this file stops being
 // wired up - which is how a drill-board feature breaks the clip page.
+// Typed text and numbers never touch pushUndo, so they mark the drill here.
+function touchScene(){ const sc=scenes[currentScene];
+  if(sc && !sc.dirty){ sc.dirty=true; updateSceneTabs(); } }
 function on(id, ev, fn){ const el=document.getElementById(id); if(el) el.addEventListener(ev, fn); return el; }
-on('drillMins','input',function(){ scenes[currentScene].mins=this.value; updateMinsTotal(); autosave(); });
-on('drillRest','input',function(){ scenes[currentScene].rest=this.value===''?'':Math.max(0,parseInt(this.value,10)||0); updateMinsTotal(); autosave(); });
+on('drillMins','input',function(){ scenes[currentScene].mins=this.value; touchScene(); updateMinsTotal(); autosave(); });
+on('drillRest','input',function(){ scenes[currentScene].rest=this.value===''?'':Math.max(0,parseInt(this.value,10)||0); touchScene(); updateMinsTotal(); autosave(); });
 on('shTime','input', function(){ timeTypedByHand(); updateMinsTotal(); });
 // The gap is how Josh runs practice, not a property of one practice, so it
 // lives in this browser and is there again tomorrow.
@@ -3537,8 +3556,8 @@ on('shTime','input', function(){ timeTypedByHand(); updateMinsTotal(); });
     updateMinsTotal();
   });
 })();
-on('drillNotes','input',function(){ scenes[currentScene].notes=this.value; growNotes(this); autosave(); });
-on('equipNotes','input',function(){ scenes[currentScene].equip=this.value; growNotes(this); autosave(); });
+on('drillNotes','input',function(){ scenes[currentScene].notes=this.value; touchScene(); growNotes(this); autosave(); });
+on('equipNotes','input',function(){ scenes[currentScene].equip=this.value; touchScene(); growNotes(this); autosave(); });
 growAllNotes();
 updateMinsTotal();
 

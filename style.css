@@ -287,3 +287,11 @@
   color:var(--accent); font:inherit; padding:2px 8px; border-radius:5px;
   max-width:340px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .sh-open:hover{ background:var(--accent); color:#04141c; }
+
+/* A drill whose work is not in a file yet. Amber, not red: nothing is wrong,
+   it just is not on disk. The tooltip says which, because a colour on its own
+   tells you something has changed and not what. */
+.scenetab.unsaved{ color:#ffb34d; border-color:#7a5520; }
+.scenetab.unsaved::before{ content:'• '; color:#ffb34d; }
+.scenetab.unsaved.on{ color:#04141c; background:#ffb34d; border-color:#ffb34d; }
+.scenetab.unsaved.on::before{ color:#04141c; }
