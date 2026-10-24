@@ -4508,20 +4508,42 @@ function fmtDay(iso){
   const d=new Date(+m[1], +m[2]-1, +m[3]);
   return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()]+' '+m[2]+'/'+m[3];
 }
+// Which number of the season each ice session is, counted the way the header
+// counts it - every team ice session in date then start order, August included.
+// Keyed by date|start so a day with two ice times gives two different numbers.
+function seasonOrdinals(){
+  const map=new Map(); let n=0;
+  teamIceSessions().forEach(e=>{ map.set(e.date+'|'+String(e.start||''), ++n); });
+  return {map, total:n};
+}
+// A saved practice says which session it is by the time in its header. "1855"
+// matches the 18:55 ice; a file with no time, or one that matches nothing,
+// falls back to the first session of that day rather than guessing.
+function ordinalFor(ord, iso, timeStr){
+  const day=teamIceSessions().filter(e=>e.date===iso);
+  if(!day.length) return null;
+  const want=String(timeStr||'').replace(/[^0-9]/g,'').slice(0,4);
+  let hit=day[0];
+  if(want) for(const e of day){ if(String(e.start||'').replace(':','')===want){ hit=e; break; } }
+  return ord.map.get(hit.date+'|'+String(hit.start||'')) || null;
+}
 async function readPracticeFolder(dir){
   const out=[];
   for await (const [name,h] of dir.entries()){
     if(h.kind!=='file' || !looksLikePractice(name)) continue;
     const iso=(/\d{4}-\d{2}-\d{2}/.exec(name)||[''])[0];
-    let drills=null, f=null;
+    let drills=null, f=null, time='';
     try{
       f=await h.getFile();
       // Only the shape is wanted here, not the pictures - counting tabs off a
       // 1.3MB file for every row is why this reads the json and nothing else.
       const o=JSON.parse(await f.text());
       drills=(o.scenes||[]).length;
+      // The practice's own time, which is how a day with two ice times says
+      // WHICH of them this file is - and so which number of the season.
+      time=(o.sheet&&o.sheet.time)||'';
     }catch(e){}
-    out.push({name, iso, drills, file:f, saved:f?f.lastModified:0,
+    out.push({name, iso, drills, time, file:f, saved:f?f.lastModified:0,
       size:f?f.size:0, base:name.replace(/\.json$/i,'')});
   }
   return out;
@@ -4558,13 +4580,14 @@ function showPractices(dir, saved){
   // Ice the calendar knows about that has nothing saved against it yet.
   teamIceSessions().forEach(e=>{
     if(byDay.has(e.date)) return;
-    rows.push({iso:e.date, kind:'todo', time:(e.start&&e.end)?(String(e.start).replace(':','')+'-'+String(e.end).replace(':','')):'' });
+    rows.push({iso:e.date, kind:'todo', ev:e, time:(e.start&&e.end)?(String(e.start).replace(':','')+'-'+String(e.end).replace(':','')):'' });
   });
   byDay.forEach((list,iso)=>{
     list.sort((a,b)=>b.saved-a.saved);
     rows.push({iso, kind:'saved', list});
   });
   rows.sort((a,b)=> String(b.iso).localeCompare(String(a.iso)));
+  const ord=seasonOrdinals();
   const _t=new Date();
   const today=_t.getFullYear()+'-'+String(_t.getMonth()+1).padStart(2,'0')+'-'+String(_t.getDate()).padStart(2,'0');
   const html=rows.map((r,i)=>{
@@ -4572,12 +4595,15 @@ function showPractices(dir, saved){
       (r.iso===today?' <span class="pr-now">TODAY</span>':'');
     if(r.kind==='todo')
       return '<div class="prow prow-todo" data-i="'+i+'"><div class="pr-day">'+when+'</div>'+
-        '<div class="pr-mid">no practice built'+(r.time?' · ice '+escapeHtml(r.time):'')+'</div>'+
+        '<div class="pr-mid">no practice built'+(r.time?' · ice '+escapeHtml(r.time):'')+
+        (function(){ const k=r.ev?ord.map.get(r.ev.date+'|'+String(r.ev.start||'')):null;
+          return k?' · <b>#'+k+'</b> of '+ord.total:''; })()+'</div>'+
         '<button class="pr-go" data-build="'+i+'">Build it</button></div>';
     return '<div class="prow" data-i="'+i+'"><div class="pr-day">'+when+'</div>'+
       '<div class="pr-mid">'+r.list.map((p,j)=>
         '<button class="pr-file" data-open="'+i+'" data-j="'+j+'">'+
         escapeHtml(p.base)+'<span class="pr-meta">'+
+        (function(){ const k=ordinalFor(ord, p.iso, p.time); return k?'#'+k+' · ':''; })()+
         (p.drills!=null?p.drills+' drill'+(p.drills===1?'':'s'):'?')+
         ' · '+Math.round(p.size/1024)+'KB</span></button>').join('')+'</div></div>';
   }).join('');
