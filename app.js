@@ -4495,6 +4495,128 @@ function showLibrary(dir, items){
     };
   });
 }
+// =========================================================
+//  PRACTICES - every day, saved or still to build
+// =========================================================
+// The date box moves one day at a time and only tells you about a practice
+// once you have guessed its date. Josh wants to jump around: see what was
+// run, and see what is still to write. So this lists both - every practice
+// file in the folder, and every team ice session on the calendar that has no
+// practice yet.
+function fmtDay(iso){
+  const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(iso||''); if(!m) return iso||'';
+  const d=new Date(+m[1], +m[2]-1, +m[3]);
+  return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()]+' '+m[2]+'/'+m[3];
+}
+async function readPracticeFolder(dir){
+  const out=[];
+  for await (const [name,h] of dir.entries()){
+    if(h.kind!=='file' || !looksLikePractice(name)) continue;
+    const iso=(/\d{4}-\d{2}-\d{2}/.exec(name)||[''])[0];
+    let drills=null, f=null;
+    try{
+      f=await h.getFile();
+      // Only the shape is wanted here, not the pictures - counting tabs off a
+      // 1.3MB file for every row is why this reads the json and nothing else.
+      const o=JSON.parse(await f.text());
+      drills=(o.scenes||[]).length;
+    }catch(e){}
+    out.push({name, iso, drills, file:f, saved:f?f.lastModified:0,
+      size:f?f.size:0, base:name.replace(/\.json$/i,'')});
+  }
+  return out;
+}
+async function openPractices(){
+  let dir=await libGet();
+  try{
+    if(dir){
+      const p=await dir.queryPermission({mode:'read'});
+      if(p!=='granted' && await dir.requestPermission({mode:'read'})!=='granted') dir=null;
+    }
+    if(!dir){
+      if(!window.showDirectoryPicker){ toast('This browser cannot open a folder'); return; }
+      dir=await window.showDirectoryPicker({id:'drillsDir', mode:'read'});
+      await libPut(dir);
+      tryFolderLines(true).catch(()=>{});
+    }
+  }catch(err){
+    if(err && err.name==='AbortError') return;
+    toast('Could not open that folder'); return;
+  }
+  let saved=[];
+  try{ saved=await readPracticeFolder(dir); }catch(e){}
+  showPractices(dir, saved);
+}
+function showPractices(dir, saved){
+  let ov=document.getElementById('practicePanel'); if(ov) ov.remove();
+  ov=document.createElement('div'); ov.id='practicePanel';
+  // Newest first: the practice Josh wants is almost always a recent one, and
+  // the future sits at the top where he is writing it.
+  const byDay=new Map();
+  saved.forEach(p=>{ if(!byDay.has(p.iso)) byDay.set(p.iso,[]); byDay.get(p.iso).push(p); });
+  const rows=[];
+  // Ice the calendar knows about that has nothing saved against it yet.
+  teamIceSessions().forEach(e=>{
+    if(byDay.has(e.date)) return;
+    rows.push({iso:e.date, kind:'todo', time:(e.start&&e.end)?(String(e.start).replace(':','')+'-'+String(e.end).replace(':','')):'' });
+  });
+  byDay.forEach((list,iso)=>{
+    list.sort((a,b)=>b.saved-a.saved);
+    rows.push({iso, kind:'saved', list});
+  });
+  rows.sort((a,b)=> String(b.iso).localeCompare(String(a.iso)));
+  const _t=new Date();
+  const today=_t.getFullYear()+'-'+String(_t.getMonth()+1).padStart(2,'0')+'-'+String(_t.getDate()).padStart(2,'0');
+  const html=rows.map((r,i)=>{
+    const when=fmtDay(r.iso)+' <span class="pr-iso">'+r.iso+'</span>'+
+      (r.iso===today?' <span class="pr-now">TODAY</span>':'');
+    if(r.kind==='todo')
+      return '<div class="prow prow-todo" data-i="'+i+'"><div class="pr-day">'+when+'</div>'+
+        '<div class="pr-mid">no practice built'+(r.time?' · ice '+escapeHtml(r.time):'')+'</div>'+
+        '<button class="pr-go" data-build="'+i+'">Build it</button></div>';
+    return '<div class="prow" data-i="'+i+'"><div class="pr-day">'+when+'</div>'+
+      '<div class="pr-mid">'+r.list.map((p,j)=>
+        '<button class="pr-file" data-open="'+i+'" data-j="'+j+'">'+
+        escapeHtml(p.base)+'<span class="pr-meta">'+
+        (p.drills!=null?p.drills+' drill'+(p.drills===1?'':'s'):'?')+
+        ' · '+Math.round(p.size/1024)+'KB</span></button>').join('')+'</div></div>';
+  }).join('');
+  ov.innerHTML='<div class="libwrap"><div class="libhead"><b>Practices</b>'+
+    '<span class="libdir">'+escapeHtml(dir.name)+' · '+saved.length+' saved</span>'+
+    '<button class="tbtn ghost" id="prClose">Close</button></div>'+
+    '<div class="prlist">'+(html||'<p style="padding:14px">No practices and no ice on the calendar.</p>')+'</div>'+
+    '<p class="prfoot">Opening a practice REPLACES the drills on the board. Build it just sets the date and time — your drills stay.</p></div>';
+  document.body.appendChild(ov);
+  const close=()=>ov.remove();
+  ov.querySelector('#prClose').onclick=close;
+  ov.onclick=e=>{ if(e.target===ov) close(); };
+  ov.querySelectorAll('.pr-file').forEach(b=>{
+    b.onclick=async()=>{
+      const r=rows[+b.dataset.open], p=r.list[+b.dataset.j];
+      const n=scenes.length;
+      if(!confirm('Open "'+p.base+'"?\n\nThis REPLACES the '+n+' drill'+(n===1?'':'s')+
+        ' on the board. Save first if you have not.')) return;
+      try{
+        keepBeforeWipe();
+        const o=JSON.parse(await p.file.text());
+        o.fileName=p.base;
+        loadData(o);
+        close();
+        if(typeof offerDayPractice==='function') offerDayPractice().catch(()=>{});
+      }catch(e){ toast('Could not open that practice'); }
+    };
+  });
+  // A future day with no practice: point the header at it and leave the board
+  // alone. That IS writing the future - the drills come next, from Josh.
+  ov.querySelectorAll('.pr-go').forEach(b=>{
+    b.onclick=()=>{
+      const r=rows[+b.dataset.build];
+      const dEl=document.getElementById('shDate'); if(dEl){ dEl.value=r.iso; dEl.dispatchEvent(new Event('change')); }
+      close();
+      toast(fmtDay(r.iso)+' — header set. The drills on the board are untouched.');
+    };
+  });
+}
 // Guarded: app.js is loaded by Film Room too, and that page has no sheet button.
 // An unguarded onclick here would throw on load and take the whole clip page down.
 const _sheetBtn=document.getElementById('sheetBtn');
@@ -4541,6 +4663,8 @@ if(_sheetBtn){
   buildSessionSel();
   const _libBtn=document.getElementById('libBtn');
   if(_libBtn) _libBtn.onclick=openLibrary;
+  const _prBtn=document.getElementById('practiceBtn');
+  if(_prBtn) _prBtn.onclick=()=>{ openPractices().catch(()=>toast('Could not read the folder')); };
   const _linesClear=document.getElementById('linesClear');
   if(_linesClear) _linesClear.onclick=clearLines;
   const _linesBtn=document.getElementById('linesBtn');

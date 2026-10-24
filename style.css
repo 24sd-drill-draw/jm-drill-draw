@@ -295,3 +295,27 @@
 .scenetab.unsaved::before{ content:'• '; color:#ffb34d; }
 .scenetab.unsaved.on{ color:#04141c; background:#ffb34d; border-color:#ffb34d; }
 .scenetab.unsaved.on::before{ color:#04141c; }
+
+/* PRACTICES — the whole season, saved and still to write. One row a day. */
+#practicePanel{ position:fixed; inset:0; z-index:10001; background:rgba(4,12,20,.86);
+  display:flex; align-items:center; justify-content:center; }
+#practicePanel .libwrap{ width:min(760px,94vw); max-height:88vh; display:flex; flex-direction:column;
+  background:var(--panel,#0f2030); border:1px solid #27445c; border-radius:12px; overflow:hidden; }
+#practicePanel .libhead{ display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid #27445c; }
+#practicePanel .libdir{ color:var(--muted); font-size:12px; margin-right:auto; }
+.prlist{ overflow:auto; padding:6px 0; }
+.prow{ display:flex; gap:12px; align-items:flex-start; padding:8px 14px; border-bottom:1px solid #1b3243; }
+.pr-day{ width:132px; flex:0 0 auto; font-weight:700; font-size:13px; }
+.pr-iso{ display:block; color:var(--muted); font-weight:400; font-size:11px; }
+.pr-now{ color:#04141c; background:var(--accent); border-radius:4px; padding:0 5px; font-size:10px; }
+.pr-mid{ flex:1; min-width:0; display:flex; flex-direction:column; gap:5px; color:var(--muted); font-size:12px; }
+.pr-file{ text-align:left; background:#13293b; border:1px solid #27445c; color:#dceaf4;
+  border-radius:7px; padding:6px 9px; font:inherit; font-size:12px; cursor:pointer; }
+.pr-file:hover{ border-color:var(--accent); color:var(--accent); }
+.pr-meta{ display:block; color:var(--muted); font-size:11px; }
+/* A day with ice and no practice is the work in front of him, not a problem. */
+.prow-todo .pr-day{ color:#8fb3cc; }
+.pr-go{ flex:0 0 auto; background:transparent; border:1px solid var(--accent); color:var(--accent);
+  border-radius:7px; padding:5px 10px; font:inherit; font-size:12px; cursor:pointer; }
+.pr-go:hover{ background:var(--accent); color:#04141c; }
+.prfoot{ margin:0; padding:10px 14px; border-top:1px solid #27445c; color:var(--muted); font-size:11px; }

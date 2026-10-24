@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Drill Draw</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%230A1622'/><ellipse cx='50' cy='54' rx='34' ry='22' fill='none' stroke='%23EAF6FB' stroke-width='5'/><line x1='16' y1='54' x2='84' y2='54' stroke='%23E8313A' stroke-width='4'/><line x1='50' y1='32' x2='50' y2='76' stroke='%233A9BDC' stroke-width='3'/><circle cx='50' cy='54' r='8' fill='none' stroke='%233A9BDC' stroke-width='3'/></svg>">
-<link rel="stylesheet" href="style.css?v=crest-202610231900">
+<link rel="stylesheet" href="style.css?v=practices-202610232000">
 
 
 <div class="app">
@@ -68,6 +68,9 @@
     <button class="tbtn ghost" id="importBtn">Open</button>
     <button class="tbtn ghost" id="addDrillBtn" title="Bring a saved file in as extra drill tabs, keeping what you have open">+ Add drill</button>
     <!-- Picking a drill by filename is picking blind. This shows the drawings. -->
+    <!-- Every day, saved or still to build. The date box only tells you
+         about a practice once you have guessed its date; this is the list. -->
+    <button class="tbtn ghost" id="practiceBtn" title="Every practice you have saved, newest first, plus the ice on the calendar with no practice built yet">📅 Practices</button>
     <button class="tbtn ghost" id="libBtn" title="See your saved drills as pictures and add one as a tab">📁 Drill library</button>
     <button class="tbtn ghost" id="clearBtn" title="Empties the drill you are on. The other drill tabs are not touched.">Clear drill</button>
     <button class="tbtn" id="helpBtn">?</button>
@@ -283,7 +286,7 @@
   </div>
 </div>
 
-<script src="app.js?v=crest-202610231900"></script>
+<script src="app.js?v=practices-202610232000"></script>
 <script>
   // Offline copy (sw.js): online nothing changes; offline this page still opens.
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function () { });
