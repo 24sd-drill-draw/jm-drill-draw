@@ -3115,9 +3115,13 @@ let _saveMode='practice';
 function nameDateISO(s){ const m=String(s||'').match(/\d{4}-\d{2}-\d{2}/); return m?m[0]:''; }
 function practiceNameFor(){
   const d=shDateValue()||'';
-  const t=((document.getElementById('shTime')||{}).value||'').trim();
   if(!d) return '';
-  return (d+' practice'+(t?' '+t:'')).trim();
+  // The TIME is deliberately not in here. A practice is the day; the time is a
+  // fact about it that lives inside the file and is free to move. Putting it in
+  // the name meant nudging 1100-1215 to 1100-1230 offered a different file, so
+  // one practice quietly became two saves of the same day. Josh types a fuller
+  // name when he wants one, and that name is what comes back next time.
+  return (d+' practice').trim();
 }
 function saveModalCheck(){
   const inp=document.getElementById('drillNameInput');
