@@ -699,6 +699,17 @@ function addPiece(type, at, opts){
 function nextNum(){ const used=pieces.filter(p=>p.type==='player'&&p.color===COLORS[playerColor]).length; return used+1; }
 function prettyType(t){ return ({player:'Skater',goalie:'Goalie',coach:'Coach',puck:'Puck',puckstack:'Pucks',ball:'Ball',net:'Net',cone:'Cone',tire:'Tire',bumper:'Bumper',ring:'Ring',link:'Cover link',dot:'Dot',zone:'Zone',image:'Image',text:'Text'})[t]||t; }
 function defColor(t){ return ({cone:'#F2811D',net:'#D11C2C',bumper:'#E7B416',dot:'#D11C2C',tire:'#E7B416',puck:'#111418',puckstack:'#111418',ball:'#ffffff',ring:'#222831',coach:'#E7B416',zone:'#2FA866'})[t]||'#11181f'; }
+// Whether a mark is pale enough to vanish on white ice and needs a dark rim.
+// This is NOT the same question as isDark, which decides what colour of ink to
+// put ON a filled shape - sharing that threshold is what put a black outline
+// round orange. Orange reads 151 and is perfectly visible on white; gold 172,
+// lime 187 and yellow 199 are not. The line sits between them.
+function needsRim(hex){
+  if(!hex) return false;
+  const c=(hex+'').replace('#','');
+  const r=parseInt(c.substr(0,2),16),g=parseInt(c.substr(2,2),16),b=parseInt(c.substr(4,2),16);
+  return (0.299*r+0.587*g+0.114*b) >= 165;
+}
 function isDark(hex){ if(!hex)return true; const c=(hex+'').replace('#',''); const r=parseInt(c.substr(0,2),16),g=parseInt(c.substr(2,2),16),b=parseInt(c.substr(4,2),16); return (0.299*r+0.587*g+0.114*b)<140; }
 function escapeHtml(s){ return (s||'').replace(/[&<>"\']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 function getPiece(i){ return pieces.find(p=>p.id===i); }
@@ -1473,7 +1484,12 @@ function drawPieceShape(c, p, scale, thumb){
       let widest=0; lines.forEach(l=>{ widest=Math.max(widest,c.measureText(l).width); });
       p._wft=(widest/z); p._hft=(lines.length*lh/z);
       c.lineJoin='round'; c.lineWidth=Math.max(3,fs*0.2);
-      c.strokeStyle = isDark(p.color)? 'rgba(255,255,255,.95)' : 'rgba(8,16,24,.9)';
+      // Same rule as the marks, and for the same reason. Asking isDark here put
+      // a BLACK halo round orange text, which reads as black lettering with an
+      // orange fill. Only a genuinely pale colour - gold, teal, white - needs a
+      // dark halo; everything else takes a white one, which is invisible on the
+      // ice and does its work on the dark boards.
+      c.strokeStyle = needsRim(p.color) ? 'rgba(8,16,24,.9)' : 'rgba(255,255,255,.95)';
       c.fillStyle=p.color||'#11181f';
       lines.forEach((l,i)=>{ c.strokeText(l,0,top+i*lh); c.fillText(l,0,top+i*lh); });
       break; }
@@ -1666,14 +1682,14 @@ function drawAnnotation(p){
   // arrowheads, the web fill. The white player circles have carried an outline
   // all along; the marks never did, so white was effectively unusable and a
   // white line's arrows had to be drawn black instead.
-  if(!isDark(col)){
+  if(needsRim(col)){
     const keepW=_wmul;
     // Every width in paintMark derives from _wmul, so fattening it and painting
     // dark underneath gives a real outline rather than a blurred glow. A soft
     // shadow alone spread the dark over ~7px and left nothing solid enough to
     // see. The blur here only softens the edge of that fatter pass.
     // Halved 2026-09-03. At the old weight (2.5-6px) the outline read as a black
-    // line with a yellow core rather than a yellow line with an edge - Jay
+    // line with a yellow core rather than a yellow line with an edge - Josh
     // spotted it on an exported DZ faceoff sheet. A rim is enough to hold the
     // colour against white ice; anything more competes with it.
     const grow=Math.min(3, Math.max(1.25, 0.275*cam.s));
