@@ -4069,11 +4069,21 @@ function jerseyDots(v){
   // No jersey set: hold the space so the numbers still line up down the column.
   return out || '<i class="nj"></i>';
 }
+// A guest is someone the card invented for a day - "guest-cao" - and who is
+// in no roster. Josh skated one for three practices and then not again.
+function isGuestId(id){ return /^guest[-_]/i.test(String(id||'')); }
 function playerCell(id){
   if(!id) return {num:'', last:''};
   const r=LINES.roster && LINES.roster[id];
+  // A guest never reaches the roster, so without this the sheet printed the
+  // card's internal key - "guest-cao" - at the rink, beside real names.
+  if(!r && isGuestId(id)) return {num:'', last:prettyGuest(id)};
   if(!r) return {num:'', last:id};   // no roster loaded: the card's own key still reads
   return {num:r.num||'', last:lastName(r.name)||r.num||id};
+}
+function prettyGuest(id){
+  const raw=String(id).replace(/^guest[-_]/i,'').replace(/[-_]+/g,' ').trim();
+  return raw.replace(/\b[a-z]/g, c=>c.toUpperCase()) || 'Guest';
 }
 let _logoTarget='f';
 function wireSheetLogos(){
@@ -4174,7 +4184,11 @@ function practiceSheet(){
   // them, or you count heads on the ice and come up short.
   const benchHTML=()=>{
     if(!found) return '';
-    const names=(found.day.benchOrder||[]).map(id=>{
+    // Guests are not listed as NOT SKATING. A guest who stopped coming is not
+    // an absence to explain to the team - he was never on the roster to be
+    // missing from - and the card keeps carrying him forward on the bench long
+    // after he is gone.
+    const names=(found.day.benchOrder||[]).filter(id=>!isGuestId(id)).map(id=>{
       const p=playerCell(id);
       return (p.num?p.num+' ':'')+p.last;
     }).filter(Boolean);
@@ -4324,10 +4338,16 @@ function practiceSheet(){
     '.rink{width:62%;height:auto;border:1px solid #111;border-radius:12px;align-self:flex-start}'+
     // title box on top, ruled lines filling the rest - one block per rink
     '.col{flex:1;display:flex;flex-direction:column;min-width:0}'+
-    '.ttl{border:1px solid #111;padding:1px 6px;font-weight:800;font-size:11px;'+
-      'text-transform:uppercase;letter-spacing:.4px;white-space:nowrap;overflow:hidden;'+
+    '.ttl{border:1px solid #111;padding:2px 6px;font-weight:800;font-size:11px;'+
+      'text-transform:uppercase;letter-spacing:.4px;line-height:1.25;'+
       'display:flex;justify-content:space-between;gap:8px;align-items:baseline}'+
-    '.ttl .tnm{overflow:hidden;text-overflow:ellipsis}'+
+    // The name wraps onto as many lines as it needs. It used to be cut with an
+    // ellipsis, so "PP/PK- 1:30 OZ FO Win, play it live with line changes and
+    // such" printed as "PP/PK- 1:30 OZ FO WIN, PLAY IT LIV..." - and the half
+    // that says what to DO was the half that went. The box grows downward and
+    // the ruled lines below take what is left, so a long name costs a line of
+    // writing space rather than the type getting smaller.
+    '.ttl .tnm{min-width:0;overflow-wrap:anywhere}'+
     '.ttl .tmin{flex:0 0 auto;font-size:10px;letter-spacing:.3px}'+
     '.ttl i{font-style:normal;color:#555}'+
     // 24px rules against 11px type. At 20px and 12px a sentence ran to three
