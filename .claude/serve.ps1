@@ -33,7 +33,11 @@ while ($true) {
     if (-not $path) { $path = "/" }
     $path = ($path -split '\?')[0]
     $path = [System.Uri]::UnescapeDataString($path)
-    if ($path -eq "/") { $path = "/film-room.html" }
+    # The root is the DRILL BOARD. This used to point elsewhere, so every
+    # preview opened the wrong app before anything navigated away - which is
+    # how the wrong page kept appearing in Josh's pane. Any other page in this
+    # folder is still reachable by its own name.
+    if ($path -eq "/") { $path = "/index.html" }
 
     $full = Join-Path $Root ($path.TrimStart('/') -replace '/', '\')
     $full = [System.IO.Path]::GetFullPath($full)
