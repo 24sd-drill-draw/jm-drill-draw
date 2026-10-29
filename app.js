@@ -4432,7 +4432,8 @@ function drillThumb(scene){
     pieces=(scene.pieces||[]).map(p=>({...p}));
     paths=(scene.paths||[]).map(p=>({...p,_lut:null}));
     rinkConfig=scene.rinkType||'full';
-    url=shrinkShot(boardShot(), 460);
+    // 460 was fine for a 230px card and blurs the moment the card grows.
+    url=shrinkShot(boardShot(), 760);
   }catch(e){ url=null; }
   finally{ pieces=savedP; paths=savedT; rinkConfig=savedCfg; render(); }
   return url;
@@ -4479,6 +4480,7 @@ async function openLibrary(){
   if(!items.length){ toast('No drill files in '+dir.name); return; }
   showLibrary(dir, items);
 }
+const LIBSIZE_KEY='jmdd.libsize.v1';
 function showLibrary(dir, items){
   let ov=document.getElementById('libPanel'); if(ov) ov.remove();
   ov=document.createElement('div'); ov.id='libPanel';
@@ -4492,8 +4494,16 @@ function showLibrary(dir, items){
         '<span>'+escapeHtml(label)+'</span></button>');
     });
   });
+  // Josh will not remember thirty drills by name. The picture is the index,
+  // so how big it is shown is a real control, not a preference - and it is
+  // remembered, because he should set it once.
+  const sizes={S:230, M:340, L:480};
+  let picked=localStorage.getItem(LIBSIZE_KEY); if(!sizes[picked]) picked='L';
+  const sizeBtns=Object.keys(sizes).map(k=>
+    '<button class="libsize'+(k===picked?' on':'')+'" data-size="'+k+'">'+k+'</button>').join('');
   ov.innerHTML='<div class="lib-bar"><span class="lib-ttl">Drill library</span>'+
       '<span class="lib-hint">'+escapeHtml(dir.name)+' — click a drill to add it as a new tab</span>'+
+      '<span class="libsize-wrap" title="How big the drill pictures are shown">Picture size '+sizeBtns+'</span>'+
       '<button class="tbtn ghost" id="libFolder">Change folder</button>'+
       '<button class="tbtn ghost" id="libClose">Close</button></div>'+
     '<div class="lib-grid">'+cards.join('')+'</div>';
@@ -4502,6 +4512,14 @@ function showLibrary(dir, items){
   const esc=e=>{ if(e.key==='Escape') close(); };
   document.addEventListener('keydown',esc);
   ov.querySelector('#libClose').onclick=close;
+  const grid=ov.querySelector('.lib-grid');
+  const applySize=k=>{ grid.style.gridTemplateColumns='repeat(auto-fill,minmax('+sizes[k]+'px,1fr))'; };
+  applySize(picked);
+  ov.querySelectorAll('.libsize').forEach(b=>{ b.onclick=()=>{
+    const k=b.dataset.size; applySize(k);
+    ov.querySelectorAll('.libsize').forEach(x=>x.classList.toggle('on',x===b));
+    try{ localStorage.setItem(LIBSIZE_KEY,k); }catch(_){}
+  }; });
   ov.querySelector('#libFolder').onclick=async()=>{
     try{
       const d=await window.showDirectoryPicker({id:'drillsDir', mode:'read'});
