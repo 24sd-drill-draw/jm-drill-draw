@@ -330,3 +330,21 @@
   font-weight:700; cursor:pointer; }
 .libsize:hover{ border-color:var(--accent); color:var(--accent); }
 .libsize.on{ background:var(--accent); border-color:var(--accent); color:#04141c; }
+
+/* Library controls: find, sort, size. Each is labelled in words beside it -
+   a row of bare buttons tells you nothing about what it changes. */
+.libfind{ flex:0 0 220px; background:var(--navy); border:1px solid var(--line);
+  color:var(--ink); border-radius:6px; padding:5px 9px; font:inherit; font-size:12px; }
+.libfind:focus{ outline:none; border-color:var(--accent); }
+.libseg{ display:flex; align-items:center; gap:4px; font-size:11px;
+  color:var(--muted); font-weight:600; letter-spacing:.2px; }
+.libsort{ background:transparent; border:1px solid var(--line); color:var(--muted);
+  border-radius:5px; height:22px; padding:0 8px; font:inherit; font-size:11px;
+  font-weight:700; cursor:pointer; white-space:nowrap; }
+.libsort:hover{ border-color:var(--accent); color:var(--accent); }
+.libsort.on{ background:var(--accent); border-color:var(--accent); color:#04141c; }
+/* What the picture cannot tell you: which sheet it is drawn on, and when it
+   was last saved. Quiet, under the name. */
+.libmeta{ display:block; margin-top:2px; font-style:normal; font-weight:600;
+  font-size:10.5px; color:var(--muted); opacity:.75; }
+.libempty{ padding:30px 14px; color:var(--muted); font-size:13px; }

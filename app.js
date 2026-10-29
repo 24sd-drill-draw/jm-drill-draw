@@ -4443,11 +4443,12 @@ async function readDrillFolder(dir){
   for await (const [name,h] of dir.entries()){
     if(h.kind!=='file' || !/\.json$/i.test(name)) continue;
     try{
-      const txt=await (await h.getFile()).text();
+      const f=await h.getFile();
+      const txt=await f.text();
       const o=JSON.parse(txt);
       const scenes0=(o && o.scenes && o.scenes.length) ? o.scenes
         : [{name:name.replace(/\.json$/i,''), rinkType:o.rinkConfig||'full', pieces:o.pieces||[], paths:o.paths||[]}];
-      out.push({file:name, data:o, drills:scenes0});
+      out.push({file:name, data:o, drills:scenes0, saved:f.lastModified||0});
     }catch(e){ /* a file that is not a drill is simply not shown */ }
   }
   return out.sort((a,b)=>a.file.localeCompare(b.file));
@@ -4481,45 +4482,92 @@ async function openLibrary(){
   showLibrary(dir, items);
 }
 const LIBSIZE_KEY='jmdd.libsize.v1';
+const LIBSORT_KEY='jmdd.libsort.v1';
+// What a surface is called when it is a heading rather than a dropdown value.
+const SURFACE_NAME={full:'Full sheet', half:'Half sheet', halves:'Two half sheets',
+  halvesV:'Two half sheets vertical', twofull:'Two full sheets', field:'Grass field',
+  iceplex:'KCI Iceplex'};
 function showLibrary(dir, items){
   let ov=document.getElementById('libPanel'); if(ov) ov.remove();
   ov=document.createElement('div'); ov.id='libPanel';
+
+  // One card per DRILL, not per file: a file holding four drills is four
+  // things Josh might want, and he picks one of them.
   const cards=[];
   items.forEach((it,fi)=>{
     it.drills.forEach((d,di)=>{
-      const url=drillThumb(d);
-      const label=(it.drills.length>1 ? (d.name||('Drill '+(di+1)))+' · ' : '')+it.file.replace(/\.json$/i,'');
-      cards.push('<button class="libcard" data-f="'+fi+'" data-d="'+di+'">'+
-        (url?'<img src="'+url+'">':'<div class="libnone">no picture</div>')+
-        '<span>'+escapeHtml(label)+'</span></button>');
+      const nm=d.name||it.file.replace(/\.json$/i,'');
+      cards.push({ fi, di, url:drillThumb(d),
+        name:nm,
+        label:(it.drills.length>1 ? nm+' · ' : '')+it.file.replace(/\.json$/i,''),
+        file:it.file,
+        saved:it.saved||0,
+        surface:d.rinkType||'full' });
     });
   });
-  // Josh will not remember thirty drills by name. The picture is the index,
-  // so how big it is shown is a real control, not a preference - and it is
-  // remembered, because he should set it once.
+
   const sizes={S:230, M:340, L:480};
-  let picked=localStorage.getItem(LIBSIZE_KEY); if(!sizes[picked]) picked='L';
-  const sizeBtns=Object.keys(sizes).map(k=>
-    '<button class="libsize'+(k===picked?' on':'')+'" data-size="'+k+'">'+k+'</button>').join('');
+  let size=localStorage.getItem(LIBSIZE_KEY); if(!sizes[size]) size='L';
+  // Newest is the file's last-saved time. There is no creation date to be had
+  // through a browser, and calling a save date "created" would be a small lie
+  // that eventually costs Josh the drill he was looking for.
+  const SORTS={az:'A–Z', newest:'Newest', oldest:'Oldest', surface:'Surface'};
+  let sort=localStorage.getItem(LIBSORT_KEY); if(!SORTS[sort]) sort='az';
+  let find='';
+
+  const btn=(cls,k,txt,on)=>'<button class="'+cls+(on?' on':'')+'" data-k="'+k+'">'+txt+'</button>';
   ov.innerHTML='<div class="lib-bar"><span class="lib-ttl">Drill library</span>'+
-      '<span class="lib-hint">'+escapeHtml(dir.name)+' — click a drill to add it as a new tab</span>'+
-      '<span class="libsize-wrap" title="How big the drill pictures are shown">Picture size '+sizeBtns+'</span>'+
+      '<input id="libFind" class="libfind" type="search" placeholder="Find a drill…" autocomplete="off">'+
+      '<span class="lib-hint" id="libCount"></span>'+
+      '<span class="libseg" title="How the drills are ordered">Sort '+
+        Object.keys(SORTS).map(k=>btn('libsort',k,SORTS[k],k===sort)).join('')+'</span>'+
+      '<span class="libseg" title="How big the drill pictures are shown">Size '+
+        Object.keys(sizes).map(k=>btn('libsize',k,k,k===size)).join('')+'</span>'+
       '<button class="tbtn ghost" id="libFolder">Change folder</button>'+
       '<button class="tbtn ghost" id="libClose">Close</button></div>'+
-    '<div class="lib-grid">'+cards.join('')+'</div>';
+    '<div class="lib-grid"></div>';
   document.body.appendChild(ov);
+
+  const grid=ov.querySelector('.lib-grid');
+  const count=ov.querySelector('#libCount');
+  const when=ms=>{ if(!ms) return ''; const d=new Date(ms);
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
+
+  function draw(){
+    const q=find.trim().toLowerCase();
+    let list=cards.filter(c=> !q || c.name.toLowerCase().includes(q) || c.file.toLowerCase().includes(q));
+    const byName=(a,b)=>a.name.localeCompare(b.name,undefined,{sensitivity:'base',numeric:true});
+    if(sort==='az') list.sort(byName);
+    else if(sort==='newest') list.sort((a,b)=> b.saved-a.saved || byName(a,b));
+    else if(sort==='oldest') list.sort((a,b)=> a.saved-b.saved || byName(a,b));
+    else if(sort==='surface') list.sort((a,b)=>
+      String(SURFACE_NAME[a.surface]||a.surface).localeCompare(SURFACE_NAME[b.surface]||b.surface) || byName(a,b));
+    count.textContent=list.length+' of '+cards.length+' drill'+(cards.length===1?'':'s')+
+      (q?' matching “'+find.trim()+'”':'')+' — click one to add it as a new tab';
+    grid.innerHTML = list.length ? list.map(c=>
+      '<button class="libcard" data-f="'+c.fi+'" data-d="'+c.di+'">'+
+      (c.url?'<img src="'+c.url+'">':'<div class="libnone">no picture</div>')+
+      '<span>'+escapeHtml(c.label)+
+        '<i class="libmeta">'+escapeHtml(SURFACE_NAME[c.surface]||c.surface)+
+        (c.saved?' · '+when(c.saved):'')+'</i></span></button>').join('')
+      : '<p class="libempty">Nothing matches “'+escapeHtml(find.trim())+'”.</p>';
+    grid.querySelectorAll('.libcard').forEach(b=>{
+      b.onclick=()=>{
+        const it=items[+b.dataset.f], di=+b.dataset.d;
+        appendData({scenes:[it.drills[di]]}, it.file);   // one drill, not the file
+        close();
+      };
+    });
+  }
+  const applySize=k=>{ grid.style.gridTemplateColumns='repeat(auto-fill,minmax('+sizes[k]+'px,1fr))'; };
+
   const close=()=>{ ov.remove(); document.removeEventListener('keydown',esc); };
-  const esc=e=>{ if(e.key==='Escape') close(); };
+  const esc=e=>{ if(e.key==='Escape'){ const f=ov.querySelector('#libFind');
+    // Escape clears a search first, and only closes the panel when there is
+    // nothing to clear - otherwise one key does two jobs and loses the list.
+    if(f && f.value){ f.value=''; find=''; draw(); return; } close(); } };
   document.addEventListener('keydown',esc);
   ov.querySelector('#libClose').onclick=close;
-  const grid=ov.querySelector('.lib-grid');
-  const applySize=k=>{ grid.style.gridTemplateColumns='repeat(auto-fill,minmax('+sizes[k]+'px,1fr))'; };
-  applySize(picked);
-  ov.querySelectorAll('.libsize').forEach(b=>{ b.onclick=()=>{
-    const k=b.dataset.size; applySize(k);
-    ov.querySelectorAll('.libsize').forEach(x=>x.classList.toggle('on',x===b));
-    try{ localStorage.setItem(LIBSIZE_KEY,k); }catch(_){}
-  }; });
   ov.querySelector('#libFolder').onclick=async()=>{
     try{
       const d=await window.showDirectoryPicker({id:'drillsDir', mode:'read'});
@@ -4528,14 +4576,21 @@ function showLibrary(dir, items){
       if(got.length) showLibrary(d,got); else toast('No drill files in '+d.name);
     }catch(e){ if(e && e.name!=='AbortError') toast('Could not open that folder'); }
   };
-  ov.querySelectorAll('.libcard').forEach(b=>{
-    b.onclick=()=>{
-      const it=items[+b.dataset.f], di=+b.dataset.d;
-      // one drill out of the file, not the whole file
-      appendData({scenes:[it.drills[di]]}, it.file);
-      close();
-    };
-  });
+  ov.querySelectorAll('.libsize').forEach(b=>{ b.onclick=()=>{
+    size=b.dataset.k; applySize(size);
+    ov.querySelectorAll('.libsize').forEach(x=>x.classList.toggle('on',x===b));
+    try{ localStorage.setItem(LIBSIZE_KEY,size); }catch(_){}
+  }; });
+  ov.querySelectorAll('.libsort').forEach(b=>{ b.onclick=()=>{
+    sort=b.dataset.k;
+    ov.querySelectorAll('.libsort').forEach(x=>x.classList.toggle('on',x===b));
+    try{ localStorage.setItem(LIBSORT_KEY,sort); }catch(_){}
+    draw();
+  }; });
+  const fi=ov.querySelector('#libFind');
+  fi.oninput=()=>{ find=fi.value; draw(); };
+  applySize(size); draw();
+  setTimeout(()=>{ try{ fi.focus(); }catch(e){} }, 60);
 }
 // =========================================================
 //  PRACTICES - every day, saved or still to build
