@@ -4692,26 +4692,63 @@ async function openPractices(){
 function showPractices(dir, saved){
   let ov=document.getElementById('practicePanel'); if(ov) ov.remove();
   ov=document.createElement('div'); ov.id='practicePanel';
-  // Newest first: the practice Josh wants is almost always a recent one, and
-  // the future sits at the top where he is writing it.
-  const byDay=new Map();
-  saved.forEach(p=>{ if(!byDay.has(p.iso)) byDay.set(p.iso,[]); byDay.get(p.iso).push(p); });
+  // ONE ROW PER ICE SESSION, not per day. Grouping by date meant a Wednesday -
+  // two practices nearly every week - showed a single row, and the saved
+  // afternoon practice took it. The morning ice had no row at all, so there was
+  // no way to see it and no Build it to start it.
   const rows=[];
-  // Ice the calendar knows about that has nothing saved against it yet.
-  teamIceSessions().forEach(e=>{
-    if(byDay.has(e.date)) return;
-    rows.push({iso:e.date, kind:'todo', ev:e, time:(e.start&&e.end)?(String(e.start).replace(':','')+'-'+String(e.end).replace(':','')):'' });
+  const takenBy=new Map();           // session key -> saved practices on it
+  const sessions=teamIceSessions();
+  const byDaySessions=new Map();
+  sessions.forEach(e=>{ if(!byDaySessions.has(e.date)) byDaySessions.set(e.date,[]); byDaySessions.get(e.date).push(e); });
+
+  // A saved practice says which session it belongs to by the time in its own
+  // header. No time, or one that matches nothing, falls back to the day's first
+  // session rather than disappearing.
+  const place=p=>{
+    const day=byDaySessions.get(p.iso)||[];
+    if(!day.length) return null;
+    const want=String(p.time||'').replace(/[^0-9]/g,'').slice(0,4);
+    let hit=day[0];
+    if(want) for(const e of day){ if(String(e.start||'').replace(':','')===want){ hit=e; break; } }
+    return hit;
+  };
+  const orphans=[];
+  saved.forEach(p=>{
+    const e=place(p);
+    if(!e){ orphans.push(p); return; }
+    const k=e.date+'|'+e.start;
+    if(!takenBy.has(k)) takenBy.set(k,[]);
+    takenBy.get(k).push(p);
   });
-  byDay.forEach((list,iso)=>{
-    list.sort((a,b)=>b.saved-a.saved);
-    rows.push({iso, kind:'saved', list});
+
+  sessions.forEach(e=>{
+    const k=e.date+'|'+e.start;
+    const day=byDaySessions.get(e.date)||[];
+    const idx=day.indexOf(e);
+    const list=(takenBy.get(k)||[]).sort((a,b)=>b.saved-a.saved);
+    rows.push({ iso:e.date, ev:e, sessionId: idx===1?'ice2':'',
+      sessionName: day.length>1 ? (idx===0?'Ice 1':'Ice 2') : '',
+      time:(e.start&&e.end)?(String(e.start).replace(':','')+'-'+String(e.end).replace(':','')):'',
+      kind: list.length?'saved':'todo', list });
   });
-  rows.sort((a,b)=> String(b.iso).localeCompare(String(a.iso)));
+  // A practice saved for a day the calendar has no ice on - a cancelled slot,
+  // or one entered before the schedule caught up - still has to be reachable.
+  const byOrphanDay=new Map();
+  orphans.forEach(p=>{ if(!byOrphanDay.has(p.iso)) byOrphanDay.set(p.iso,[]); byOrphanDay.get(p.iso).push(p); });
+  byOrphanDay.forEach((list,iso)=>rows.push({iso, kind:'saved', sessionName:'', time:'', list:list.sort((a,b)=>b.saved-a.saved)}));
+
+  // Newest first, and within a day the later ice below the earlier.
+  rows.sort((a,b)=> String(b.iso).localeCompare(String(a.iso))
+    || String((a.ev&&a.ev.start)||'').localeCompare(String((b.ev&&b.ev.start)||'')));
   const ord=seasonOrdinals();
   const _t=new Date();
   const today=_t.getFullYear()+'-'+String(_t.getMonth()+1).padStart(2,'0')+'-'+String(_t.getDate()).padStart(2,'0');
   const html=rows.map((r,i)=>{
-    const when=fmtDay(r.iso)+' <span class="pr-iso">'+r.iso+'</span>'+
+    // The day, then WHICH ice of that day. On a Wednesday the two rows are
+    // otherwise identical at a glance and Josh picks the wrong one.
+    const when=fmtDay(r.iso)+' <span class="pr-iso">'+r.iso+
+      (r.sessionName?' · '+r.sessionName:'')+'</span>'+
       (r.iso===today?' <span class="pr-now">TODAY</span>':'');
     if(r.kind==='todo')
       return '<div class="prow prow-todo" data-i="'+i+'"><div class="pr-day">'+when+'</div>'+
@@ -4719,7 +4756,8 @@ function showPractices(dir, saved){
         (function(){ const k=r.ev?ord.map.get(r.ev.date+'|'+String(r.ev.start||'')):null;
           return k?' · <b>#'+k+'</b> of '+ord.total:''; })()+'</div>'+
         '<button class="pr-go" data-build="'+i+'">Build it</button></div>';
-    return '<div class="prow" data-i="'+i+'"><div class="pr-day">'+when+'</div>'+
+    return '<div class="prow" data-i="'+i+'"><div class="pr-day">'+when+
+      (r.time?'<span class="pr-iso">ice '+escapeHtml(r.time)+'</span>':'')+'</div>'+
       '<div class="pr-mid">'+r.list.map((p,j)=>
         '<button class="pr-file" data-open="'+i+'" data-j="'+j+'">'+
         escapeHtml(p.base)+'<span class="pr-meta">'+
@@ -4758,8 +4796,16 @@ function showPractices(dir, saved){
     b.onclick=()=>{
       const r=rows[+b.dataset.build];
       const dEl=document.getElementById('shDate'); if(dEl){ dEl.value=r.iso; dEl.dispatchEvent(new Event('change')); }
+      // Pointing at the day is not enough on a Wednesday: the row Josh clicked
+      // IS a session, so the picker follows it and the time comes from that
+      // session rather than from whichever ice happens to be first.
+      const sEl=document.getElementById('shSession');
+      if(sEl && r.sessionId!=null){ sEl.value=r.sessionId; sEl.dispatchEvent(new Event('change')); }
+      const tEl=document.getElementById('shTime');
+      if(tEl && r.time){ tEl.value=r.time; if(typeof updateMinsTotal==='function') updateMinsTotal(); }
       close();
-      toast(fmtDay(r.iso)+' — header set. The drills on the board are untouched.');
+      toast(fmtDay(r.iso)+(r.sessionName?' '+r.sessionName:'')+' '+(r.time||'')+
+        ' — header set. The drills on the board are untouched.');
     };
   });
 }
