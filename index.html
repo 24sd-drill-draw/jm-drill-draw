@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Drill Draw</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%230A1622'/><ellipse cx='50' cy='54' rx='34' ry='22' fill='none' stroke='%23EAF6FB' stroke-width='5'/><line x1='16' y1='54' x2='84' y2='54' stroke='%23E8313A' stroke-width='4'/><line x1='50' y1='32' x2='50' y2='76' stroke='%233A9BDC' stroke-width='3'/><circle cx='50' cy='54' r='8' fill='none' stroke='%233A9BDC' stroke-width='3'/></svg>">
-<link rel="stylesheet" href="style.css?v=rim-202610291000">
+<link rel="stylesheet" href="style.css?v=hist-202610291800">
 
 
 <div class="app">
@@ -71,6 +71,10 @@
     <!-- Every day, saved or still to build. The date box only tells you
          about a practice once you have guessed its date; this is the list. -->
     <button class="tbtn ghost" id="practiceBtn" title="Every practice you have saved, newest first, plus the ice on the calendar with no practice built yet">📅 Practices</button>
+    <!-- The board keeps its last 10 states in this browser. They were only
+         reachable from the restore prompt on load, which means on the one day
+         Josh needed them they were unreachable. -->
+    <button class="tbtn ghost" id="histBtn" title="The last boards this browser kept — newest first. Use it to get back work that was never saved to a file.">⏳ Earlier boards</button>
     <button class="tbtn ghost" id="libBtn" title="See your saved drills as pictures and add one as a tab">📁 Drill library</button>
     <button class="tbtn ghost" id="clearBtn" title="Empties the drill you are on. The other drill tabs are not touched.">Clear drill</button>
     <button class="tbtn" id="helpBtn">?</button>
@@ -286,7 +290,7 @@
   </div>
 </div>
 
-<script src="app.js?v=rim-202610291000"></script>
+<script src="app.js?v=hist-202610291800"></script>
 <script>
   // Offline copy (sw.js): online nothing changes; offline this page still opens.
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function () { });

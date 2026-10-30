@@ -5052,6 +5052,7 @@ function showHistory(){
   });
 }
 offerRestore();
+on('histBtn','click',showHistory);
 
 // Circle or triangle for skaters. Two buttons over one grid of positions rather
 // than DrillChange's 24 - shape x colour x position is a lot of buttons, and the
