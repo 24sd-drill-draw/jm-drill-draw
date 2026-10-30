@@ -3621,6 +3621,13 @@ function applySheetHead(h){
   if(h.logoF && !SHEET_UP.atF) sheetLogoF=h.logoF;
   if(h.logoB && !SHEET_UP.atB) sheetLogoB=h.logoB;
   saveSheetLogos(); buildSheetLogoSels();
+  // Setting a date with .value does NOT fire change or input, so opening a
+  // practice set the date and left everything that hangs off it behind: the
+  // Ice 1 / Ice 2 picker stayed hidden and the season count stayed blank. On a
+  // Wednesday - two practices, nearly every week - that left Josh no way to say
+  // which one he was looking at.
+  if(typeof buildSessionSel==='function') buildSessionSel();
+  if(typeof updateLinesState==='function') updateLinesState();
 }
 function saveSheetLogos(){
   try{ localStorage.setItem(SHEET_LOGO_KEY, JSON.stringify(
