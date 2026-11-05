@@ -1847,6 +1847,11 @@
         '&#9888; ' + need + ' waiting — pick the file' + (need === 1 ? '' : 's') + '</button>';
     }
     bar.innerHTML = h;
+    // the strip scrolls sideways now, so keep the clip you are on in view
+    var on = bar.querySelector('.kd-clip.on');
+    if (on && on.scrollIntoView) {
+      try { on.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) { }
+    }
   }
   function shortName(n) {
     n = String(n).replace(/\.[^.]+$/, '');

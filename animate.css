@@ -538,3 +538,12 @@ body.light-theme .seg,body.light-theme .zoomctl button{background:rgba(255,255,2
 /* "N waiting — pick the files" sits in the clip strip until they are all in. */
 .kd-clipadd.need{border-style:solid;border-color:#E7B416;color:#E7B416}
 .kd-clipadd.need:hover{background:rgba(231,180,22,.12);color:#E7B416;border-color:#E7B416}
+
+/* Twenty-five clips wrapped onto three rows and pushed the timeline off the
+   bottom of the screen. One row that scrolls sideways instead: the strip costs
+   the same whether you have two clips or forty. */
+.kd-clips{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;padding:4px 9px}
+.kd-clips > *{flex:0 0 auto}
+.kd-clips::-webkit-scrollbar{height:7px}
+.kd-clips::-webkit-scrollbar-thumb{background:#3d444e;border-radius:4px}
+.kd-clips::-webkit-scrollbar-track{background:transparent}
