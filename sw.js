@@ -9,7 +9,7 @@
 // browser's own storage and never went over the network. Video is never
 // stored: clips are opened from disk and are not requests this worker sees.
 
-var CACHE = 'jmdd-offline-v2';
+var CACHE = 'jmdd-offline-v3';
 var CORE = [
   './', 'index.html', 'film-room.html', 'rink-lab.html',
   'app.js', 'animate-ui.js', 'animate.css', 'style.css', 'vendor-mp4box.js', 'vendor-mp4muxer.js', 'repack.js',
@@ -52,7 +52,13 @@ self.addEventListener('fetch', function (e) {
       });
     }
     var timer = setTimeout(fromCache, WAIT_MS);
-    fetch(req).then(function (res) {
+    // 'no-cache' asks the SERVER every time rather than letting the browser
+    // answer from its own ten-minute copy. Without it a push could be live and
+    // the plain address still served yesterday's page: ?fresh=… worked, the
+    // normal link did not, which is exactly how it looked.
+    var live;
+    try { live = new Request(req, { cache: 'no-cache' }); } catch (e) { live = req; }
+    fetch(live).then(function (res) {
       clearTimeout(timer);
       if (res && res.ok && res.type === 'basic') {
         var copy = res.clone();
