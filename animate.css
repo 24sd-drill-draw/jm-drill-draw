@@ -36,7 +36,7 @@ select{font:inherit;color:inherit}
 .kd-hidden{display:none!important}
 
 /* ---------- app frame ---------- */
-.kd-app{display:grid;grid-template-rows:46px 34px minmax(0,1fr) 22px var(--tl);height:100vh;width:100vw}
+.kd-app{display:grid;grid-template-rows:46px 34px minmax(0,1fr) 22px var(--tl);height:100vh;width:100%;max-width:100%;overflow:hidden}
 .kd-main{display:grid;grid-template-columns:var(--rail) var(--lpanel) minmax(0,1fr) var(--rpanel);min-height:0}
 
 /* ---------- top bar ---------- */
@@ -550,3 +550,20 @@ body.light-theme .seg,body.light-theme .zoomctl button{background:rgba(255,255,2
 /* "Reconnect N clips" — the one-click path when the folder is remembered. */
 .kd-clipadd.go{border-style:solid;border-color:var(--accent);color:var(--accent);font-weight:800}
 .kd-clipadd.go:hover{background:rgba(185,230,12,.14)}
+
+/* 100vw counts the scrollbar, so the moment anything overflowed the right
+   panel and the zoom buttons were pushed past the edge of the window. The app
+   is the width of the window it is in, and never wider. */
+html,body{overflow:hidden;max-width:100%}
+
+/* The clips strip sits inside the timeline block, so with clips open the block
+   needs the extra row — otherwise the strip eats the timeline it sits above. */
+body.has-clips{--tl:246px}
+/* The transport is one long row of buttons; left alone it sets the width of
+   the whole app and shoves the right panel and the zoom buttons off the
+   screen. The app grid is the window's width, the timeline block may not grow
+   past it, and the transport wraps onto a second line instead. */
+.kd-app{grid-template-columns:minmax(0,1fr)}
+.kd-timeline{min-width:0;overflow:hidden}
+.kd-transport{flex-wrap:wrap;min-width:0}
+.kd-main{min-width:0}

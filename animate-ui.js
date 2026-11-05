@@ -1925,6 +1925,9 @@
       }
     }
     bar.innerHTML = h;
+    // the strip takes a row of its own out of the timeline block, so the block
+    // grows to pay for it rather than squeezing the timeline
+    document.body.classList.toggle('has-clips', clips.length > 0);
     // the strip scrolls sideways now, so keep the clip you are on in view
     var on = bar.querySelector('.kd-clip.on');
     if (on && on.scrollIntoView) {
