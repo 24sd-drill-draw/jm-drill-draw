@@ -4944,7 +4944,14 @@ document.querySelectorAll('.tray-toggle').forEach(h=>{
 // last on screen - in browser storage, and offers it back on the next load. It
 // is not a substitute for Save: browser storage is per-browser, per-machine, and
 // is cleared by anything that clears site data. The offer says so.
-const AUTOSAVE_KEY='jmdd.autosave.v1';
+// One key per app. Drill Draw and Film Room share this file, so a single key
+// meant the drill board's autosave was offered back inside Film Room — six
+// drills and a "Restore it" bar on top of a video breakdown — and a film board
+// could land on the drill side the same way. They are separate tools and their
+// saved work is separate too. Film Room also keeps its own (kd.autosave), which
+// is the one that carries clips, cuts and captions.
+const AUTOSAVE_KEY = (location.pathname.indexOf('film-room') >= 0)
+  ? 'jmdd.autosave.film.v1' : 'jmdd.autosave.v1';
 let _autosaveT=null;
 
 function autosaveNow(){
@@ -4972,7 +4979,8 @@ function autosaveNow(){
 // still do - overwrites the only copy of what was there a moment earlier.
 // Josh lost a drill to exactly that. So keep the last few boards, newest last,
 // and offer them.
-const HIST_KEY='jmdd.autosave.history.v1';
+const HIST_KEY = (location.pathname.indexOf('film-room') >= 0)
+  ? 'jmdd.autosave.history.film.v1' : 'jmdd.autosave.history.v1';
 const HIST_MAX=10, HIST_BYTES=2500000;   // well inside a 5MB origin quota
 function readHistory(){
   try{ const a=JSON.parse(localStorage.getItem(HIST_KEY)||'[]'); return Array.isArray(a)?a:[]; }
@@ -5021,6 +5029,10 @@ function _agoText(ms){
 // started would be a second way to lose work, and the whole point here is to
 // stop losing work.
 function offerRestore(){
+  // Film Room is its own tool and keeps its own save (clips, cuts, captions).
+  // The drill board's "You have an unsaved board — Restore it" bar has no
+  // business over a video breakdown, and it was offering six drills there.
+  if(location.pathname.indexOf('film-room')>=0) return;
   let raw=null;
   try{ raw=localStorage.getItem(AUTOSAVE_KEY); }catch(e){ return; }
   if(!raw) return;
@@ -5032,6 +5044,7 @@ function offerRestore(){
   const names=snap.data.scenes.map(s=>s.name).filter(Boolean).slice(0,3).join(', ');
 
   const bar=document.createElement('div');
+  bar.id='kdRestoreBar';
   bar.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:9999;'+
     'background:#0C2233;border:1px solid #2A6E86;border-radius:10px;padding:10px 14px;'+
     'display:flex;gap:12px;align-items:center;flex-wrap:wrap;max-width:min(680px,94vw);'+

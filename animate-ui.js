@@ -3089,6 +3089,21 @@
   // an hour of work was gone. This keeps the current state in localStorage and
   // puts it back on the next load. It is a safety net, not a filing system —
   // File ▸ Save is still how a drill gets a name and a home.
+  // Film Room keeps its own autosave (clips, cuts, captions, drawings) and has
+  // no use for the drill board's. Two of them running meant the engine's
+  // "You have an unsaved board — Restore it" bar turning up over a video
+  // breakdown, offering six drills. Its key is already separate per app; here
+  // the thing is switched off outright.
+  (function () {
+    var bar = document.getElementById('kdRestoreBar');
+    if (bar) bar.remove();
+    // window.*, not the bare names: Film Room has its own autosaveNow further
+    // down this file, and assigning the bare name would switch off the save
+    // that carries the clips.
+    if (typeof window.autosave === 'function') window.autosave = function () { };
+    if (typeof window.autosaveNow === 'function') window.autosaveNow = function () { };
+  })();
+
   var AKEY = 'kd.autosave';
   function boardData() {
     syncScene();
