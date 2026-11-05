@@ -3191,7 +3191,11 @@
       var d = boardData();
       // a reel with no drawings is still work worth keeping
       var empty = !segments.length && !clips.length && d.scenes.every(function (s) { return !s.pieces.length && !s.paths.length; });
-      if (empty) { localStorage.removeItem(AKEY); lastSaved = ''; return; }
+      // An empty board is never a reason to DELETE the save. If a restore ever
+      // fails — a bad record, a change to the format — the board comes up
+      // empty, and deleting here turned that into the loss of every clip, cut
+      // and caption. Write nothing and leave what is on disk alone.
+      if (empty) { lastSaved = ''; return; }
       var json = JSON.stringify(d);
       if (json === lastSaved) return;
       localStorage.setItem(AKEY, JSON.stringify({ at: Date.now(), data: d }));
