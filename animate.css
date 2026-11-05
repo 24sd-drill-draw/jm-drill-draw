@@ -567,3 +567,6 @@ body.has-clips{--tl:246px}
 .kd-timeline{min-width:0;overflow:hidden}
 .kd-transport{flex-wrap:wrap;min-width:0}
 .kd-main{min-width:0}
+/* Clear all — the way out when a session is not worth keeping. */
+.kd-clipadd.wipe{border-color:#5a3338;color:#d98a90}
+.kd-clipadd.wipe:hover{background:rgba(232,49,58,.16);border-color:#E8313A;color:#ff8b92}

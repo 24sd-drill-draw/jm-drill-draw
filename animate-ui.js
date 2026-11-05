@@ -1931,6 +1931,30 @@
   // On load: if clips are waiting and a folder is remembered, offer one click.
   loadFolder().then(function (h) { if (h) { folderHandle = h; paintClips(); } });
 
+  // Start the session over: every clip closed, the reel empty, the board
+  // clean. One question first, because it cannot be undone.
+  function clearAllClips() {
+    var cuts = allSegments().length, marks = 0;
+    clips.forEach(function (c) { marks += (c.paths || []).length + (c.pieces || []).length; });
+    var what = clips.length + ' clip' + (clips.length === 1 ? '' : 's') +
+      (cuts ? ', ' + cuts + ' cut' + (cuts === 1 ? '' : 's') : '') +
+      (marks ? ' and ' + marks + ' mark' + (marks === 1 ? '' : 's') : '');
+    if (!window.confirm('Clear everything?\n\n' + what + ' go. Your video files and anything you have exported are untouched.')) return;
+    if (playing) { playing = false; setPlayUI(); }
+    disposeVideo();
+    clips = []; clipAt = -1; segments = []; reelSeq = null; reelAt = -1;
+    breakUntil = 0; reelPreview = false; pendingPick = -1;
+    paths = []; pieces = [];
+    scenes[currentScene].paths = paths; scenes[currentScene].pieces = pieces;
+    selOne(null); updateInspector();
+    inMs = 0; outMs = 0;
+    paintClips(); paintReelInfo(); paintList(); updateVideoPanel();
+    lastSig = ''; render();
+    try { localStorage.removeItem(AKEY); } catch (e) { }
+    lastSaved = '';
+    toast('Cleared — open a video to start');
+  }
+
   function paintClips() {
     var bar = $('kdClips');
     if (!bar) return;
@@ -1945,6 +1969,9 @@
         '<i class="kd-clipx" data-close="' + i + '" title="Close this clip">&times;</i></button>';
     });
     h += '<button type="button" class="kd-clipadd" id="kdClipAdd" title="Open another video. Each clip keeps its own marks and segments">&#43; Clip</button>';
+    if (clips.length) {
+      h += '<button type="button" class="kd-clipadd wipe" id="kdClearClips" title="Close every clip and empty the reel — start the session over">&#10005; Clear all</button>';
+    }
     // After a reload every clip is waiting for its file. Picking them one at a
     // time is four trips through the file dialog; this takes them all in one,
     // matching each file to its clip by name.
@@ -1980,6 +2007,7 @@
   $('kdClips').addEventListener('click', function (e) {
     var x = e.target.closest ? e.target.closest('.kd-clipx') : null;
     if (x) { e.stopPropagation(); removeClip(+x.dataset.close); return; }
+    if (e.target.closest('#kdClearClips')) { clearAllClips(); return; }
     if (e.target.closest('#kdReconnect')) { reconnectFromFolder(folderHandle); return; }
     if (e.target.closest('#kdPickFolder')) { pickFolder(); return; }
     if (e.target.closest('#kdClipAdd') || e.target.closest('#kdPickAll')) { pendingPick = -1; openVideo(); return; }
