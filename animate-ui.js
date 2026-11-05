@@ -1722,6 +1722,25 @@
   }
   var _syncScrub = syncScrub;
   syncScrub = function () {
+    // The engine stops playback when the clock reaches the end of the clip.
+    // On a reel that is not the end of anything: whole-clip segments finish
+    // exactly at T, so the reel died after the first clip and the export came
+    // out one clip long. While a running order is still going, carry on.
+    if (!playing && (exporting || reelPreview) && reelSeq && reelAt >= 0 && reelAt < reelSeq.length) {
+      playing = true; setPlayUI();
+    }
+    // On a reel the CLIP is the clock. The engine adds elapsed wall time to
+    // tNow every frame, and while a clip is loading there is no video to
+    // correct it against, so the clock ran on by itself — segments ended
+    // early and a 36-second reel came out at 16. Read the clip when it is
+    // ready, and hold still when it is not.
+    if (reelActive() && playing) {
+      if (vid && vid.duration && !vid.seeking && !vid.paused) {
+        reelClock = tNow = clamp(vid.currentTime * 1000, 0, T);
+      } else if (reelClock != null) {
+        tNow = reelClock;
+      }
+    } else reelClock = null;
     // runs first: a hold pins tNow before anything else reads it
     if (typeof checkFreeze === 'function') checkFreeze();
     // then the reel: while a card is up the clip is paused and its clock must
@@ -2587,6 +2606,7 @@
   // The reel drives playback only when asked (Play reel) or when exporting.
   var reelPreview = false;
   var reelSeq = null;        // the running order, fixed while a reel plays
+  var reelClock = null;      // last clock reading taken from the clip itself
   var reelSwitching = false; // a clip is loading behind the card
   // A single cut played from the clip list has its own one-entry running
   // order, so it counts as a reel even when nothing is ticked.
@@ -2859,7 +2879,11 @@
       lastNudge = performance.now();
       try { vid.play().catch(function () { }); } catch (e) { }
     }
-    if (tNow >= seg.out) {
+    // "Reached the end" has to include the clip actually ending. A segment
+    // that runs to the end of its clip asks for a moment the file never
+    // reaches — the duration is rounded up by a few milliseconds — so the reel
+    // sat on the last frame of clip one waiting for it.
+    if (tNow >= seg.out - 40 || (vid && vid.ended)) {
       reelAt++;
       if (reelAt >= list.length) {          // reel finished
         if (loop && !exporting) { reelAt = -1; resetHolds(); return false; }
