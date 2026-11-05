@@ -1823,6 +1823,75 @@
     autosaveSoon();
     toast('Closed ' + c.name);
   }
+  // ---------------------------------------------------------
+  // The folder the game files live in, remembered between sessions.
+  //
+  // A browser may not keep a FILE across a reload, but it may keep a handle to
+  // a FOLDER you pointed it at, and ask once to use it again. With 25 clips in
+  // a breakdown that is the difference between one click and twenty-five trips
+  // through the file dialog.
+  // ---------------------------------------------------------
+  var folderHandle = null;
+  function idb(fn) {
+    return new Promise(function (resolve) {
+      var rq = indexedDB.open('filmroom', 1);
+      rq.onupgradeneeded = function () { rq.result.createObjectStore('kv'); };
+      rq.onsuccess = function () {
+        var db = rq.result, tx = db.transaction('kv', 'readwrite'), st = tx.objectStore('kv');
+        var out = fn(st);
+        tx.oncomplete = function () { db.close(); resolve(out && out.result !== undefined ? out.result : out); };
+        tx.onerror = function () { db.close(); resolve(null); };
+      };
+      rq.onerror = function () { resolve(null); };
+    });
+  }
+  function saveFolder(h) {
+    // A real folder handle stores fine; anything else (an old browser, a test
+    // stand-in) must not take the rest of the feature down with it.
+    return idb(function (st) { try { return st.put(h, 'clipFolder'); } catch (e) { return null; } });
+  }
+  function loadFolder() { return idb(function (st) { return st.get('clipFolder'); }); }
+
+  // Hand every waiting clip its file out of the folder, by name.
+  async function reconnectFromFolder(h) {
+    if (!h) return 0;
+    try {
+      var perm = await h.queryPermission({ mode: 'read' });
+      if (perm !== 'granted') perm = await h.requestPermission({ mode: 'read' });
+      if (perm !== 'granted') { toast('Folder not allowed'); return 0; }
+    } catch (e) { return 0; }
+    var n = 0, missing = [];
+    for (var i = 0; i < clips.length; i++) {
+      var c = clips[i];
+      if (c.file) continue;
+      try {
+        var fh = await h.getFileHandle(c.name);
+        c.file = await fh.getFile();
+        c.missing = false;
+        n++;
+      } catch (e) { missing.push(c.name); }
+    }
+    folderHandle = h;
+    paintClips(); paintReelInfo(); paintList();
+    if (n && clipAt < 0) switchClip(clips.findIndex(function (c) { return !!c.file; }));
+    else if (n) lastSig = '', render();
+    toast(n
+      ? 'Reconnected ' + n + ' clip' + (n === 1 ? '' : 's') +
+        (missing.length ? ' · ' + missing.length + ' not in that folder' : '')
+      : 'None of those clips are in that folder');
+    return n;
+  }
+  async function pickFolder() {
+    if (!window.showDirectoryPicker) { toast('This browser cannot remember folders — use Pick the files'); return; }
+    try {
+      var h = await window.showDirectoryPicker({ id: 'filmRoomClips', mode: 'read' });
+      await saveFolder(h);
+      await reconnectFromFolder(h);
+    } catch (e) { /* cancelled */ }
+  }
+  // On load: if clips are waiting and a folder is remembered, offer one click.
+  loadFolder().then(function (h) { if (h) { folderHandle = h; paintClips(); } });
+
   function paintClips() {
     var bar = $('kdClips');
     if (!bar) return;
@@ -1842,9 +1911,18 @@
     // matching each file to its clip by name.
     var need = clips.filter(function (c) { return !c.file; }).length;
     if (need) {
+      // One click when the folder is already known, which is the usual case.
+      if (folderHandle && window.showDirectoryPicker) {
+        h += '<button type="button" class="kd-clipadd go" id="kdReconnect" title="Fetch all ' + need +
+          ' waiting clips out of the folder you used last time">&#8635; Reconnect ' + need + ' clip' +
+          (need === 1 ? '' : 's') + '</button>';
+      }
       h += '<button type="button" class="kd-clipadd need" id="kdPickAll" title="Pick the game files for the ' +
         need + ' clip' + (need === 1 ? '' : 's') + ' waiting. Select them all at once; each one finds its own marks by file name">' +
         '&#9888; ' + need + ' waiting — pick the file' + (need === 1 ? '' : 's') + '</button>';
+      if (window.showDirectoryPicker) {
+        h += '<button type="button" class="kd-clipadd" id="kdPickFolder" title="Point at the folder your game files live in. Film Room remembers it, so next time one click brings every clip back">&#128193; Folder&hellip;</button>';
+      }
     }
     bar.innerHTML = h;
     // the strip scrolls sideways now, so keep the clip you are on in view
@@ -1860,6 +1938,8 @@
   $('kdClips').addEventListener('click', function (e) {
     var x = e.target.closest ? e.target.closest('.kd-clipx') : null;
     if (x) { e.stopPropagation(); removeClip(+x.dataset.close); return; }
+    if (e.target.closest('#kdReconnect')) { reconnectFromFolder(folderHandle); return; }
+    if (e.target.closest('#kdPickFolder')) { pickFolder(); return; }
     if (e.target.closest('#kdClipAdd') || e.target.closest('#kdPickAll')) { pendingPick = -1; openVideo(); return; }
     var b = e.target.closest ? e.target.closest('.kd-clip') : null;
     if (!b) return;

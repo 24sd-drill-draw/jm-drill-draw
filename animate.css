@@ -547,3 +547,6 @@ body.light-theme .seg,body.light-theme .zoomctl button{background:rgba(255,255,2
 .kd-clips::-webkit-scrollbar{height:7px}
 .kd-clips::-webkit-scrollbar-thumb{background:#3d444e;border-radius:4px}
 .kd-clips::-webkit-scrollbar-track{background:transparent}
+/* "Reconnect N clips" — the one-click path when the folder is remembered. */
+.kd-clipadd.go{border-style:solid;border-color:var(--accent);color:var(--accent);font-weight:800}
+.kd-clipadd.go:hover{background:rgba(185,230,12,.14)}
