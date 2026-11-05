@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Film Room</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230E1013'/><path d='M32 26v48l38-24z' fill='%23B9E60C'/></svg>">
-<link rel="stylesheet" href="animate.css?v=0059f72-202611041907">
+<link rel="stylesheet" href="animate.css?v=f2868ef-202611041913">
 
 <div class="kd-app">
 
@@ -331,6 +331,7 @@
       <button class="tbtn" id="kdMarkOut" title="Set the end of the clip at the playhead (O)">Set out <kbd class="kd-hk">O</kbd></button>
       <span class="kd-tlbl">Reel</span>
       <button class="tbtn" id="kdAddSeg" title="Add the in/out window to the reel. Add as many as you like — one Export writes them all into a single video (M)">&#43; Add to reel <kbd class="kd-hk">M</kbd></button>
+      <button class="tbtn" id="kdAddAll" title="Put every loaded clip on the reel whole, in strip order, with the break card between them. Clips you have already cut are left alone">&#43;&#43; All clips</button>
       <div class="kd-steps" id="kdSegJump" title="Jump to the previous / next start or end of a reel segment ( , and . )">
         <button type="button" data-sj="-1" title="Previous segment start or end ( , )">&#9668; Cut <kbd class="kd-hk">,</kbd></button>
         <button type="button" data-sj="1" title="Next segment start or end ( . )"><kbd class="kd-hk">.</kbd> Cut &#9658;</button>
@@ -485,8 +486,8 @@
 <script src="vendor-mp4box.js"></script>
 <script src="vendor-mp4muxer.js"></script>
 <script src="repack.js"></script>
-<script src="app.js?v=0059f72-202611041907"></script>
-<script src="animate-ui.js?v=0059f72-202611041907"></script>
+<script src="app.js?v=f2868ef-202611041913"></script>
+<script src="animate-ui.js?v=f2868ef-202611041913"></script>
 <script>
   // Offline copy (sw.js): online nothing changes; offline this page still opens.
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function () { });

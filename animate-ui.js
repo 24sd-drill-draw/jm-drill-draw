@@ -1086,6 +1086,45 @@
     // (the Delete key is handled above: one mark at a time)
   });
 
+  // Every clip, whole, in one go. Twenty-five clips that are already the plays
+  // you want need no cutting at all — they need joining, with the card between
+  // them. Doing that by hand is a tab click and an M, fifty times.
+  function durationOf(file) {
+    return new Promise(function (resolve) {
+      var v = document.createElement('video'), u = URL.createObjectURL(file);
+      var done = function (ms) { URL.revokeObjectURL(u); resolve(ms); };
+      v.preload = 'metadata';
+      v.addEventListener('loadedmetadata', function () { done(Math.max(1000, Math.round(v.duration * 1000))); }, { once: true });
+      v.addEventListener('error', function () { done(0); }, { once: true });
+      setTimeout(function () { done(0); }, 8000);
+      v.src = u;
+    });
+  }
+  async function addAllClips() {
+    var ready = clips.filter(function (c) { return !!c.file; });
+    if (!ready.length) { toast('No clips loaded'); return; }
+    var added = 0, had = 0;
+    $('kdAddAll').disabled = true;
+    for (var i = 0; i < ready.length; i++) {
+      var c = ready[i];
+      if ((c.segments || []).length) { had++; continue; }   // leave cuts you made alone
+      var T0 = c.T || await durationOf(c.file);
+      if (!T0) continue;
+      c.T = T0;
+      c.segments = [{ in: 0, out: T0 }];
+      if (clips.indexOf(c) === clipAt) segments = c.segments;
+      added++;
+      $('kdAddAll').textContent = '… ' + added;
+    }
+    $('kdAddAll').disabled = false;
+    $('kdAddAll').innerHTML = '&#43;&#43; All clips';
+    paintReelInfo(); paintList(); paintClips(); lastSig = ''; render(); autosaveSoon();
+    toast(added
+      ? added + ' clip' + (added === 1 ? '' : 's') + ' added whole' +
+        (had ? ' · ' + had + ' already had cuts' : '') + ' — reel is ' + fmtT(reelTotal())
+      : 'Every clip already has cuts on the reel');
+  }
+  $('kdAddAll').onclick = addAllClips;
   $('kdAddSeg').onclick = addSegment;
   $('kdLabelSeg').onclick = labelSegment;
   [].slice.call($('kdSegJump').querySelectorAll('button')).forEach(function (b) {
