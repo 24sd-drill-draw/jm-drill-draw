@@ -1897,7 +1897,10 @@
       rq.onsuccess = function () {
         var db = rq.result, tx = db.transaction('kv', 'readwrite'), st = tx.objectStore('kv');
         var out = fn(st);
-        tx.oncomplete = function () { db.close(); resolve(out && out.result !== undefined ? out.result : out); };
+        // the REQUEST's result, or nothing. Returning the request itself when
+        // there was no stored value made "no folder" look like a folder, so
+        // Reconnect appeared and then did nothing at all.
+        tx.oncomplete = function () { db.close(); resolve(out && 'result' in out ? (out.result || null) : null); };
         tx.onerror = function () { db.close(); resolve(null); };
       };
       rq.onerror = function () { resolve(null); };
@@ -1912,12 +1915,16 @@
 
   // Hand every waiting clip its file out of the folder, by name.
   async function reconnectFromFolder(h) {
-    if (!h) return 0;
+    if (!h || typeof h.getFileHandle !== 'function') {
+      folderHandle = null; paintClips();
+      toast('No folder remembered yet — use Folder… to point at your clips');
+      return 0;
+    }
     try {
       var perm = await h.queryPermission({ mode: 'read' });
       if (perm !== 'granted') perm = await h.requestPermission({ mode: 'read' });
       if (perm !== 'granted') { toast('Folder not allowed'); return 0; }
-    } catch (e) { return 0; }
+    } catch (e) { toast('Could not open that folder — use Folder… to pick it again'); return 0; }
     var n = 0, missing = [];
     for (var i = 0; i < clips.length; i++) {
       var c = clips[i];
