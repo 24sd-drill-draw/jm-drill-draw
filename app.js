@@ -2796,6 +2796,10 @@ function updateInspector(){
       h+='<div class="field"><label id="lbl_dur">Travel time — '+(p.dur/1000).toFixed(1)+'s</label><input type="range" id="p_dur" min="300" max="'+T+'" step="100" value="'+p.dur+'"></div>';
       h+='<button class="tbtn" id="p_unlink" style="width:100%;margin-top:4px">Unlink from piece</button>';
     }
+    // A copy of the mark you already shaped, dropped slightly off the original
+    // so it can be dragged where it is wanted. Pieces had this; drawings only
+    // had the keyboard shortcut, which nobody finds.
+    h+='<button class="tbtn" id="p_dup" style="width:100%;margin-top:2px">Duplicate &nbsp;(&#8984;/Ctrl D)</button>';
     h+='<button class="del" id="p_del">Delete path</button>';
     inspBody.innerHTML=h;
     inspBody.querySelectorAll('[data-col]').forEach(b=>b.onclick=()=>{ pushUndo(); p.color=b.dataset.col;
@@ -2812,6 +2816,7 @@ function updateInspector(){
     bind('p_rx','input',v=>{const g=ringGeom(p); setRing(p,g.cx,g.cy,parseFloat(v),g.ry); render();});
     bind('p_ry','input',v=>{const g=ringGeom(p); setRing(p,g.cx,g.cy,g.rx,parseFloat(v)); render();});
     byId('p_unlink')&&(byId('p_unlink').onclick=()=>{ pushUndo(); p.owner=null; updateInspector(); render(); });
+    byId('p_dup')&&(byId('p_dup').onclick=()=>{ selOne('path',p.id); duplicateSelection(); });
     byId('p_del')&&(byId('p_del').onclick=()=>{ pushUndo(); paths=paths.filter(x=>x!==p); selOne(null); updateInspector(); render(); });
   }
 }
