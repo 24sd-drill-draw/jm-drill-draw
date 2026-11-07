@@ -1981,6 +1981,13 @@
     toast('Cleared — open a video to start');
   }
 
+  // A blank canvas from the File menu, where anyone would look for it —
+  // the Clear all button lives at the far end of a strip that scrolls.
+  if ($('mFileFresh')) $('mFileFresh').onclick = function () {
+    if (!clips.length) { toast('Already a clean board — File ▸ Open video to start'); return; }
+    clearAllClips();
+  };
+
   function paintClips() {
     var bar = $('kdClips');
     if (!bar) return;
