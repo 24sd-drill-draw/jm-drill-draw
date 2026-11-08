@@ -4456,6 +4456,74 @@ async function libGet(){ try{ const db=await libIDB(); return await new Promise(
 
 // A thumbnail is the real board, drawn with that drill's pieces swapped in and
 // put straight back - the same trick the empty rinks on the sheet use.
+// A drill file is a .json, and Windows has no idea what is inside one - which
+// is why Josh's Open dialog is rows of identical blank pages. It DOES show a
+// picture for a .png sitting next to it, which is the pattern already in his
+// folder from September. So the board writes one.
+//
+// One picture per FILE, drawn from its first drill, named for the file. A file
+// holding several drills still gets a cover rather than nothing.
+// A traced play is stored as _src, a data URL, and only becomes a drawable
+// Image when loadData builds one. Shooting a scene straight out of a FILE
+// therefore drew the ice and none of the play - every imported faceoff drill
+// was a blank rink in the library and in its picture file. Hydrate first, and
+// WAIT: an Image that has not decoded yet paints nothing at all.
+function hydrateSceneImages(list){
+  const waits=[];
+  (list||[]).forEach(sc=>{
+    ((sc && sc.pieces) || []).forEach(p=>{
+      if(p._src && !p.img){
+        const im=new Image();
+        waits.push(new Promise(r=>{ im.onload=r; im.onerror=r; }));
+        im.src=p._src; p.img=im;
+      }
+    });
+  });
+  return Promise.all(waits);
+}
+function drillPngBlob(scene, width){
+  const savedP=pieces, savedT=paths, savedCfg=rinkConfig;
+  try{
+    pieces=(scene.pieces||[]).map(p=>({...p}));
+    paths=(scene.paths||[]).map(p=>({...p,_lut:null}));
+    rinkConfig=scene.rinkType||'full';
+    const full=boardShot();
+    const W=width||900, H=Math.max(1,Math.round(full.height*(W/full.width)));
+    const c=document.createElement('canvas'); c.width=W; c.height=H;
+    const cx=c.getContext('2d'); cx.fillStyle='#FFFFFF'; cx.fillRect(0,0,W,H);
+    cx.drawImage(full,0,0,W,H);
+    return new Promise(res=>c.toBlob(res,'image/png'));
+  }catch(e){ return Promise.resolve(null); }
+  finally{ pieces=savedP; paths=savedT; rinkConfig=savedCfg; render(); }
+}
+async function writeDrillPictures(dir, items, btn){
+  let perm;
+  try{ perm=await dir.requestPermission({mode:'readwrite'}); }catch(e){ perm='denied'; }
+  if(perm!=='granted'){ toast('Folder is read-only — no pictures written'); return; }
+  // What is already there is left alone: some of these Josh made himself, by
+  // hand, and they are better than anything generated.
+  const have=new Set();
+  try{ for await (const [n,h] of dir.entries()){ if(h.kind==='file' && /\.png$/i.test(n)) have.add(n.toLowerCase()); } }catch(e){}
+  try{ await hydrateSceneImages(items.flatMap(it=>it.drills||[])); }catch(e){}
+  let made=0, skipped=0, failed=0;
+  for(let i=0;i<items.length;i++){
+    const it=items[i];
+    const name=it.file.replace(/\.json$/i,'')+'.png';
+    if(have.has(name.toLowerCase())){ skipped++; continue; }
+    if(btn) btn.textContent='Writing '+(i+1)+'/'+items.length+'…';
+    try{
+      const blob=await drillPngBlob((it.drills||[])[0]||{}, 900);
+      if(!blob){ failed++; continue; }
+      const fh=await dir.getFileHandle(name,{create:true});
+      const w=await fh.createWritable(); await w.write(blob); await w.close();
+      made++;
+    }catch(e){ failed++; }
+  }
+  if(btn) btn.textContent='Make picture files';
+  toast(made+' picture'+(made===1?'':'s')+' written'+
+    (skipped?', '+skipped+' already there':'')+(failed?', '+failed+' failed':'')+
+    ' — Windows will show them in Open');
+}
 function drillThumb(scene){
   const savedP=pieces, savedT=paths, savedCfg=rinkConfig;
   let url=null;
@@ -4509,6 +4577,9 @@ async function openLibrary(){
   }
   toast('Reading '+dir.name+'…');
   const items=await readDrillFolder(dir);
+  // Traced plays are stored as data URLs; without this the cards draw the ice
+  // and none of the play.
+  try{ await hydrateSceneImages(items.flatMap(it=>it.drills||[])); }catch(e){}
   if(!items.length){ toast('No drill files in '+dir.name); return; }
   showLibrary(dir, items);
 }
@@ -4554,6 +4625,7 @@ function showLibrary(dir, items){
         Object.keys(SORTS).map(k=>btn('libsort',k,SORTS[k],k===sort)).join('')+'</span>'+
       '<span class="libseg" title="How big the drill pictures are shown">Size '+
         Object.keys(sizes).map(k=>btn('libsize',k,k,k===size)).join('')+'</span>'+
+      '<button class="tbtn ghost" id="libPics" title="Write a .png beside every drill file so Windows shows a picture in Open. Existing pictures are left alone.">Make picture files</button>'+
       '<button class="tbtn ghost" id="libFolder">Change folder</button>'+
       '<button class="tbtn ghost" id="libClose">Close</button></div>'+
     '<div class="lib-grid"></div>';
@@ -4599,12 +4671,17 @@ function showLibrary(dir, items){
     if(f && f.value){ f.value=''; find=''; draw(); return; } close(); } };
   document.addEventListener('keydown',esc);
   ov.querySelector('#libClose').onclick=close;
+  const picsBtn=ov.querySelector('#libPics');
+  if(picsBtn) picsBtn.onclick=()=>{ picsBtn.disabled=true;
+    writeDrillPictures(dir, items, picsBtn).catch(()=>toast('Could not write pictures'))
+      .then(()=>{ picsBtn.disabled=false; }); };
   ov.querySelector('#libFolder').onclick=async()=>{
     try{
       const d=await window.showDirectoryPicker({id:'drillsDir', mode:'read'});
       await libPut(d); close();
       const got=await readDrillFolder(d);
-      if(got.length) showLibrary(d,got); else toast('No drill files in '+d.name);
+      if(got.length){ try{ await hydrateSceneImages(got.flatMap(it=>it.drills||[])); }catch(e){} showLibrary(d,got); }
+      else toast('No drill files in '+d.name);
     }catch(e){ if(e && e.name!=='AbortError') toast('Could not open that folder'); }
   };
   ov.querySelectorAll('.libsize').forEach(b=>{ b.onclick=()=>{
