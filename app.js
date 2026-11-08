@@ -1465,7 +1465,10 @@ function drawPieceShape(c, p, scale, thumb){
       [[-1,-1],[1,-1],[0,0],[-1,1],[1,1]].forEach(([ox,oy])=>{ c.beginPath(); c.ellipse(ox*r*1.15,oy*r*1.15,r,r*0.62,0,0,7); c.fill(); });
       break; }
     case 'text':{
-      const fs=Math.max(9,(p.size||1)*5*z);
+      // On footage a label at the default size shouts over the play. Start it
+      // smaller there; Size in the panel still takes it up when it is meant to
+      // be a heading. The drill board keeps its own size.
+      const fs=Math.max(7,(p.size||1)*(rinkConfig==='video'?3:5)*z);
       c.font=`700 ${fs}px Inter,system-ui,sans-serif`; c.textAlign='center'; c.textBaseline='middle';
       // A label can run as a paragraph: typed line breaks are kept, and with a
       // wrap width (p.wrap, world units) long lines break onto the next line.

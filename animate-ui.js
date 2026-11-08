@@ -1657,7 +1657,9 @@
       var fs = Math.max(12, Math.round(h * 0.045));
       ctx.font = '600 ' + fs + 'px system-ui,Segoe UI,sans-serif';
       var tw = ctx.measureText(capSeg.label).width, pad = fs * 0.45;
-      var bx2 = a[0], by2 = a[1] + h - fs * 1.9 - h * 0.03;
+      // Top of the picture: a LiveBarn frame is mostly roof up there, while
+      // the bottom is the near boards and the play.
+      var bx2 = a[0], by2 = a[1] + h * 0.03;
       ctx.fillStyle = 'rgba(10,12,16,.72)';
       ctx.fillRect(bx2, by2, tw + pad * 2, fs * 1.6);
       ctx.fillStyle = '#fff';
