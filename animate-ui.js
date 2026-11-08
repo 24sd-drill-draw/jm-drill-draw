@@ -3002,8 +3002,12 @@
   var SIZES = {
     full:  { capW: 0,    rate: 0,       say: 'Full: the clip\'s own resolution, biggest file' },
     sharp: { capW: 1280, rate: 3500000, say: 'Sharp: 720p, high quality' },
-    phone: { capW: 1280, rate: 1500000, say: 'Phone: 720p, made for sending to players' },
-    quick: { capW: 960,  rate: 700000,  say: 'Quick: 540p, the smallest and fastest to send' }
+    // Hockey from a fixed wide camera is about the hardest thing to compress:
+    // the whole frame moves and the ice is a flat field where blocking shows.
+    // 1.5 Mbps held up for a few seconds and then fell apart into squares, so
+    // Phone and Quick both carry more now. Still a fraction of Full.
+    phone: { capW: 1280, rate: 2800000, say: 'Phone: 720p, made for sending to players' },
+    quick: { capW: 960,  rate: 1400000, say: 'Quick: 540p, the smallest and fastest to send' }
   };
   var exportSize = 'phone';
   try {

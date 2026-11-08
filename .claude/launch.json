@@ -37,6 +37,18 @@
       ],
       "port": 8792,
       "url": "http://127.0.0.1:8792"
+    },
+    {
+      "name": "workout-board",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": [
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-File", "C:/Users/JoshMizerek/Claude/Projects/Team Workouts/serve.ps1",
+        "-NoOpen"
+      ],
+      "port": 8777,
+      "url": "http://localhost:8777"
     }
   ]
 }
