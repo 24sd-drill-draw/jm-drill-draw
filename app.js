@@ -1436,9 +1436,31 @@ function drawPieceShape(c, p, scale, thumb){
       c.stroke();
       break; }
     case 'cone':{
-      const r=pieceBaseR("cone")*z*size; c.fillStyle=p.color||"#F2811D"; c.beginPath();
-      c.moveTo(0,-r*1.3); c.lineTo(r,r); c.lineTo(-r,r); c.closePath(); c.fill();
-      c.strokeStyle='#9c4f0a'; c.lineWidth=1; c.stroke(); break; }
+      // A real traffic cone, the way DrillChange draws it: a wide moulded base
+      // the cone sits on, and the white reflective band round the middle. The
+      // plain triangle read as a shape; this reads as a cone at a glance, which
+      // is the whole job of a board seen from across the ice.
+      const r=pieceBaseR("cone")*z*size;
+      const col=p.color||"#F2811D", bw=r*1.35, bh=r*0.30;
+      // base slab first, so the cone body sits on top of it
+      c.fillStyle=col; roundRectShape(c,-bw,r-bh*0.6,2*bw,bh*1.6,bh*0.55); c.fill();
+      c.strokeStyle='#9c4f0a'; c.lineWidth=1; c.stroke();
+      // body
+      c.beginPath(); c.moveTo(0,-r*1.3); c.lineTo(r*0.92,r); c.lineTo(-r*0.92,r); c.closePath();
+      c.fillStyle=col; c.fill(); c.stroke();
+      // The white band, built as a trapezoid from the cone's own edges rather
+      // than a rectangle clipped to them. Clipping looked right on paper and
+      // came out a sliver; computing the two widths puts the band exactly on
+      // the taper at any size. Sat low, where the cone is wide enough for it
+      // to still read when the piece is small.
+      const apex=-r*1.3, base=r, halfAt=y=>r*0.92*(y-apex)/(base-apex);
+      const y1=-r*0.10, y2=r*0.52, w1=halfAt(y1), w2=halfAt(y2);
+      c.fillStyle='#FFFFFF';
+      c.beginPath(); c.moveTo(-w1,y1); c.lineTo(w1,y1); c.lineTo(w2,y2); c.lineTo(-w2,y2);
+      c.closePath(); c.fill();
+      c.strokeStyle='rgba(0,0,0,.20)'; c.lineWidth=1; c.stroke();
+      c.beginPath(); c.moveTo(0,-r*1.3); c.lineTo(r*0.92,r); c.lineTo(-r*0.92,r); c.closePath(); c.stroke();
+      break; }
     case 'tire':{
       const r=pieceBaseR("tire")*z*size; c.fillStyle="#222"; c.beginPath(); c.arc(0,0,r,0,7); c.fill();
       c.fillStyle=thumb?'#EAF6FB':'#E2F1F8'; c.beginPath(); c.arc(0,0,r*0.5,0,7); c.fill();
@@ -5211,16 +5233,18 @@ on('histBtn','click',showHistory);
 function buildShapeSwitch(){
   const host=document.getElementById('playerShapes');
   if(!host) return;
-  host.innerHTML='';
+  // Two bare icons with a tooltip is not a control Josh can find. He has had
+  // triangle skaters all along - he uses them for D with no letter on them -
+  // and went looking for them in another app. Say what it does, in words.
+  host.innerHTML='<span class="shape-lbl">Skater shape</span>';
   [['circle','Circle','<circle cx="12" cy="12" r="7.5" fill="currentColor"/>'],
    ['triangle','Triangle','<path d="M12 3.5l8.5 15h-17z" fill="currentColor"/>']
   ].forEach(([k,name,svg])=>{
     const b=document.createElement('button');
     b.type='button';
-    b.className=(playerShape===k)?'on':'';
-    b.title=name+' skaters';
-    b.innerHTML='<svg viewBox="0 0 24 24" width="18" height="18" style="display:block">'+svg+'</svg>';
-    b.style.cssText='display:inline-flex;align-items:center;justify-content:center;padding:4px 9px';
+    b.className='shape-btn'+((playerShape===k)?' on':'');
+    b.title=name+' skaters — every skater you drop takes this shape';
+    b.innerHTML='<svg viewBox="0 0 24 24" width="15" height="15" style="display:block">'+svg+'</svg><span>'+name+'</span>';
     b.onclick=()=>{ playerShape=k; buildShapeSwitch();
       fillTray('skaters',SKATERS); fillTray('positions',POSITIONS); };
     host.appendChild(b);
