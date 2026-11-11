@@ -1399,7 +1399,13 @@ function drawPieceShape(c, p, scale, thumb){
       c.moveTo(-r*1.15,r*0.2); c.lineTo(-r*1.15,r); c.lineTo(r*1.15,r); c.lineTo(r*1.15,r*0.2); c.closePath(); c.fill(); // pads
       c.beginPath(); c.arc(0,-r*0.1,r,0,7); c.fill();
       c.lineWidth=Math.max(1.5,r*0.12); c.strokeStyle='rgba(0,0,0,.35)'; c.stroke();
-      label(c,'G',r,col,-r*0.1);
+      // The inspector offers a goalie a Label, and it was writing p.num while
+      // this drew a hard 'G' over the top of it - a field that saved what you
+      // typed and never showed it. A goalie with no number is still a 'G',
+      // which is what makes him read as a goalie at a glance; a goalie you
+      // have named is Power's 1 or Fontaine's 39, and that is the point of
+      // putting a number on him.
+      label(c, p.num || 'G', r, col, -r*0.1);
       break; }
     case 'coach':{
       const r=PLAYER_R*z*size; const cc=p.color||'#E7B416';
@@ -4968,6 +4974,23 @@ if(_sheetBtn){
   // sitting there, the sheet is right before you have touched anything. No
   // prompt - permission that is not already given is left alone.
   setTimeout(()=>{ tryFolderLines(true).catch(()=>{}); }, 400);
+  // The line-up card now writes its export straight into that same folder, so
+  // a fresh set of lines can land while this tab sits in the background. Coming
+  // back to the tab is the moment to look again. Quiet, so it never prompts -
+  // and tryFolderLines already refuses to re-read a file it is holding, so a
+  // tab you flick past fifty times reads the disk once.
+  // It says so when it takes one: lines that change under you without a word
+  // are worse than lines you have to go and fetch.
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.visibilityState!=='visible') return;
+    const was=LINES.at;
+    tryFolderLines(true).then(()=>{
+      if(LINES.at===was) return;
+      const d=shDateValue(), hit=linesForDate(d);
+      toast('Newer lines picked up'+(hit?' - '+hit.key+' is on the sheet':
+        (d?' - still nothing for '+d:'')));
+    }).catch(()=>{});
+  });
   // the sessions on offer follow the date on the sheet
   const _shDate=document.getElementById('shDate');
   // 'input' as well as 'change': a date typed rather than picked only fires
