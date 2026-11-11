@@ -585,7 +585,7 @@ const EQUIP=[
   {type:'tire',     n:'Tire'},
   {type:'bumper',   n:'Bumper'},
   {type:'barrier',  n:'Barrier'},
-  {type:'hurdle',   n:'Hurdle'},
+  {type:'hurdle',   n:'Dangler'},
   {type:'ring',     n:'Ring'},
   {type:'dot',      n:'Dot'},
   {type:'zone',     n:'Zone'},
@@ -1367,7 +1367,7 @@ const PIECE_R = {
   net:3.0,                             // 6ft wide, life size
   cone:1.1, tire:1.5,                  // a cone is ~1ft, a tire ~2.5ft
   bumper:7, ring:2.0, dot:1.1, image:8, zone:10,
-  barrier:4, hurdle:2.2
+  barrier:4, hurdle:3.0            // a stick laid across two pucks is ~6ft
 };
 const PLAYER_R=PIECE_R.player, GOALIE_R=PIECE_R.goalie;
 function pieceBaseR(t){ return PIECE_R[t]||2; }
@@ -1488,21 +1488,29 @@ function drawPieceShape(c, p, scale, thumb){
       [[-L,1],[L,-1]].forEach(([x])=>{ c.beginPath(); c.rect(x-f/2,-h-f*0.5,f,2*h+f); c.fill(); c.stroke(); });
       break; }
     case 'hurdle':{
-      // A hurdle: crossbar on two uprights, drawn face-on. The gap UNDER the
-      // bar is the whole point - it is the thing players go over, so the legs
-      // have to be visible as legs.
-      const W=pieceBaseR("hurdle")*z*size, H=W*0.95, lw=W*0.17;
-      const col=p.color||'#E7B416';
-      c.strokeStyle='rgba(0,0,0,.45)'; c.lineWidth=1;
-      // uprights
-      c.fillStyle=col;
-      [-W,W].forEach(x=>{ c.beginPath(); c.rect(x-lw/2,-H,lw,H*2); c.fill(); c.stroke(); });
-      // feet, splayed so it stands
-      [-W,W].forEach(x=>{ c.beginPath(); c.rect(x-lw*1.4,H-lw*0.6,lw*2.8,lw*0.9); c.fill(); c.stroke(); });
-      // Crossbar across the TOP, not partway down. With the uprights standing
-      // proud of it the thing read as an H - a frame - rather than as a bar you
-      // go over, which is the only reason it is on the board.
-      c.beginPath(); c.rect(-W-lw*0.7,-H-lw*0.2,2*W+lw*1.4,lw*1.2); c.fill(); c.stroke();
+      // The stickhandling bar - a Bauer dangler - seen from ABOVE, which is the
+      // only view a drill board has. A weighted round base at each end with the
+      // bar slung between them, and the puck worked under it.
+      //
+      // Drawn face-on first, as a crossbar on uprights. That was wrong twice
+      // over: it read as an H, and a board looking down at the ice would never
+      // see a hurdle's legs anyway.
+      const W=pieceBaseR("hurdle")*z*size;
+      // A stick is long and a puck is small: the first pass had them nearly the
+      // same size and it read as a dumbbell.
+      const rb=W*0.26, bw=W*0.13;
+      c.strokeStyle='rgba(0,0,0,.5)'; c.lineWidth=1;
+      // The shaft, laid across the two pucks. Light, because every version of
+      // this - the Bauer one and the stick-on-two-pucks Josh showed - is a pale
+      // bar on dark feet, and that contrast is what makes it readable small.
+      c.fillStyle=p.color||'#A9B2BA';
+      roundRectShape(c,-W,-bw/2,2*W,bw,bw*0.35); c.fill(); c.stroke();
+      // a dark stripe down the shaft, so it reads as a stick and not a pipe
+      c.fillStyle='rgba(0,0,0,.35)';
+      c.fillRect(-W*0.9,-bw*0.18,2*W*0.9,bw*0.34);
+      // the pucks it rests on
+      c.fillStyle='#15181C';
+      [-W,W].forEach(x=>{ c.beginPath(); c.arc(x,0,rb,0,7); c.fill(); c.stroke(); });
       break; }
     case 'dot':{
       const r=pieceBaseR("dot")*z*size; c.fillStyle=p.color||"#D11C2C"; c.beginPath(); c.arc(0,0,r,0,7); c.fill(); break; }
