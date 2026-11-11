@@ -1488,29 +1488,24 @@ function drawPieceShape(c, p, scale, thumb){
       [[-L,1],[L,-1]].forEach(([x])=>{ c.beginPath(); c.rect(x-f/2,-h-f*0.5,f,2*h+f); c.fill(); c.stroke(); });
       break; }
     case 'hurdle':{
-      // The stickhandling bar - a Bauer dangler - seen from ABOVE, which is the
-      // only view a drill board has. A weighted round base at each end with the
-      // bar slung between them, and the puck worked under it.
-      //
-      // Drawn face-on first, as a crossbar on uprights. That was wrong twice
-      // over: it read as an H, and a board looking down at the ice would never
-      // see a hurdle's legs anyway.
-      const W=pieceBaseR("hurdle")*z*size;
-      // A stick is long and a puck is small: the first pass had them nearly the
-      // same size and it read as a dumbbell.
-      const rb=W*0.26, bw=W*0.13;
-      c.strokeStyle='rgba(0,0,0,.5)'; c.lineWidth=1;
-      // The shaft, laid across the two pucks. Light, because every version of
-      // this - the Bauer one and the stick-on-two-pucks Josh showed - is a pale
-      // bar on dark feet, and that contrast is what makes it readable small.
-      c.fillStyle=p.color||'#A9B2BA';
-      roundRectShape(c,-W,-bw/2,2*W,bw,bw*0.35); c.fill(); c.stroke();
-      // a dark stripe down the shaft, so it reads as a stick and not a pipe
-      c.fillStyle='rgba(0,0,0,.35)';
-      c.fillRect(-W*0.9,-bw*0.18,2*W*0.9,bw*0.34);
-      // the pucks it rests on
-      c.fillStyle='#15181C';
-      [-W,W].forEach(x=>{ c.beginPath(); c.arc(x,0,rb,0,7); c.fill(); c.stroke(); });
+      // The stickhandling bar: a long line with a short tick at each end, and
+      // nothing else. Josh drew it in words - two tiny lines, join their
+      // endpoints - and he is right. Drawing the actual product, first as a
+      // hurdle and then as a stick resting on two pucks, was effort spent
+      // making a symbol look like a photograph. A board is read at a glance
+      // from across the ice; the tick ends say "it stands off the ice and the
+      // puck goes under" and that is the whole message.
+      // Thin bar, long ticks. A fat stroke with short ticks came out a dumbbell:
+      // the ends have to be clearly longer than the bar is thick to read as ends.
+      const W=pieceBaseR("hurdle")*z*size, t=W*0.38;
+      c.strokeStyle=p.color||'#11181f';
+      c.lineWidth=Math.max(1, W*0.05);
+      c.lineCap='butt';
+      c.beginPath();
+      c.moveTo(-W,0); c.lineTo(W,0);        // the bar
+      c.moveTo(-W,-t); c.lineTo(-W,t);      // the two ends
+      c.moveTo( W,-t); c.lineTo( W,t);
+      c.stroke();
       break; }
     case 'dot':{
       const r=pieceBaseR("dot")*z*size; c.fillStyle=p.color||"#D11C2C"; c.beginPath(); c.arc(0,0,r,0,7); c.fill(); break; }
