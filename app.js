@@ -540,7 +540,7 @@ function buildObjColors(){
   auto.style.cssText='font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;border:2px solid '+(activeColor===null?'#fff':'#244A66')+';background:'+(activeColor===null?'#5BC2D6':'var(--panel)')+';color:'+(activeColor===null?'#04141c':'var(--muted)')+';cursor:pointer;white-space:nowrap;';
   auto.title="Reset to each object's own default colour";
   auto.onclick=()=>pickObjColor(null,auto); el.appendChild(auto);
-  [['black','#11181f'],['red','#E8313A'],['green','#2FA866'],['blue','#2F6FE0'],['orange','#F2811D'],['purple','#8A2BE2'],['white','#FFFFFF']]
+  [['black','#11181f'],['red','#E8313A'],['green','#2FA866'],['blue','#2F6FE0'],['baby blue','#7EC8E3'],['orange','#F2811D'],['purple','#8A2BE2'],['white','#FFFFFF']]
     .forEach(([k,v])=>{ const d=document.createElement('div'); d.className='sw'; d.style.background=v; d.dataset.k=v;
       if(v==='#FFFFFF') d.style.border='2px solid #244A66';
       d.onclick=()=>pickObjColor(v,d); el.appendChild(d); });
@@ -584,6 +584,8 @@ const EQUIP=[
   {type:'cone',     n:'Cone'},
   {type:'tire',     n:'Tire'},
   {type:'bumper',   n:'Bumper'},
+  {type:'barrier',  n:'Barrier'},
+  {type:'hurdle',   n:'Hurdle'},
   {type:'ring',     n:'Ring'},
   {type:'dot',      n:'Dot'},
   {type:'zone',     n:'Zone'},
@@ -1323,7 +1325,7 @@ function drawPiece(p, pos){
   // With the stage turned, a jersey number would come out lying on its side.
   // Turn the piece back upright — except the ones whose shape means a
   // direction (a net, a bumper), which have to stay square to the ice.
-  if(camRot && p.type!=='net' && p.type!=='bumper') ctx.rotate(Math.PI/2);
+  if(camRot && p.type!=='net' && p.type!=='bumper' && p.type!=='barrier' && p.type!=='hurdle') ctx.rotate(Math.PI/2);
   if(p.type==='image') ctx.globalAlpha = p.opacity!=null? p.opacity : 1;
   const scale = cam.s;
   drawPieceShape(ctx, p, scale, false);
@@ -1364,7 +1366,8 @@ const PIECE_R = {
   puck:0.8, puckstack:1.6, ball:1.2,   // a puck is 3in - these stay symbols
   net:3.0,                             // 6ft wide, life size
   cone:1.1, tire:1.5,                  // a cone is ~1ft, a tire ~2.5ft
-  bumper:7, ring:2.0, dot:1.1, image:8, zone:10
+  bumper:7, ring:2.0, dot:1.1, image:8, zone:10,
+  barrier:4, hurdle:2.2
 };
 const PLAYER_R=PIECE_R.player, GOALIE_R=PIECE_R.goalie;
 function pieceBaseR(t){ return PIECE_R[t]||2; }
@@ -1469,6 +1472,38 @@ function drawPieceShape(c, p, scale, thumb){
       const L=pieceBaseR("bumper")*z*size, h=L*0.2; c.fillStyle=p.color||'#E7B416';
       roundRectShape(c,-L,-h,2*L,2*h,h*0.7); c.fill();
       c.strokeStyle='#8a6a00'; c.lineWidth=1; c.stroke(); break; }
+    case 'barrier':{
+      // A small barrier: a low board lying on the ice, with a foot at each end
+      // so it reads as standing rather than as a drawn line. Distinct from the
+      // bumper, which is a soft rounded tube.
+      const L=pieceBaseR("barrier")*z*size, h=L*0.13, f=L*0.10;
+      c.fillStyle=p.color||'#3C4A57';
+      roundRectShape(c,-L,-h,2*L,2*h,h*0.35); c.fill();
+      c.strokeStyle='rgba(0,0,0,.45)'; c.lineWidth=1; c.stroke();
+      // a lighter top rail, so it has a face rather than being a slab
+      c.fillStyle='rgba(255,255,255,.30)';
+      roundRectShape(c,-L*0.97,-h*0.72,2*L*0.97,h*0.62,h*0.3); c.fill();
+      // feet
+      c.fillStyle=p.color||'#3C4A57';
+      [[-L,1],[L,-1]].forEach(([x])=>{ c.beginPath(); c.rect(x-f/2,-h-f*0.5,f,2*h+f); c.fill(); c.stroke(); });
+      break; }
+    case 'hurdle':{
+      // A hurdle: crossbar on two uprights, drawn face-on. The gap UNDER the
+      // bar is the whole point - it is the thing players go over, so the legs
+      // have to be visible as legs.
+      const W=pieceBaseR("hurdle")*z*size, H=W*0.95, lw=W*0.17;
+      const col=p.color||'#E7B416';
+      c.strokeStyle='rgba(0,0,0,.45)'; c.lineWidth=1;
+      // uprights
+      c.fillStyle=col;
+      [-W,W].forEach(x=>{ c.beginPath(); c.rect(x-lw/2,-H,lw,H*2); c.fill(); c.stroke(); });
+      // feet, splayed so it stands
+      [-W,W].forEach(x=>{ c.beginPath(); c.rect(x-lw*1.4,H-lw*0.6,lw*2.8,lw*0.9); c.fill(); c.stroke(); });
+      // Crossbar across the TOP, not partway down. With the uprights standing
+      // proud of it the thing read as an H - a frame - rather than as a bar you
+      // go over, which is the only reason it is on the board.
+      c.beginPath(); c.rect(-W-lw*0.7,-H-lw*0.2,2*W+lw*1.4,lw*1.2); c.fill(); c.stroke();
+      break; }
     case 'dot':{
       const r=pieceBaseR("dot")*z*size; c.fillStyle=p.color||"#D11C2C"; c.beginPath(); c.arc(0,0,r,0,7); c.fill(); break; }
     case 'ring':{
@@ -2207,7 +2242,7 @@ function render(){
   });
   // rotation handle for selected net
   const rotPc = selSet.length===1 && selSet[0].kind==='piece' ? getPiece(selSet[0].id) : null;
-  if(rotPc && (rotPc.type==='net'||rotPc.type==='bumper')){
+  if(rotPc && (rotPc.type==='net'||rotPc.type==='bumper'||rotPc.type==='barrier'||rotPc.type==='hurdle')){
     const [sx,sy]=W2S(rotPc.x,rotPc.y);
     const armLen=38, rad=(rotPc.rot||0)*Math.PI/180, hx=sx+Math.sin(rad)*armLen, hy=sy-Math.cos(rad)*armLen;
     ctx.save();
@@ -2378,7 +2413,7 @@ cv.addEventListener('pointerdown',e=>{
 
   // rotation handle hit-test
   const rotPcDown = selSet.length===1 && selSet[0].kind==='piece' ? getPiece(selSet[0].id) : null;
-  if(rotPcDown && (rotPcDown.type==='net'||rotPcDown.type==='bumper')){
+  if(rotPcDown && (rotPcDown.type==='net'||rotPcDown.type==='bumper'||rotPcDown.type==='barrier'||rotPcDown.type==='hurdle')){
     const [sx,sy]=W2S(rotPcDown.x,rotPcDown.y);
     const armLen=38, rad2=(rotPcDown.rot||0)*Math.PI/180, hx=sx+Math.sin(rad2)*armLen, hy=sy-Math.cos(rad2)*armLen;
     if(Math.hypot(mxy[0]-hx,mxy[1]-hy)<12){ pushUndo(); rotDrag={piece:rotPcDown}; return; }
@@ -2859,7 +2894,7 @@ function possessionHTML(p){ const legs=p.legs||[];
   if(legs.length) h+='<button class="tbtn" id="pk_clear" style="width:100%;margin-top:2px">Clear possession</button>';
   return h+'<hr style="border:0;border-top:1px solid var(--line);margin:10px 0">';
 }
-function colorBtns(cur){ const cols=['#11181f','#E8313A','#2FA866','#2F6FE0','#F2811D','#E7B416','#8A2BE2','#5BC2D6','#FFFFFF'];
+function colorBtns(cur){ const cols=['#11181f','#E8313A','#2FA866','#2F6FE0','#7EC8E3','#F2811D','#E7B416','#8A2BE2','#5BC2D6','#FFFFFF'];
   return '<div style="display:flex;gap:6px;flex-wrap:wrap">'+cols.map(c=>'<div data-col="'+c+'" style="width:24px;height:24px;border-radius:6px;background:'+c+';cursor:pointer;'+(c==='#FFFFFF'?'border:1px solid #244A66;':'')+(c===cur?'outline:2px solid #5BC2D6;outline-offset:1px;':'')+'"></div>').join('')+'</div>'; }
 function bind(idd,ev,fn){ const el=byId(idd); if(el) el.addEventListener(ev,e=>fn(e.target.value)); }
 function byId(i){ return document.getElementById(i); }
