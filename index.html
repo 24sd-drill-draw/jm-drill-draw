@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Drill Draw</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%230A1622'/><ellipse cx='50' cy='54' rx='34' ry='22' fill='none' stroke='%23EAF6FB' stroke-width='5'/><line x1='16' y1='54' x2='84' y2='54' stroke='%23E8313A' stroke-width='4'/><line x1='50' y1='32' x2='50' y2='76' stroke='%233A9BDC' stroke-width='3'/><circle cx='50' cy='54' r='8' fill='none' stroke='%233A9BDC' stroke-width='3'/></svg>">
-<link rel="stylesheet" href="style.css?v=e6e6afa-202611102341">
+<link rel="stylesheet" href="style.css?v=uitidy-202611111545">
 
 
 <div class="app">
@@ -43,41 +43,66 @@
     </select>
 
     <div class="spacer"></div>
-    <button class="tbtn ghost" id="undoBtn" title="Undo (Ctrl+Z)">↩ Undo</button>
-    <button class="tbtn ghost" id="redoBtn" title="Redo (Ctrl+Y)">↪ Redo</button>
-    <button class="tbtn ghost" id="darkIceBtn" title="Toggle dark ice">🌙 Dark</button>
-    <button class="tbtn ghost" id="printBtn" title="Print the drill you are on, one to a page">🖨 Print drill</button>
-    <button class="tbtn ghost" id="sheetBtn" title="Print every drill tab as a practice sheet — four rinks a page, notes on the lines beside each one">🗒 Practice sheet</button>
-    <select id="refSel" class="tbtn" style="padding:6px 8px;-webkit-appearance:menulist" title="Drop a drill diagram on the ice to trace and animate over">
-      <option value="">Reference…</option>
-      <option value="stations">10U Stealth (stations)</option>
-      <option value="swing">Figure-8 swing</option>
-      <option value="flow">Flow / regroup</option>
-      <option value="cones">Cone weave</option>
-      <option value="uploadref">Upload…</option>
-    </select>
-    <button class="tbtn ghost" id="demoBtn" title="Load the 2v1 breakout example in its own tab. The drill you are on is not touched.">▶ Demo&nbsp;drill</button>
-    <button class="tbtn ghost" id="imgBtn" title="Insert a logo or photo for a client">＋ Image</button>
-    <button class="tbtn ghost" id="recBtn" title="Record canvas to video (WebM)">⏺ REC</button>
-    <button class="tbtn ghost" id="imgExportBtn" title="Export current view as JPG">⬇ JPG</button>
-    <button class="tbtn ghost" id="exportBtn" title="Save the whole practice — every drill tab — as one file">Save practice</button>
+
+    <!-- Twenty-odd buttons, all the same size and weight, with Save practice
+         sitting next to Clear drill looking identical. Grouped by WHAT COMES
+         OUT of them instead, each group named: the name is the only thing that
+         tells you where to look for something you have not used in a week. -->
+    <div class="tgroup" title="Undo, redo, and how the ice is lit">
+      <span class="tglabel">Edit</span>
+      <button class="tbtn ghost" id="undoBtn" title="Undo (Ctrl+Z)">↩ Undo</button>
+      <button class="tbtn ghost" id="redoBtn" title="Redo (Ctrl+Y)">↪ Redo</button>
+      <button class="tbtn ghost" id="darkIceBtn" title="Toggle dark ice">🌙 Dark</button>
+    </div>
+
+    <div class="tgroup" title="The whole practice — every drill tab together">
+      <span class="tglabel">Practice</span>
+      <button class="tbtn ghost" id="exportBtn" title="Save the whole practice — every drill tab — as one file">Save practice</button>
+      <button class="tbtn ghost" id="importBtn" title="Open a saved practice. This REPLACES the drills on the board.">Open</button>
+      <!-- Every day, saved or still to build. The date box only tells you
+           about a practice once you have guessed its date; this is the list. -->
+      <button class="tbtn ghost" id="practiceBtn" title="Every practice you have saved, newest first, plus the ice on the calendar with no practice built yet">📅 Practices</button>
+      <!-- The board keeps its last 10 states in this browser. They were only
+           reachable from the restore prompt on load, which means on the one day
+           Josh needed them they were unreachable. -->
+      <button class="tbtn ghost" id="histBtn" title="The last boards this browser kept — newest first. Use it to get back work that was never saved to a file.">⏳ Earlier boards</button>
+    </div>
+
     <!-- A practice collects tabs; the bank holds one drill per file. Saving the
          whole board under a drill's name is how a "drill" file ends up with
-         four drills in it. -->
-    <button class="tbtn ghost" id="saveDrillBtn" title="Save only the drill you are on, as its own file for the library">Save drill</button>
-    <button class="tbtn ghost" id="importBtn">Open</button>
-    <button class="tbtn ghost" id="addDrillBtn" title="Bring a saved file in as extra drill tabs, keeping what you have open">+ Add drill</button>
-    <!-- Picking a drill by filename is picking blind. This shows the drawings. -->
-    <!-- Every day, saved or still to build. The date box only tells you
-         about a practice once you have guessed its date; this is the list. -->
-    <button class="tbtn ghost" id="practiceBtn" title="Every practice you have saved, newest first, plus the ice on the calendar with no practice built yet">📅 Practices</button>
-    <!-- The board keeps its last 10 states in this browser. They were only
-         reachable from the restore prompt on load, which means on the one day
-         Josh needed them they were unreachable. -->
-    <button class="tbtn ghost" id="histBtn" title="The last boards this browser kept — newest first. Use it to get back work that was never saved to a file.">⏳ Earlier boards</button>
-    <button class="tbtn ghost" id="libBtn" title="See your saved drills as pictures and add one as a tab">📁 Drill library</button>
-    <button class="tbtn ghost" id="clearBtn" title="Empties the drill you are on. The other drill tabs are not touched.">Clear drill</button>
-    <button class="tbtn" id="helpBtn">?</button>
+         four drills in it - so the two saves live in different groups. -->
+    <div class="tgroup" title="One drill — the tab you are on">
+      <span class="tglabel">Drill</span>
+      <button class="tbtn ghost" id="saveDrillBtn" title="Save only the drill you are on, as its own file for the library">Save drill</button>
+      <!-- Picking a drill by filename is picking blind. This shows the drawings. -->
+      <button class="tbtn ghost" id="libBtn" title="See your saved drills as pictures and add one as a tab">📁 Drill library</button>
+      <button class="tbtn ghost" id="addDrillBtn" title="Bring a saved file in as extra drill tabs, keeping what you have open">+ Add drill</button>
+      <button class="tbtn ghost" id="clearBtn" title="Empties the drill you are on. The other drill tabs are not touched.">Clear drill</button>
+    </div>
+
+    <div class="tgroup" title="Put something on the ice to draw over">
+      <span class="tglabel">Add</span>
+      <select id="refSel" class="tbtn" style="padding:6px 8px;-webkit-appearance:menulist" title="Drop a drill diagram on the ice to trace and animate over">
+        <option value="">Reference…</option>
+        <option value="stations">10U Stealth (stations)</option>
+        <option value="swing">Figure-8 swing</option>
+        <option value="flow">Flow / regroup</option>
+        <option value="cones">Cone weave</option>
+        <option value="uploadref">Upload…</option>
+      </select>
+      <button class="tbtn ghost" id="imgBtn" title="Insert a logo or photo for a client">＋ Image</button>
+      <button class="tbtn ghost" id="demoBtn" title="Load the 2v1 breakout example in its own tab. The drill you are on is not touched.">▶ Demo&nbsp;drill</button>
+    </div>
+
+    <div class="tgroup" title="Paper, pictures and video out">
+      <span class="tglabel">Output</span>
+      <button class="tbtn ghost" id="sheetBtn" title="Print every drill tab as a practice sheet — four rinks a page, notes on the lines beside each one">🗒 Practice sheet</button>
+      <button class="tbtn ghost" id="printBtn" title="Print the drill you are on, one to a page">🖨 Print drill</button>
+      <button class="tbtn ghost" id="imgExportBtn" title="Export current view as JPG">⬇ JPG</button>
+      <button class="tbtn ghost" id="recBtn" title="Record canvas to video (WebM)">⏺ REC</button>
+    </div>
+
+    <button class="tbtn" id="helpBtn" title="Quick start">?</button>
     <input type="file" id="imgFile" accept="image/*" hidden>
     <input type="file" id="jsonFile" accept="application/json,.json" hidden>
     <input type="file" id="logoFile" accept="image/*" hidden>
@@ -86,20 +111,43 @@
 
   <!-- The practice sheet's header band. It prints at the top of both pages and
        saves with the file, so yesterday's sheet reopens already filled in. -->
-  <div class="sheet-head">
+  <!-- The band used to lay every field out at once and pushed the ice a long
+       way down the page. Most of it - team, coach, the crests, the rest value -
+       is set once and then read, not edited. So the line that is ALWAYS here is
+       the one Josh changes per practice and reads while he builds: the day, the
+       time, which ice, what it adds up to. The rest is one click away. -->
+  <div class="sheet-head" id="sheetHead">
     <span class="sh-lbl">Practice sheet</span>
-    <label>Team <input type="text" id="shTeam" placeholder="18U AAA Jr Kraken"></label>
-    <label>Coach <input type="text" id="shCoach" placeholder="Mizerek"></label>
     <label>Date <input type="date" id="shDate"></label>
     <label>Time <input type="text" id="shTime" placeholder="5:40 – 7:00"></label>
-    <!-- Water, a word at the board, the next drill getting set up: real time
-         that the drill minutes never counted, so a 75-minute plan quietly
-         needed 85. Editable, because it varies. -->
-    <label title="Water, board talk, setting up the next drill. Counted between drills, not after the last one.">Between drills <input type="number" id="shGap" min="0" max="10" step="1" value="2" style="width:44px"> min</label>
+    <!-- Wednesday has two ice times. When the card holds more than one session
+         for this date, pick which one the sheet prints. -->
+    <label id="shSessionWrap" style="display:none">Session
+      <select id="shSession" class="shlogo"></select>
+    </label>
     <!-- What the drills add up to, against the ice you have booked. -->
     <span class="sh-note" id="minsTotal"></span>
     <!-- Which session of the season this is, counted off calendar.json. -->
     <span class="sh-note" id="iceCount"></span>
+    <span class="sh-note" id="linesState"></span>
+    <!-- Changing the date re-points the header, the lines and the ice count,
+         but the DRILLS are whatever tabs are open - they only change when a
+         practice is opened. If the folder holds one for the day you just
+         picked, this offers it rather than making you hunt the file name. -->
+    <button class="sh-note sh-open" id="openDayBtn" hidden></button>
+    <div class="spacer"></div>
+    <button class="tbtn ghost sh-more" id="sheetMore" aria-expanded="false"
+      title="Team, coach, crests, rest between drills, and loading the line-up card">Sheet setup ▾</button>
+  </div>
+
+  <!-- Set once a season, or once a practice at most. -->
+  <div class="sheet-more" id="sheetMoreRow" hidden>
+    <label>Team <input type="text" id="shTeam" placeholder="18U AAA Jr Kraken"></label>
+    <label>Coach <input type="text" id="shCoach" placeholder="Mizerek"></label>
+    <!-- Water, a word at the board, the next drill getting set up: real time
+         that the drill minutes never counted, so a 75-minute plan quietly
+         needed 85. Editable, because it varies. -->
+    <label title="Water, board talk, setting up the next drill. Counted between drills, not after the last one.">Between drills <input type="number" id="shGap" min="0" max="10" step="1" value="2" style="width:44px"> min</label>
     <!-- Front and back carry different crests on Josh's sheet - the Seattle
          Kraken wordmark on page 1, the Jr Kraken lockup on page 2 - so each
          page gets its own picker. An upload sticks until it is replaced. -->
@@ -113,17 +161,6 @@
          page and cannot read the gated Kraken site, so the file does the
          travelling; it is kept in this browser and never uploaded. -->
     <button class="tbtn ghost" id="linesBtn" title="Load the line-up card's exported .json (and roster.json) so the back page fills in for this date">👥 Lines…</button>
-    <!-- Wednesday has two ice times. When the card holds more than one session
-         for this date, pick which one the sheet prints. -->
-    <label id="shSessionWrap" style="display:none">Session
-      <select id="shSession" class="shlogo"></select>
-    </label>
-    <span class="sh-note" id="linesState"></span>
-    <!-- Changing the date re-points the header, the lines and the ice count,
-         but the DRILLS are whatever tabs are open - they only change when a
-         practice is opened. If the folder holds one for the day you just
-         picked, this offers it rather than making you hunt the file name. -->
-    <button class="sh-note sh-open" id="openDayBtn" hidden></button>
     <span class="sh-note" id="linesNote"></span>
     <button class="sh-clear" id="linesClear" title="Forget the loaded lines and roster" style="display:none">×</button>
     <input type="file" id="shLogoFile" accept="image/*" hidden>
@@ -290,7 +327,7 @@
   </div>
 </div>
 
-<script src="app.js?v=e6e6afa-202611102341"></script>
+<script src="app.js?v=uitidy-202611111545"></script>
 <script>
   // Offline copy (sw.js): online nothing changes; offline this page still opens.
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function () { });

@@ -3557,8 +3557,16 @@ document.getElementById('printBtn').onclick=()=>{
 // board refits itself to that, so the rink stays whole either way.
 function growNotes(el){
   if(!el) return;
-  el.style.height='auto';
-  el.style.height=Math.max(el.scrollHeight, 1)+'px';
+  // Measure from ZERO, not from auto. These sit in flex rows, and a textarea
+  // set to auto height inside one is free to take the row's whole height - so
+  // scrollHeight came back as the 40vh cap and an EMPTY equipment box was 400px
+  // tall, pushing the ice right off the screen. From zero, scrollHeight is the
+  // height of the text and nothing else.
+  el.style.height='0px';
+  const want=el.scrollHeight;
+  const min=el.id==='equipNotes'?24:46;
+  const max=Math.round(window.innerHeight*0.40);
+  el.style.height=Math.min(max, Math.max(min, want))+'px';
 }
 function growAllNotes(){ ['drillNotes','equipNotes'].forEach(i=>growNotes(document.getElementById(i))); }
 // ---- minutes per drill, and what they add up to ---------------------------
@@ -5290,6 +5298,25 @@ function showHistory(){
 }
 offerRestore();
 on('histBtn','click',showHistory);
+// Sheet setup: open it, it stays open, and it remembers. Josh sets team, coach
+// and the crests once; hiding them behind a click costs him nothing and gives
+// the ice back about 40px of page every time he looks at it.
+const SHEETMORE_KEY='jmdd.sheetmore.v1';
+(function(){
+  const btn=document.getElementById('sheetMore'), row=document.getElementById('sheetMoreRow');
+  if(!btn||!row) return;
+  const set=open=>{
+    row.hidden=!open;
+    btn.setAttribute('aria-expanded', open?'true':'false');
+    btn.textContent='Sheet setup '+(open?'▴':'▾');
+    btn.classList.toggle('on', open);
+  };
+  let open=false;
+  try{ open=localStorage.getItem(SHEETMORE_KEY)==='1'; }catch(e){}
+  set(open);
+  btn.onclick=()=>{ open=!open; set(open);
+    try{ localStorage.setItem(SHEETMORE_KEY, open?'1':'0'); }catch(e){} };
+})();
 
 // Circle or triangle for skaters. Two buttons over one grid of positions rather
 // than DrillChange's 24 - shape x colour x position is a lot of buttons, and the
