@@ -475,7 +475,10 @@ function selPieces(){ return selSet.filter(s=>s.kind==='piece').map(s=>getPiece(
 function selPaths(){ return selSet.filter(s=>s.kind==='path').map(s=>getPath(s.id)).filter(Boolean); }
 const COLORS={
   blue:'#1E7FA0', red:'#E9072B', white:'#EEF5F8', black:'#10202C',
-  yellow:'#E7B416', green:'#2FA866'
+  yellow:'#E7B416', green:'#2FA866',
+  // Baby blue landed in the OBJECT colours first. These are the jersey colours
+  // and they are a separate list, which is why it was only half there.
+  babyblue:'#7EC8E3'
 };
 
 // undo — per-scene stacks
