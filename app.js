@@ -224,6 +224,25 @@ function syncScene(){
   const nt=document.getElementById('drillNotes'); if(nt) scenes[currentScene].notes=nt.value;
   const eq=document.getElementById('equipNotes'); if(eq) scenes[currentScene].equip=eq.value;
   const mn=document.getElementById('drillMins'); if(mn) scenes[currentScene].mins=mn.value;
+  // An empty name box is not a rename - a drill with no name has no tab label
+  // and no file name, so a cleared box keeps the name it had.
+  const nm=document.getElementById('drillName');
+  if(nm && nm.value.trim()) scenes[currentScene].name=nm.value.trim();
+}
+/* The boxes that belong to ONE drill - name, minutes, rest, notes, equipment.
+
+   One function writes them all, because every path that changes which drill is
+   open has to refresh every one of them. Deleting a tab used to refresh none:
+   the neighbour's notes and minutes stayed in the boxes, and the next
+   syncScene() copied them onto the drill that had survived. */
+function fillDrillFields(s){
+  const set=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v; };
+  set('drillName', s.name||'');
+  set('drillNotes', s.notes||'');
+  set('equipNotes', s.equip||'');
+  set('drillMins', s.mins||'');
+  set('drillRest', (s.rest===0||s.rest)?s.rest:'');
+  if(typeof growAllNotes==='function') growAllNotes();   // the next drill's notes are a different length
 }
 function loadScene(idx){
   syncScene();
@@ -233,11 +252,7 @@ function loadScene(idx){
   undoStack=s.undoStack; redoStack=s.redoStack;
   rinkConfig=s.rinkType||'full';
   document.getElementById('rinkSel').value=rinkConfig;
-  const nt=document.getElementById('drillNotes'); if(nt) nt.value=s.notes||'';
-  const eq=document.getElementById('equipNotes'); if(eq) eq.value=s.equip||'';
-  const mn=document.getElementById('drillMins'); if(mn) mn.value=s.mins||'';
-  const nb=document.getElementById('drillRest'); if(nb) nb.value=(s.rest===0||s.rest)?s.rest:'';
-  if(typeof growAllNotes==='function') growAllNotes();   // the next drill's notes are a different length
+  fillDrillFields(s);
   if(typeof updateMinsTotal==='function') updateMinsTotal();
   selOne(null); building=null; passBuilding=null; webBuilding=null; webCursor=null; shotBuilding=null; skateBuilding=null; skateBackBuilding=null; skateBackCursor=null; skateRevBuilding=null; skateRevCursor=null;
   tNow=0; playing=false;
@@ -260,6 +275,7 @@ function deleteScene(idx){
   const next=Math.min(idx,scenes.length-1);
   currentScene=next;
   const s=scenes[next];
+  fillDrillFields(s);
   pieces=s.pieces; paths=s.paths;
   undoStack=s.undoStack; redoStack=s.redoStack;
   rinkConfig=s.rinkType||'full';
@@ -269,7 +285,11 @@ function deleteScene(idx){
   updateInspector(); updateSceneTabs(); render();
 }
 function renameScene(idx){
-  const s=prompt('Drill name:',scenes[idx].name); if(s&&s.trim()){ scenes[idx].name=s.trim(); scenes[idx].dirty=true; } updateSceneTabs();
+  const s=prompt('Drill name:',scenes[idx].name); if(s&&s.trim()){ scenes[idx].name=s.trim(); scenes[idx].dirty=true; }
+  // The name box shows the OPEN drill, so renaming that one from the tab has to
+  // move the box too or the two disagree until you switch tabs.
+  if(idx===currentScene){ const nm=document.getElementById('drillName'); if(nm) nm.value=scenes[idx].name; }
+  updateSceneTabs();
 }
 function duplicateScene(idx){
   syncScene();
@@ -3379,11 +3399,7 @@ function loadData(o){
   pieces=s.pieces; paths=s.paths; undoStack=s.undoStack; redoStack=s.redoStack;
   rinkConfig=s.rinkType||'full'; document.getElementById('rinkSel').value=rinkConfig;
   uid=Math.max(1,...scenes.flatMap(sc=>[...sc.pieces.map(p=>p.id||0),...sc.paths.map(p=>p.id||0)]))+1;
-  const _nt=document.getElementById('drillNotes'); if(_nt) _nt.value=s.notes||'';
-  const _eq=document.getElementById('equipNotes'); if(_eq) _eq.value=s.equip||'';
-  const _mn=document.getElementById('drillMins'); if(_mn) _mn.value=s.mins||'';
-  const _nb=document.getElementById('drillRest'); if(_nb) _nb.value=(s.rest===0||s.rest)?s.rest:'';
-  if(typeof growAllNotes==='function') growAllNotes();
+  fillDrillFields(s);
   if(typeof updateMinsTotal==='function') updateMinsTotal();
   if(o.fileName) lastSaveName=o.fileName;   // Save offers the name it came in under
   applySheetHead(o.sheet);
@@ -3662,8 +3678,19 @@ on('shTime','input', function(){ timeTypedByHand(); updateMinsTotal(); });
   });
 })();
 on('drillNotes','input',function(){ scenes[currentScene].notes=this.value; touchScene(); growNotes(this); autosave(); });
+// Type in the name box and the tab retitles as you go, so the name you print on
+// the sheet is the one you can see.
+on('drillName','input',function(){
+  const v=this.value.trim(); if(!v) return;          // handled on blur, below
+  scenes[currentScene].name=v; touchScene(); updateSceneTabs(); autosave();
+});
+on('drillName','change',function(){
+  if(!this.value.trim()) this.value=scenes[currentScene].name||'';
+});
 on('equipNotes','input',function(){ scenes[currentScene].equip=this.value; touchScene(); growNotes(this); autosave(); });
-growAllNotes();
+// On a cold load nothing has switched drills yet, so the name box has never
+// been written - it would sit empty beside a tab that says "Drill 1".
+if(typeof fillDrillFields==='function') fillDrillFields(scenes[currentScene]);
 updateMinsTotal();
 
 // =========================================================
