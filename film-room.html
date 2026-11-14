@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Film Room</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230E1013'/><path d='M32 26v48l38-24z' fill='%23B9E60C'/></svg>">
-<link rel="stylesheet" href="animate.css?v=e6e6afa-202611102341">
+<link rel="stylesheet" href="animate.css?v=b804031-202611132024">
 
 <div class="kd-app">
 
@@ -78,6 +78,15 @@
     <input type="file" id="logoFile" accept="image/*" hidden>
     <input type="file" id="refFile" accept="image/*" hidden>
     <input type="file" id="vidFile" accept="video/*" multiple hidden>
+  </div>
+
+  <!-- Shown only while video files are being dragged over the window -->
+  <div class="kd-dropzone" id="kdDropZone" aria-hidden="true">
+    <div>
+      <strong>Drop clips here</strong>
+      <span>Video files, or a whole folder of them</span>
+      <em>A folder is remembered, so Reconnect brings them all back after a reload</em>
+    </div>
   </div>
 
   <!-- ============ SCENE TABS ============ -->
@@ -487,8 +496,8 @@
 <script src="vendor-mp4box.js"></script>
 <script src="vendor-mp4muxer.js"></script>
 <script src="repack.js"></script>
-<script src="app.js?v=e6e6afa-202611102341"></script>
-<script src="animate-ui.js?v=e6e6afa-202611102341"></script>
+<script src="app.js?v=b804031-202611132024"></script>
+<script src="animate-ui.js?v=b804031-202611132024"></script>
 <script>
   // Offline copy (sw.js): online nothing changes; offline this page still opens.
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function () { });

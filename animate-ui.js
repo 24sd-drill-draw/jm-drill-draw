@@ -1829,10 +1829,15 @@
     for (var i = 0; i < clips.length; i++) if (clips[i].name === n) return clips[i];
     return null;
   }
-  function addClip(file, quiet) {
+  // bulk: a whole folder arriving at once. Loading each file as it lands makes
+  // twenty-five video loads fight each other and only the last one survives,
+  // so a bulk add fills the rows and leaves the loading to one switchClip at
+  // the end.
+  function addClip(file, quiet, bulk) {
     var have = clipByName(file.name);
     if (have) {                       // same file again: give it its marks back
       have.file = file; have.missing = false;
+      if (bulk) return have;
       switchClip(clips.indexOf(have));
       if (!quiet) toast('Reopened ' + file.name + ' with its marks');
       return have;
@@ -1842,7 +1847,7 @@
     var c = { id: clipUid++, name: file.name, file: file, url: null, T: 0,
               paths: [], pieces: [], segments: [], inMs: 0, outMs: 0, tNow: 0 };
     clips.push(c);
-    paintClips();
+    if (!bulk) paintClips();          // a folder drop paints once at the end
     return c;
   }
   function switchClip(i) {
@@ -2255,6 +2260,126 @@
     if (wasEmpty && (drawingCount() || segments.length)) { openClipAsked(first); return; }
     if (!vid && clips[first]) switchClip(first);
   });
+  // ---------------------------------------------------------
+  // Drag and drop. Twenty-five clips out of a folder was twenty-five trips
+  // through the file dialog; dropping the folder is one.
+  //
+  // A dropped FOLDER is also kept as the reconnect folder, so after a reload
+  // one click fetches every clip back. Loose files cannot do that — the
+  // browser hands over a folder handle only for a folder — so that drop says
+  // so rather than leaving a Reconnect button that would come up empty.
+  // ---------------------------------------------------------
+  var VID_RE = /\.(mp4|m4v|mov|webm|mkv|avi|m2ts|mts|ogv)$/i;
+  function isVideoFile(f) { return !!f && (VID_RE.test(f.name) || /^video\//.test(f.type || '')); }
+
+  function intakeClips(files, note) {
+    files = files.filter(isVideoFile)
+                 .sort(function (a, b) { return a.name.localeCompare(b.name, undefined, { numeric: true }); });
+    if (!files.length) { toast('No video files in that drop'); return; }
+    var wasEmpty = !clips.length, first = clips.length, fresh = 0, refilled = 0;
+    files.forEach(function (f) {
+      var have = clipByName(f.name);
+      if (!have) fresh++;
+      else if (!have.file) refilled++;       // a row that was waiting for its file
+      addClip(f, true, true);
+    });
+    paintClips(); paintReelInfo(); paintList(); autosaveSoon();
+    var said = [];
+    if (fresh) said.push(fresh + ' clip' + (fresh === 1 ? '' : 's') + ' added');
+    if (refilled) said.push(refilled + ' reconnected');
+    if (!said.length) said.push('Those clips were already open');
+    toast(said.join(' · ') + (note ? ' · ' + note : ''));
+    // Marks on the board from before any clip existed are still the
+    // keep-or-clear question; otherwise every clip owns its own marks.
+    if (wasEmpty && (drawingCount() || segments.length)) { openClipAsked(first); return; }
+    if (!vid) {
+      var go = clips[first] && clips[first].file ? first
+             : clips.findIndex(function (c) { return !!c.file; });
+      if (go >= 0) switchClip(go);
+    }
+  }
+
+  // One level down as well: a folder of folders is how a game often arrives.
+  async function filesInFolder(dir, out, depth) {
+    out = out || []; depth = depth || 0;
+    for await (var ent of dir.values()) {
+      if (ent.kind === 'file') {
+        try { var f = await ent.getFile(); if (isVideoFile(f)) out.push(f); } catch (x) { }
+      } else if (ent.kind === 'directory' && depth < 1) {
+        try { await filesInFolder(ent, out, depth + 1); } catch (x) { }
+      }
+    }
+    return out;
+  }
+
+  async function takeDrop(jobs, plain) {
+    var files = [], folder = null, loose = 0;
+    var handles = [];
+    try { handles = await Promise.all(jobs); } catch (x) { handles = []; }
+    for (var i = 0; i < handles.length; i++) {
+      var h = handles[i];
+      if (!h) continue;
+      if (h.kind === 'directory') {
+        folder = folder || h;
+        try { await filesInFolder(h, files); } catch (x) { }
+      } else {
+        try { var f = await h.getFile(); if (isVideoFile(f)) { files.push(f); loose++; } } catch (x) { }
+      }
+    }
+    if (!files.length) {                       // older browser, or handles refused
+      files = plain.filter(isVideoFile); loose = files.length;
+    }
+    if (!files.length) { toast('Nothing to open there — drop video files or a folder of them'); return; }
+    var note = '';
+    if (folder) {
+      folderHandle = folder;
+      try { await saveFolder(folder); } catch (x) { }
+      note = 'folder remembered, so Reconnect works after a reload';
+    } else if (loose) {
+      note = 'use Folder… if you want Reconnect after a reload';
+    }
+    intakeClips(files, note);
+  }
+
+  function dragHasFiles(e) {
+    var t = e.dataTransfer && e.dataTransfer.types;
+    if (!t) return false;
+    for (var i = 0; i < t.length; i++) if (t[i] === 'Files') return true;
+    return false;
+  }
+  var dragDepth = 0;
+  function dropHint(on) {
+    if (!on) dragDepth = 0;
+    document.body.classList.toggle('kd-dropping', !!on);
+  }
+  window.addEventListener('dragenter', function (e) {
+    if (!dragHasFiles(e)) return;
+    e.preventDefault(); dragDepth++; dropHint(true);
+  });
+  window.addEventListener('dragover', function (e) {
+    if (!dragHasFiles(e)) return;
+    // Without this Chrome leaves Film Room and just plays the dropped file.
+    e.preventDefault();
+    try { e.dataTransfer.dropEffect = 'copy'; } catch (x) { }
+  });
+  window.addEventListener('dragleave', function (e) {
+    if (!dragHasFiles(e)) return;
+    if (--dragDepth <= 0) dropHint(false);
+  });
+  window.addEventListener('drop', function (e) {
+    if (!dragHasFiles(e)) return;
+    e.preventDefault(); dropHint(false);
+    if (exporting) { toast('Finish the export first'); return; }
+    var dt = e.dataTransfer; if (!dt) return;
+    // The DataTransfer dies the moment this handler yields, so ask for
+    // everything NOW and sort out the answers afterwards.
+    var jobs = [];
+    [].slice.call(dt.items || []).forEach(function (it) {
+      if (it.kind === 'file' && it.getAsFileSystemHandle) jobs.push(it.getAsFileSystemHandle());
+    });
+    takeDrop(jobs, [].slice.call(dt.files || []));
+  });
+
   $('vidOpen').onclick = openVideo;
   $('vidRemove').onclick = removeVideo;
   $('vidMute').addEventListener('change', function () { if (vid) vid.muted = this.checked; });

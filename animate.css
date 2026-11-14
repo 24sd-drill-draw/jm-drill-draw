@@ -570,3 +570,17 @@ body.has-clips{--tl:246px}
 /* Clear all — the way out when a session is not worth keeping. */
 .kd-clipadd.wipe{border-color:#5a3338;color:#d98a90}
 .kd-clipadd.wipe:hover{background:rgba(232,49,58,.16);border-color:#E8313A;color:#ff8b92}
+
+/* ---- Drop clips onto the window -------------------------------------
+   Appears only while files are being dragged over Film Room. Named
+   kd-dropzone, not kd-drop: kd-drop is the File/Edit/View menu. */
+.kd-dropzone{position:fixed;inset:0;z-index:9000;display:none;
+  align-items:center;justify-content:center;pointer-events:none;
+  background:rgba(10,13,18,.74)}
+body.kd-dropping .kd-dropzone{display:flex}
+.kd-dropzone>div{border:3px dashed var(--accent);border-radius:16px;
+  padding:26px 38px;text-align:center;background:var(--navy);
+  box-shadow:var(--shadow);max-width:78vw}
+.kd-dropzone strong{display:block;font-size:21px;color:var(--accent);font-weight:800}
+.kd-dropzone span{display:block;margin-top:7px;font-size:13.5px;color:var(--ink)}
+.kd-dropzone em{display:block;margin-top:5px;font-size:11.5px;color:var(--muted);font-style:normal}
