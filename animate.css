@@ -584,3 +584,9 @@ body.kd-dropping .kd-dropzone{display:flex}
 .kd-dropzone strong{display:block;font-size:21px;color:var(--accent);font-weight:800}
 .kd-dropzone span{display:block;margin-top:7px;font-size:13.5px;color:var(--ink)}
 .kd-dropzone em{display:block;margin-top:5px;font-size:11.5px;color:var(--muted);font-style:normal}
+
+/* ---- Dragging a clip along the strip to reorder the reel ---- */
+.kd-clip[draggable="true"]{cursor:grab}
+.kd-clip.kd-lift{opacity:.42;cursor:grabbing}
+.kd-clip.kd-insB{box-shadow:inset 3px 0 0 var(--accent)}
+.kd-clip.kd-insA{box-shadow:inset -3px 0 0 var(--accent)}

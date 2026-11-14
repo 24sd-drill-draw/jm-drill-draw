@@ -2001,9 +2001,10 @@
     var h = '';
     clips.forEach(function (c, i) {
       var n = (c.segments ? c.segments.length : 0);
-      h += '<button type="button" class="kd-clip' + (i === clipAt ? ' on' : '') + (c.file ? '' : ' need') +
+      h += '<button type="button" draggable="true" class="kd-clip' + (i === clipAt ? ' on' : '') + (c.file ? '' : ' need') +
         '" data-clip="' + i + '" title="' + c.name.replace(/[<>&"]/g, '') +
-        (c.file ? (n ? ' — ' + n + ' on the reel' : ' — no segments yet') : ' — file not picked yet: click to pick it') + '">' +
+        (c.file ? (n ? ' — ' + n + ' on the reel' : ' — no segments yet') : ' — file not picked yet: click to pick it') +
+        ' · drag to reorder the reel">' +
         '<b>' + (i + 1) + '</b>' + shortName(c.name) +
         (n ? '<i class="kd-clipn">' + n + '</i>' : '') +
         '<i class="kd-clipx" data-close="' + i + '" title="Close this clip">&times;</i></button>';
@@ -2044,6 +2045,65 @@
     n = String(n).replace(/\.[^.]+$/, '');
     return n.length > 18 ? n.slice(0, 17) + '…' : n;
   }
+  // ---------------------------------------------------------
+  // Drag a clip along the strip to change the running order. The reel plays
+  // clips in strip order, so this IS the order of the exported video.
+  // ---------------------------------------------------------
+  var dragFrom = -1;
+  function clearInsertMarks() {
+    [].slice.call($('kdClips').querySelectorAll('.kd-clip')).forEach(function (b) {
+      b.classList.remove('kd-insA', 'kd-insB', 'kd-lift');
+    });
+  }
+  // `before` is a slot between clips: 0 is in front of clip 1, clips.length is
+  // the far end. Splicing out first shifts everything after it down one.
+  function moveClip(from, before) {
+    if (from < 0 || from >= clips.length) return;
+    var at = before > from ? before - 1 : before;
+    if (at === from) return;
+    var hereObj = clips[clipAt] || null;     // follow the clip, not its number
+    var c = clips.splice(from, 1)[0];
+    clips.splice(at, 0, c);
+    clipAt = hereObj ? clips.indexOf(hereObj) : -1;
+    // the running order changed under it, so any reel in progress is stale
+    reelSeq = null; reelAt = -1; breakUntil = 0; reelPreview = false;
+    paintClips(); paintReelInfo(); paintList(); autosaveSoon();
+    toast(shortName(c.name) + ' is now clip ' + (at + 1));
+  }
+  $('kdClips').addEventListener('dragstart', function (e) {
+    var b = e.target.closest ? e.target.closest('.kd-clip') : null;
+    if (!b) return;
+    dragFrom = +b.dataset.clip;
+    b.classList.add('kd-lift');
+    try {
+      // A private type, so the window's file-drop overlay ignores this drag.
+      e.dataTransfer.setData('application/x-kd-clip', String(dragFrom));
+      e.dataTransfer.effectAllowed = 'move';
+    } catch (x) { }
+  });
+  $('kdClips').addEventListener('dragover', function (e) {
+    if (dragFrom < 0) return;
+    var b = e.target.closest ? e.target.closest('.kd-clip') : null;
+    if (!b) return;
+    e.preventDefault();
+    try { e.dataTransfer.dropEffect = 'move'; } catch (x) { }
+    var r = b.getBoundingClientRect(), after = (e.clientX - r.left) > r.width / 2;
+    clearInsertMarks();
+    $('kdClips').querySelector('.kd-clip[data-clip="' + dragFrom + '"]').classList.add('kd-lift');
+    b.classList.add(after ? 'kd-insA' : 'kd-insB');
+  });
+  $('kdClips').addEventListener('drop', function (e) {
+    if (dragFrom < 0) return;
+    var b = e.target.closest ? e.target.closest('.kd-clip') : null;
+    if (!b) return;
+    e.preventDefault(); e.stopPropagation();
+    var r = b.getBoundingClientRect(), after = (e.clientX - r.left) > r.width / 2;
+    var onto = +b.dataset.clip, from = dragFrom;
+    dragFrom = -1; clearInsertMarks();
+    moveClip(from, onto + (after ? 1 : 0));
+  });
+  $('kdClips').addEventListener('dragend', function () { dragFrom = -1; clearInsertMarks(); });
+
   $('kdClips').addEventListener('click', function (e) {
     var x = e.target.closest ? e.target.closest('.kd-clipx') : null;
     if (x) { e.stopPropagation(); removeClip(+x.dataset.close); return; }
