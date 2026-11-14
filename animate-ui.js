@@ -1962,7 +1962,33 @@
     } catch (e) { /* cancelled */ }
   }
   // On load: if clips are waiting and a folder is remembered, offer one click.
-  loadFolder().then(function (h) { if (h) { folderHandle = h; paintClips(); } });
+  loadFolder().then(function (h) {
+    if (!h) return;
+    folderHandle = h; paintClips(); tryAutoReconnect();
+  });
+
+  // A reload always loses the open FILES: a page is not allowed to hold a
+  // handle on your disk across one, or any site you visited could carry on
+  // reading it. Nothing here can change that. The FOLDER does survive, and
+  // when Chrome still counts it as granted there is nothing to ask — so the
+  // clips come back on their own and a reload costs only the wait. The
+  // Reconnect button is the fallback for when the grant has lapsed, because
+  // re-granting needs a real click. Either way it is one action for every
+  // clip, never one per clip.
+  //
+  // Called from both ends, because the folder comes out of IndexedDB and the
+  // clips out of the autosave, and either can land first.
+  var autoTried = false;
+  async function tryAutoReconnect() {
+    if (autoTried) return;
+    var h = folderHandle;
+    if (!h || !clips.length) return;
+    if (!clips.some(function (c) { return !c.file; })) return;   // nothing waiting
+    autoTried = true;
+    var ok = false;
+    try { ok = (await h.queryPermission({ mode: 'read' })) === 'granted'; } catch (e) { ok = false; }
+    if (ok) reconnectFromFolder(h);
+  }
 
   // Start the session over: every clip closed, the reel empty, the board
   // clean. One question first, because it cannot be undone.
@@ -3680,6 +3706,7 @@
   paintRecent();
   paintReelInfo();
   restoreAutosave();
+  tryAutoReconnect();        // clips are back; fetch their files if we may
   syncTimeline(true);
   setTimeout(function () { syncTimeline(true); }, 300);
 })();
