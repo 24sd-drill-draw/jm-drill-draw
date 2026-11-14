@@ -2574,6 +2574,14 @@
   }
 
   function checkFreeze() {
+    // Mid-swap the marks belong to the incoming clip and the clock does not:
+    // while the card is up, advanceReel deliberately parks tNow at the END of
+    // the clip just finished. Judged against that, every mark on the incoming
+    // clip looks long past and gets struck off as already shown — which is
+    // why every clip after the first exported with no drawings on it.
+    // reelSwitching stays true until the new clip's seek has landed, so it is
+    // the one that covers the whole gap.
+    if (clipLoading || reelSwitching) return;
     if (!playing) { if (holdNow) { holdNow = null; _holdIds = null; } return; }
     if (holdNow) {
       if (performance.now() >= holdNow.endsAt) {
@@ -2809,6 +2817,10 @@
   var reelSeq = null;        // the running order, fixed while a reel plays
   var reelClock = null;      // last clock reading taken from the clip itself
   var reelSwitching = false; // a clip is loading behind the card
+  // True from the moment a clip's marks go live until its file is ready and
+  // the clock has been moved to match. See reelLoadClip for what went wrong
+  // without it.
+  var clipLoading = false;
   // A single cut played from the clip list has its own one-entry running
   // order, so it counts as a reel even when nothing is ticked.
   function reelActive() {
@@ -2992,6 +3004,15 @@
     segments = c.segments; inMs = c.inMs || 0; outMs = c.outMs || 0;
     selOne(null);
     resetHolds();
+    // The new clip's marks are live from the line above, but the clock still
+    // reads the END of the clip we just left, and the file has not loaded yet.
+    // checkFreeze would run in that gap, see a mark at 0:03 with the playhead
+    // at 2:30, judge it long past and strike it off as already shown — so
+    // every clip after the first exported with no drawings on it at all.
+    // Move the clock first, and keep the freeze logic out until the file is
+    // ready and the real seek has landed.
+    clipLoading = true;
+    tNow = Math.max(0, seekMs || 0);
     var keepW = VW, keepH = VH, fixed = (exporting || reelPreview);
     disposeVideo();
     vidURL = URL.createObjectURL(c.file);
@@ -3008,11 +3029,12 @@
       lastT = 0; lastSig = '';
       tNow = clamp(seekMs, 0, T);
       spendHoldsBefore(tNow);
+      clipLoading = false;             // clock and marks agree again
       vid.addEventListener('seeked', function () { done && done(true); }, { once: true });
       try { vid.currentTime = tNow / 1000; } catch (e) { done && done(true); }
       paintClips(); updateVideoPanel(); syncScrub();
     }, { once: true });
-    vid.addEventListener('error', function () { done && done(false); }, { once: true });
+    vid.addEventListener('error', function () { clipLoading = false; done && done(false); }, { once: true });
     vid.src = vidURL;
   }
 
