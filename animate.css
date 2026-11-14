@@ -590,3 +590,7 @@ body.kd-dropping .kd-dropzone{display:flex}
 .kd-clip.kd-lift{opacity:.42;cursor:grabbing}
 .kd-clip.kd-insB{box-shadow:inset 3px 0 0 var(--accent)}
 .kd-clip.kd-insA{box-shadow:inset -3px 0 0 var(--accent)}
+
+/* A cut the yellow line has shortened or excluded */
+.kd-list td.fenced{color:var(--accent);font-weight:700}
+.kd-list td.fenced b{font-weight:700}

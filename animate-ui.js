@@ -946,13 +946,17 @@
     // meant the next Play stopped almost at once — you could never watch
     // forward to find where the second play ended.
     if (outMs < inMs + 200) outMs = T;
-    syncTimeline(true); render();
+    syncTimeline(true); render(); trimChanged();
   }
   function markOut() {
     outMs = clamp(tNow, 200, T);
     if (inMs > outMs - 200) inMs = Math.max(0, outMs - 200);
-    syncTimeline(true); render();
+    syncTimeline(true); render(); trimChanged();
   }
+  // The yellow line fences the export, so every number that describes the
+  // export has to move with it — otherwise the reel still reads 27.1s while
+  // the file comes out 20.1s, which is how you lose faith in the thing.
+  function trimChanged() { paintReelInfo(); paintList(); autosaveSoon(); }
   // Jump between teaching points. On a two-minute clip with six of them,
   // scrubbing to find each one by eye is the slow part of the job.
   // Is a key press going into a box you type in? Only then do the shortcuts
@@ -2551,6 +2555,7 @@
       var up = function () {
         window.removeEventListener('pointermove', move);
         window.removeEventListener('pointerup', up);
+        trimChanged();           // the fence moved: reel length and clip list follow
       };
       window.addEventListener('pointermove', move);
       window.addEventListener('pointerup', up);
@@ -2673,18 +2678,45 @@
   // The reel runs across every clip in the session, in strip order and then in
   // time order inside each clip. A clip whose file has not been picked again
   // is skipped: its segments cannot be played or written.
+  // The yellow in/out handles are a fence, not a suggestion: nothing outside
+  // them is recorded. A cut keeps the times it was made with, so pulling the
+  // yellow line in afterwards used to change nothing and the export ran on
+  // past it. Now the fence is applied when the reel is built, so moving the
+  // line takes effect straight away and moving it back out restores the cut
+  // — the cut itself is never rewritten.
+  function fenceOf(c, ci) {
+    var lo = (ci === clipAt ? inMs : (c.inMs || 0));
+    var hi = (ci === clipAt ? outMs : (c.outMs || 0));
+    if (!hi) hi = c.T || 0;        // never trimmed: the whole clip is fair game
+    return hi ? { lo: lo, hi: hi } : null;
+  }
+  function fenced(s, f) {
+    if (!f) return s;
+    var a = Math.max(s.in, f.lo), b = Math.min(s.out, f.hi);
+    if (b - a < 100) return null;                     // the line excludes this cut
+    if (a === s.in && b === s.out) return s;          // untouched: keep the same object
+    var q = { in: a, out: b };
+    if (s.label) q.label = s.label;
+    return q;
+  }
   function reelList() {
     var out = [];
     if (!clips.length) {
-      segments.forEach(function (s) { if (!s.off) out.push({ ci: -1, seg: s }); });
+      segments.forEach(function (s) {
+        if (s.off) return;
+        var q = fenced(s, outMs ? { lo: inMs, hi: outMs } : null);
+        if (q) out.push({ ci: -1, seg: q });
+      });
       return out;
     }
     clips.forEach(function (c, ci) {
       if (!c.file) return;
       var segs = (ci === clipAt ? segments : c.segments) || [];
+      var f = fenceOf(c, ci);
       segs.slice().sort(function (a, b) { return a.in - b.in; }).forEach(function (s) {
         if (s.off) return;                // unticked in the clip list: not in this export
-        out.push({ ci: ci, seg: s, name: c.name });
+        var q = fenced(s, f);
+        if (q) out.push({ ci: ci, seg: q, name: c.name });
       });
     });
     return out;
@@ -2715,7 +2747,13 @@
     var h = '<tr><th></th><th>#</th><th>Clip</th><th>In</th><th>Len</th><th>Caption</th></tr>';
     rows.forEach(function (e, i) {
       var s = e.seg, use = s.off !== true;
-      if (use) { on++; total += Math.max(0, s.out - s.in); }
+      // What this cut will actually export: the yellow line fences it. Show
+      // THAT length, not the one it was cut with, or the list says 12.1s
+      // while the export writes 5s.
+      var fz = e.ci >= 0 ? fenced(s, fenceOf(clips[e.ci], e.ci)) : s;
+      var len = fz ? fz.out - fz.in : 0;
+      var cut = !fz || fz !== s;               // the line has shortened it
+      if (use) { on++; total += Math.max(0, len); }
       if (e.noFile) waiting++;
       h += '<tr class="' + (use ? '' : 'off') + (e.noFile ? ' needfile' : '') +
         (e.ci === clipAt ? ' here' : '') + '" data-row="' + i + '">' +
@@ -2725,8 +2763,11 @@
         '<td class="nm" title="' + String(e.name).replace(/[<>&"]/g, '') +
         (e.noFile ? ' — waiting for its file; click to pick it' : '') + '">' +
         (e.ci >= 0 ? 'C' + (e.ci + 1) : '–') + '</td>' +
-        '<td title="' + fmtT(s.in) + ' to ' + fmtT(s.out) + '">' + fmtT(s.in) + '</td>' +
-        '<td>' + fmtT(s.out - s.in) + '</td>' +
+        '<td title="' + fmtT(s.in) + ' to ' + fmtT(s.out) + '">' + fmtT(fz ? fz.in : s.in) + '</td>' +
+        '<td' + (cut ? ' class="fenced" title="' + (len
+            ? 'The yellow line shortens this cut: it was ' + fmtT(s.out - s.in) + ', the export writes ' + fmtT(len)
+            : 'The yellow line excludes this cut — nothing of it is exported') + '"' : '') + '>' +
+        (len ? fmtT(len) : '—') + (cut ? ' <b>✂</b>' : '') + '</td>' +
         '<td class="cap" data-cap="' + i + '" title="' + (s.label ? String(s.label).replace(/[<>&"]/g, '') : 'Click to name this cut') + '">' +
         (s.label ? String(s.label).replace(/[<>&]/g, '') : '<i>add…</i>') + '</td></tr>';
     });
