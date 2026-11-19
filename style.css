@@ -324,6 +324,10 @@
   border-radius:7px; padding:5px 10px; font:inherit; font-size:12px; cursor:pointer; }
 .pr-go:hover{ background:var(--accent); color:#04141c; }
 .prfoot{ margin:0; padding:10px 14px; border-top:1px solid #27445c; color:var(--muted); font-size:11px; }
+/* Said out loud when the season list is empty, rather than leaving a short
+   list to look like lost data. */
+.prwarn{ margin:0; padding:9px 14px; background:#3a2a12; border-bottom:1px solid #27445c;
+  color:var(--gold); font-size:12px; line-height:1.45; }
 
 /* Picture size in the drill library. The picture IS the index once there are
    thirty drills, so this is a control, not a preference - labelled, and it

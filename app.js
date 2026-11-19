@@ -4874,6 +4874,14 @@ async function openPractices(){
     if(err && err.name==='AbortError') return;
     toast('Could not open that folder'); return;
   }
+  // The SEASON half of this panel comes from calendar.json in that same folder,
+  // not from the practice files. Re-granting the folder here read the files and
+  // nothing else, so after a browser restart the panel listed saved practices
+  // with no season rows and no "Build it" - which reads as half the year having
+  // gone missing. If the calendar is not in hand, read it now.
+  if(!CAL || !Array.isArray(CAL.events) || !CAL.events.length){
+    try{ await tryFolderLines(false); }catch(e){}
+  }
   let saved=[];
   try{ saved=await readPracticeFolder(dir); }catch(e){}
   showPractices(dir, saved);
@@ -4954,9 +4962,16 @@ function showPractices(dir, saved){
         (p.drills!=null?p.drills+' drill'+(p.drills===1?'':'s'):'?')+
         ' · '+Math.round(p.size/1024)+'KB</span></button>').join('')+'</div></div>';
   }).join('');
+  // Say it out loud when the season is missing. A short list with no reason
+  // given is the thing that sends Josh looking for a bug in his own head.
+  const noCal = !sessions.length
+    ? '<div class="prwarn">No ice found in <b>calendar.json</b> in this folder, so this is only the practices you have saved '+
+      '— the season list and the <b>Build it</b> buttons come from that file.</div>'
+    : '';
   ov.innerHTML='<div class="libwrap"><div class="libhead"><b>Practices</b>'+
-    '<span class="libdir">'+escapeHtml(dir.name)+' · '+saved.length+' saved</span>'+
-    '<button class="tbtn ghost" id="prClose">Close</button></div>'+
+    '<span class="libdir">'+escapeHtml(dir.name)+' · '+saved.length+' saved'+
+    (sessions.length?' · '+sessions.length+' ice on the calendar':'')+'</span>'+
+    '<button class="tbtn ghost" id="prClose">Close</button></div>'+noCal+
     '<div class="prlist">'+(html||'<p style="padding:14px">No practices and no ice on the calendar.</p>')+'</div>'+
     '<p class="prfoot">Opening a practice REPLACES the drills on the board. Build it just sets the date and time — your drills stay.</p></div>';
   document.body.appendChild(ov);
