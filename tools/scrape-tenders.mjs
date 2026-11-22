@@ -24,10 +24,10 @@ const STORE = path.join(ROOT, 'data', 'tenders.json');
 // The current season lives on top-stories.cfm; everything older is behind
 // ?archives=true. Neither page alone is complete, so both are crawled.
 const SOURCES = [
-  { host: 'https://naphl.com',  url: 'https://naphl.com/news/top-stories.cfm',                league: 'NAPHL' },
-  { host: 'https://naphl.com',  url: 'https://naphl.com/news/top-stories.cfm?archives=true',  league: 'NAPHL' },
-  { host: 'https://nat1hl.com', url: 'https://nat1hl.com/news/top-stories.cfm',               league: 'T1ER'  },
-  { host: 'https://nat1hl.com', url: 'https://nat1hl.com/news/top-stories.cfm?archives=true', league: 'T1ER'  },
+  { host: 'https://naphl.com',  url: 'https://naphl.com/news/top-stories.cfm',                league: 'NAPHL', archive: false },
+  { host: 'https://naphl.com',  url: 'https://naphl.com/news/top-stories.cfm?archives=true',  league: 'NAPHL', archive: true  },
+  { host: 'https://nat1hl.com', url: 'https://nat1hl.com/news/top-stories.cfm',               league: 'T1ER',  archive: false },
+  { host: 'https://nat1hl.com', url: 'https://nat1hl.com/news/top-stories.cfm?archives=true', league: 'T1ER',  archive: true  },
 ];
 const GAPFILL_CAP = 300;
 
@@ -154,14 +154,19 @@ function parseArchive(html, host, league) {
   return { tenders: out, seenIds };
 }
 
-/** Story ids no listing page mentioned, between the lowest and highest seen. */
-function findGaps(seenIds) {
-  const nums = [...seenIds].map(Number).filter(Number.isFinite).sort((a, b) => a - b);
-  if (nums.length < 2) return [];
-  const have = new Set(nums);
-  const gaps = [];
-  for (let i = nums[0]; i <= nums[nums.length - 1]; i++) if (!have.has(i)) gaps.push(String(i));
-  return gaps;
+/** The seam: a site's archive stops at one story id and its live page starts
+ *  at a higher one. Ids in between are listed nowhere, so a tender can hide
+ *  there. Computed per site — the two sites use unrelated id ranges, and
+ *  unioning them invents a gap tens of thousands of ids wide. */
+function findSeam(liveIds, archiveIds) {
+  const live = [...liveIds].map(Number).filter(Number.isFinite);
+  const arch = [...archiveIds].map(Number).filter(Number.isFinite);
+  if (!live.length || !arch.length) return [];
+  const lo = Math.max(...arch), hi = Math.min(...live);
+  if (hi - lo <= 1) return [];
+  const out = [];
+  for (let i = lo + 1; i < hi; i++) out.push(String(i));
+  return out;
 }
 
 /* -------------------------------------------------------- article parsing */
@@ -561,7 +566,7 @@ async function main() {
   const known = new Set(store.players.map((p) => p.storyId));
 
   let stubs = [];
-  const allSeen = new Set();
+  const perHost = new Map();   // host -> { live:Set, archive:Set }
   let listingsOk = 0;
   for (const src of SOURCES) {
     try {
@@ -570,7 +575,9 @@ async function main() {
       const { tenders, seenIds } = parseArchive(html, src.host, src.league);
       console.log(`${tenders.length} tenders / ${seenIds.size} stories`);
       stubs.push(...tenders);
-      for (const id of seenIds) allSeen.add(id);
+      if (!perHost.has(src.host)) perHost.set(src.host, { live: new Set(), archive: new Set() });
+      const bucket = perHost.get(src.host)[src.archive ? 'archive' : 'live'];
+      for (const id of seenIds) bucket.add(id);
       listingsOk++;
     } catch (err) {
       console.error(`\n! ${src.url} failed: ${err.message}`);
@@ -586,7 +593,10 @@ async function main() {
   // Story ids that no listing mentions — the seam between the live page and
   // the archive. Probe them so a tender can't hide in the crack.
   if (OPT.gapfill && !OPT.since) {
-    const gaps = findGaps(allSeen).filter((id) => !known.has(id));
+    const probed = new Set(store.probedGaps || []);
+    const seam = [];
+    for (const [, b] of perHost) seam.push(...findSeam(b.live, b.archive));
+    const gaps = [...new Set(seam)].filter((id) => !known.has(id) && !probed.has(id));
     if (gaps.length > GAPFILL_CAP) {
       console.log(`gapfill: ${gaps.length} unlisted ids — over the ${GAPFILL_CAP} cap, skipping (run with --all later)`);
     } else if (gaps.length) {
@@ -606,6 +616,8 @@ async function main() {
         await sleep(THROTTLE_MS);
       }
       console.log(`${hits} extra tender(s)`);
+      // Remember the dead ids so tomorrow's run doesn't ask for them again.
+      store.probedGaps = [...probed, ...gaps].slice(-5000);
     }
   }
 
@@ -638,6 +650,7 @@ async function main() {
   canonicaliseTeams(players);
   const out = {
     schema: 1,
+    probedGaps: store.probedGaps || [],
     updated: new Date().toISOString(),
     sources: SOURCES.map((s) => s.url),
     counts: countBy(players),

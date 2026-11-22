@@ -1,0 +1,58 @@
+name: NAHL tenders
+
+# Daily at 03:23 Pacific. GitHub only honours `schedule` for workflows that are
+# on the DEFAULT branch — until this file is merged to main the daily run will
+# not fire, and you have to use "Run workflow" (workflow_dispatch) by hand.
+on:
+  schedule:
+    - cron: '23 11 * * *'
+  workflow_dispatch:
+    inputs:
+      all:
+        description: 'Re-fetch and re-parse every tender story (slow)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: nahl-tenders
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Scrape tenders
+        run: |
+          if [ "${{ inputs.all }}" = "true" ]; then
+            node tools/scrape-tenders.mjs --all
+          else
+            node tools/scrape-tenders.mjs
+          fi
+
+      # `updated` changes on every run, so a timestamp-only diff is not news.
+      - name: Commit only when a player actually changed
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- data/tenders.json; then
+            echo "no change at all"; exit 0
+          fi
+          added=$(git diff -U0 -- data/tenders.json | grep -c '^+ *"storyId"' || true)
+          if ! git diff -U0 -- data/tenders.json | grep -qvE '^[+-] *"(updated)"|^[+-]{3}|^@@|^diff |^index '; then
+            echo "only the timestamp moved — not committing"
+            git checkout -- data/tenders.json
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/tenders.json
+          git commit -m "Tenders: ${added} new signing(s) as of $(date -u +%Y-%m-%d)"
+          git push
