@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NAHL Tender Board</title>
+<style>
+:root{
+  --navy:#0A1622; --navy2:#0F2030; --panel:#13283A; --panel2:#193449;
+  --line:#244A66; --ink:#E7F2F8; --muted:#8FB0C4; --ice:#EAF6FB;
+  --accent:#5BC2D6; --accentdk:#2E8FA8; --gold:#E7B416; --red:#E9072B; --green:#39B37A;
+  --shadow:0 8px 24px rgba(0,0,0,.35); --r:10px;
+}
+body.light-theme{
+  --navy:#F0F4F8; --navy2:#FFFFFF; --panel:#E2EAF0; --panel2:#D0DCE8;
+  --line:#B0C4D4; --ink:#0A1622; --muted:#4A6A82;
+  --shadow:0 4px 16px rgba(0,0,0,.12);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--navy);color:var(--ink);
+  font:14px/1.45 "Inter",system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--accent)}
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 14px;background:var(--navy2);
+  border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
+.brand{display:flex;align-items:center;gap:9px;font-weight:800;letter-spacing:.3px}
+.brand .mark{width:26px;height:26px;border-radius:6px;background:linear-gradient(135deg,var(--accent),var(--accentdk));
+  display:grid;place-items:center;color:#04141c;font-size:13px;box-shadow:var(--shadow)}
+.brand small{display:block;font-weight:600;font-size:10px;color:var(--muted);letter-spacing:.6px;margin-top:-2px}
+.spacer{flex:1}
+.tbtn{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 11px;font-size:12px;
+  font-weight:600;color:var(--ink);cursor:pointer;font-family:inherit}
+.tbtn:hover{background:var(--panel2)}
+.tbtn.on{background:var(--accent);color:#04141c;border-color:var(--accent)}
+select,input,textarea{background:var(--panel);border:1px solid var(--line);border-radius:8px;color:var(--ink);
+  padding:6px 9px;font:inherit;font-size:12px}
+input::placeholder,textarea::placeholder{color:var(--muted)}
+
+.stats{display:flex;flex-wrap:wrap;gap:10px;padding:12px 14px 0}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:9px 13px;min-width:108px}
+.stat b{display:block;font-size:21px;line-height:1.1}
+.stat span{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;font-weight:700}
+
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 14px}
+.filters .lbl{font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+
+.wrap{padding:0 14px 40px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+#tableWrap{overflow:auto;max-height:calc(100vh - 215px)}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{position:sticky;top:0;background:var(--navy2);text-align:left;padding:8px 9px;font-size:10px;
+  text-transform:uppercase;letter-spacing:.5px;color:var(--muted);border-bottom:1px solid var(--line);
+  cursor:pointer;white-space:nowrap;z-index:10}
+th:hover{color:var(--ink)}
+th.sorted{color:var(--accent)}
+td{padding:7px 9px;border-bottom:1px solid rgba(36,74,102,.45);vertical-align:middle}
+tr:hover td{background:var(--panel2)}
+tr.home td{background:rgba(91,194,214,.10)}
+tr.home:hover td{background:rgba(91,194,214,.18)}
+.name{font-weight:700;white-space:nowrap}
+.sub{font-size:11px;color:var(--muted)}
+.pill{display:inline-block;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:800;letter-spacing:.3px;
+  border:1px solid var(--line);background:var(--navy2)}
+.pill.D{color:#9FD0FF;border-color:#2B5F8F}
+.pill.F,.pill.C,.pill.LW,.pill.RW{color:#FFD79A;border-color:#8A6A24}
+.pill.G{color:#C8A6FF;border-color:#6B4FA0}
+.pill.home{color:#04141c;background:var(--accent);border-color:var(--accent)}
+.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.jersey{width:48px;text-align:center;padding:3px 4px;font-weight:700}
+.note{width:100%;min-width:140px;padding:3px 6px}
+.star{background:none;border:0;color:var(--muted);font-size:15px;cursor:pointer;padding:0 2px}
+.star.on{color:var(--gold)}
+.ep{font-size:11px;white-space:nowrap}
+.miss{color:var(--muted)}
+.inf{color:var(--muted);cursor:help;margin-left:3px;font-weight:700}
+.flag{display:inline-block;width:14px;height:14px;line-height:13px;text-align:center;border-radius:50%;
+  background:var(--gold);color:#04141c;font-size:10px;font-weight:900;cursor:help;margin-left:4px}
+
+.cols{display:grid;grid-template-columns:1fr 340px;gap:14px;align-items:start}
+@media(max-width:1100px){.cols{grid-template-columns:1fr}#tableWrap{max-height:none}th{position:static}}
+.side h3{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+.side .panel{padding:12px}
+.side textarea{width:100%;height:120px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
+.cmp{border-top:1px solid var(--line);margin-top:10px;padding-top:10px}
+.cmprow{display:flex;align-items:center;gap:8px;padding:5px 0}
+.cmprow .nm{flex:1;font-weight:700;font-size:12px}
+.bar{height:7px;border-radius:4px;background:var(--navy2);overflow:hidden;flex:0 0 96px;border:1px solid var(--line)}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--accentdk),var(--accent))}
+.pct{font-size:11px;font-variant-numeric:tabular-nums;width:44px;text-align:right;color:var(--muted)}
+.pct.hi{color:var(--green);font-weight:700}
+.pct.lo{color:var(--red)}
+.empty{padding:40px 16px;text-align:center;color:var(--muted)}
+.warn{background:rgba(233,180,22,.12);border:1px solid #8A6A24;border-radius:8px;padding:9px 11px;
+  font-size:12px;color:var(--ink);margin:0 14px 12px}
+code{background:var(--navy2);padding:1px 5px;border-radius:4px;font-size:11px}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div class="brand"><div class="mark">T</div><div>NAHL Tender Board<small id="updated">loading…</small></div></div>
+  <div class="spacer"></div>
+  <input id="q" type="search" placeholder="Search name, club, team, town…" style="min-width:220px">
+  <button class="tbtn" id="exportJson" title="Download tenders.json including your jersey numbers and notes">Export JSON</button>
+  <button class="tbtn" id="exportCsv">Export CSV</button>
+  <button class="tbtn" id="theme">Light</button>
+</div>
+
+<div id="loadwarn" class="warn" hidden>
+  Could not read <code>data/tenders.json</code> over <code>file://</code>. Serve the folder
+  (<code>.claude/serve.ps1</code>) or <button class="tbtn" id="pick">choose the file</button>
+  <input type="file" id="file" accept="application/json" hidden>
+</div>
+
+<div class="stats" id="stats"></div>
+
+<div class="filters">
+  <span class="lbl">Season</span><select id="fSeason"></select>
+  <span class="lbl">NAHL team</span><select id="fTeam"></select>
+  <span class="lbl">Pos</span><select id="fPos"></select>
+  <span class="lbl">Age grp</span><select id="fAge"></select>
+  <span class="lbl">Club</span><select id="fClub"></select>
+  <button class="tbtn" id="fWatch">★ Watchlist</button>
+  <button class="tbtn" id="fHome">Seattle only</button>
+  <button class="tbtn" id="reset">Reset</button>
+</div>
+
+<div class="wrap cols">
+  <div class="panel" id="tableWrap"><div class="empty">Loading…</div></div>
+
+  <div class="side">
+    <h3>Compare your roster</h3>
+    <div class="panel">
+      <p class="sub" style="margin:0 0 8px">One player per line: <code>Name, Pos, GP, G, A</code></p>
+      <textarea id="roster" placeholder="Ryan Butler, D, 14, 3, 9&#10;Tomas Hlinka, D, 16, 5, 11&#10;Sam Carter, F, 15, 10, 8"></textarea>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="tbtn on" id="runCmp">Compare</button>
+        <button class="tbtn" id="clearCmp">Clear</button>
+      </div>
+      <div class="cmp" id="cmpOut"><p class="sub" style="margin:0">Scored against points-per-game of the tendered players currently in view, same position group.</p></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const SEATTLE = /kraken|seattle|sno[\s-]?king|wenatchee|everett|totems/i;
+const LS = 'nahl-tender-board-v1';
+let DATA = { players: [], updated: null, counts: {} };
+let overlay = {};
+try { overlay = JSON.parse(localStorage.getItem(LS) || '{}'); } catch (e) { overlay = {}; }
+
+const state = { q:'', season:'', team:'', pos:'', age:'', club:'', watch:false, home:false, sort:'announced', dir:-1 };
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+const ppg = (p) => (p.gp && p.pts != null ? p.pts / p.gp : null);
+
+function saveOverlay(){ try { localStorage.setItem(LS, JSON.stringify(overlay)); } catch(e){} }
+function ov(p){ return overlay[p.id] || {}; }
+function setOv(p, k, v){ overlay[p.id] = { ...ov(p), [k]: v }; saveOverlay(); }
+function field(p, k){ const o = ov(p); return o[k] !== undefined ? o[k] : p[k]; }
+
+/* ------------------------------------------------------------- load */
+async function boot(){
+  try {
+    const r = await fetch('data/tenders.json', { cache:'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    ingest(await r.json());
+  } catch (e) {
+    $('#loadwarn').hidden = false;
+    $('#tableWrap').innerHTML = '<div class="empty">No data loaded.</div>';
+  }
+}
+function ingest(j){
+  DATA = j;
+  DATA.players = (j.players || []).map((p) => ({ ...p, _home: SEATTLE.test([p.club, p.hometown, p.homeState].join(' ')) }));
+  $('#updated').textContent = j.updated ? 'updated ' + new Date(j.updated).toLocaleDateString() : '';
+  buildFilters(); render();
+}
+$('#pick').onclick = () => $('#file').click();
+$('#file').onchange = (e) => { const f = e.target.files[0]; if (!f) return;
+  const fr = new FileReader(); fr.onload = () => { try { ingest(JSON.parse(fr.result)); $('#loadwarn').hidden = true; } catch(err){ alert('Not valid JSON'); } }; fr.readAsText(f); };
+
+/* ---------------------------------------------------------- filters */
+function uniq(arr){ return [...new Set(arr.filter(Boolean))].sort(); }
+function fill(sel, vals, label){
+  sel.innerHTML = `<option value="">${label}</option>` + vals.map((v) => `<option>${esc(v)}</option>`).join('');
+}
+function buildFilters(){
+  const P = DATA.players;
+  const seasons = uniq(P.map((p) => p.tenderSeason)).reverse();
+  fill($('#fSeason'), seasons, 'All seasons');
+  fill($('#fTeam'), uniq(P.map((p) => p.nahlTeam)), 'All NAHL teams');
+  fill($('#fPos'), uniq(P.map((p) => p.position)), 'All');
+  fill($('#fAge'), uniq(P.map((p) => p.ageGroup)), 'All');
+  fill($('#fClub'), uniq(P.map((p) => p.club)), 'All clubs');
+  if (seasons[0]) { state.season = seasons[0]; $('#fSeason').value = seasons[0]; }
+}
+const bind = (id, key) => { $(id).onchange = (e) => { state[key] = e.target.value; render(); }; };
+bind('#fSeason','season'); bind('#fTeam','team'); bind('#fPos','pos'); bind('#fAge','age'); bind('#fClub','club');
+$('#q').oninput = (e) => { state.q = e.target.value.toLowerCase(); render(); };
+$('#fWatch').onclick = () => { state.watch = !state.watch; $('#fWatch').classList.toggle('on', state.watch); render(); };
+$('#fHome').onclick = () => { state.home = !state.home; $('#fHome').classList.toggle('on', state.home); render(); };
+$('#reset').onclick = () => { Object.assign(state, { q:'',season:'',team:'',pos:'',age:'',club:'',watch:false,home:false });
+  ['#fSeason','#fTeam','#fPos','#fAge','#fClub'].forEach((s) => $(s).value = '');
+  $('#q').value=''; $('#fWatch').classList.remove('on'); $('#fHome').classList.remove('on'); render(); };
+$('#theme').onclick = () => { document.body.classList.toggle('light-theme');
+  $('#theme').textContent = document.body.classList.contains('light-theme') ? 'Dark' : 'Light'; };
+
+function visible(){
+  return DATA.players.filter((p) => {
+    if (state.season && p.tenderSeason !== state.season) return false;
+    if (state.team && p.nahlTeam !== state.team) return false;
+    if (state.pos && p.position !== state.pos) return false;
+    if (state.age && p.ageGroup !== state.age) return false;
+    if (state.club && p.club !== state.club) return false;
+    if (state.watch && !field(p,'watch')) return false;
+    if (state.home && !p._home) return false;
+    if (state.q) {
+      const hay = [p.name,p.club,p.nahlTeam,p.hometown,p.homeState,field(p,'notes')].join(' ').toLowerCase();
+      if (!hay.includes(state.q)) return false;
+    }
+    return true;
+  });
+}
+
+const COLS = [
+  ['announced','Signed'], ['name','Player'], ['position','Pos'], ['age','Age'], ['ageGroup','Grp'],
+  ['club','Current club'], ['nahlTeam','NAHL team'], ['_size','Ht/Wt'], ['gp','GP'], ['g','G'], ['a','A'], ['pts','P'],
+  ['_ppg','P/GP'], ['jersey','#'], ['_ep','EP'], ['notes','Notes'], ['_watch','★'],
+];
+const NUMERIC = new Set(['age','gp','g','a','pts','_ppg','_size']);
+
+function sortVal(p, k){
+  if (k === '_ppg') return ppg(p);
+  if (k === '_size') return p.heightIn ?? null;
+  if (k === 'jersey') return field(p,'jersey') || '';
+  if (k === 'notes') return field(p,'notes') || '';
+  return p[k];
+}
+function render(){
+  const rows = visible().sort((x, y) => {
+    const a = sortVal(x, state.sort), b = sortVal(y, state.sort);
+    if (a == null && b == null) return 0;
+    if (a == null) return 1;
+    if (b == null) return -1;
+    return (typeof a === 'number' && typeof b === 'number' ? a - b : String(a).localeCompare(String(b))) * state.dir;
+  });
+  renderStats(rows);
+  if (!rows.length) { $('#tableWrap').innerHTML = '<div class="empty">Nothing matches those filters.</div>'; return; }
+
+  const head = COLS.map(([k, lab]) =>
+    `<th data-k="${k}" class="${state.sort===k?'sorted':''}${NUMERIC.has(k)?' num':''}">${lab}${state.sort===k?(state.dir>0?' ▲':' ▼'):''}</th>`).join('');
+
+  const body = rows.map((p) => {
+    const pg = ppg(p);
+    const w = field(p,'watch');
+    return `<tr class="${p._home?'home':''}" data-id="${esc(p.id)}">
+      <td class="sub" style="white-space:nowrap">${esc(p.announced||'—')}</td>
+      <td><div class="name">${esc(p.name||'—')} ${p._home?'<span class="pill home">SEA</span>':''}${(p.note||p.statsNote)?`<span class="flag" title="${esc([p.note,p.statsNote].filter(Boolean).join(' · '))}">!</span>`:''}</div>
+          <div class="sub">${esc([p.hometown,p.homeState].filter(Boolean).join(', ')||'')}</div></td>
+      <td><span class="pill ${esc(p.position||'')}">${esc(p.position||'?')}</span></td>
+      <td class="num">${p.age??'<span class="miss">—</span>'}</td>
+      <td class="sub">${esc(p.ageGroup||'')}</td>
+      <td>${esc(p.club||'—')}</td>
+      <td><b>${esc(p.nahlTeam||'—')}</b><div class="sub">${esc(p.tenderSeason||'')}${p.seasonInferred?`<span class="inf" title="Season not stated in the release — inferred from the announcement date${p.seasonAmbiguous?' (Oct–Dec: ambiguous)':''}">${p.seasonAmbiguous?'~?':'~'}</span>`:''}</div></td>
+      <td class="num sub">${p.heightIn?`${Math.floor(p.heightIn/12)}'${p.heightIn%12}`:''}${p.weightLb?`<div>${p.weightLb} lb</div>`:(p.heightIn?'':'<span class="miss">—</span>')}</td>
+      <td class="num">${p.gp??'<span class="miss">—</span>'}</td>
+      <td class="num">${p.g??'<span class="miss">—</span>'}</td>
+      <td class="num">${p.a??'<span class="miss">—</span>'}</td>
+      <td class="num"><b>${p.pts??'<span class="miss">—</span>'}</b></td>
+      <td class="num">${pg!=null?pg.toFixed(2):'<span class="miss">—</span>'}</td>
+      <td><input class="jersey" data-f="jersey" value="${esc(field(p,'jersey')||'')}" placeholder="–"></td>
+      <td class="ep">${field(p,'epUrl')
+          ? `<a href="${esc(field(p,'epUrl'))}" target="_blank" rel="noopener">profile</a>`
+          : `<a href="${esc(p.epSearchUrl||'')}" target="_blank" rel="noopener">search ↗</a>`}
+          <div class="sub"><a href="${esc(p.storyUrl||'')}" target="_blank" rel="noopener">story</a></div></td>
+      <td><input class="note" data-f="notes" value="${esc(field(p,'notes')||'')}" placeholder="…"></td>
+      <td><button class="star ${w?'on':''}" data-f="watch">${w?'★':'☆'}</button></td>
+    </tr>`;
+  }).join('');
+
+  $('#tableWrap').innerHTML = `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+
+  $('#tableWrap').querySelectorAll('th').forEach((th) => th.onclick = () => {
+    const k = th.dataset.k;
+    if (state.sort === k) state.dir *= -1; else { state.sort = k; state.dir = NUMERIC.has(k) ? -1 : 1; }
+    render();
+  });
+  const byId = new Map(DATA.players.map((p) => [p.id, p]));
+  $('#tableWrap').querySelectorAll('[data-f]').forEach((el) => {
+    const p = byId.get(el.closest('tr').dataset.id);
+    if (el.tagName === 'INPUT') el.onchange = () => setOv(p, el.dataset.f, el.value);
+    else el.onclick = () => { setOv(p, 'watch', !field(p,'watch')); render(); };
+  });
+}
+
+function renderStats(rows){
+  const skaters = rows.filter((p) => p.position !== 'G');
+  const pgs = skaters.map(ppg).filter((v) => v != null).sort((a,b)=>a-b);
+  const med = pgs.length ? pgs[Math.floor(pgs.length/2)] : null;
+  const teams = new Set(rows.map((p) => p.nahlTeam).filter(Boolean));
+  const sea = rows.filter((p) => p._home).length;
+  const card = (b, s) => `<div class="stat"><b>${b}</b><span>${s}</span></div>`;
+  $('#stats').innerHTML =
+    card(rows.length, 'tenders in view') +
+    card(DATA.players.length, 'tracked all-time') +
+    card(teams.size, 'NAHL teams') +
+    card(med != null ? med.toFixed(2) : '—', 'median P/GP') +
+    card(rows.filter((p)=>p.position==='D').length, 'defensemen') +
+    card(rows.filter((p)=>p.position==='G').length, 'goalies') +
+    card(sea, 'Seattle-area') +
+    card(rows.filter((p)=>p.seasonInferred).length, 'season inferred') +
+    card(rows.filter((p)=>p.note||p.statsNote).length, 'needs a check');
+}
+
+/* ------------------------------------------------------- comparison */
+function parseRoster(txt){
+  return txt.split(/\n+/).map((l) => l.trim()).filter(Boolean).map((line) => {
+    const c = line.split(',').map((s) => s.trim());
+    const n = (v) => { const x = parseFloat(v); return Number.isFinite(x) ? x : null; };
+    const gp = n(c[2]), g = n(c[3]), a = n(c[4]);
+    const pts = g != null && a != null ? g + a : n(c[5]);
+    return { name: c[0] || '?', pos: (c[1] || '').toUpperCase().slice(0,2).replace('DE','D'), gp, g, a, pts,
+             ppg: gp && pts != null ? pts / gp : null };
+  });
+}
+function percentile(sorted, v){
+  if (!sorted.length || v == null) return null;
+  let below = 0;
+  for (const x of sorted) if (x < v) below++;
+  return Math.round((below / sorted.length) * 100);
+}
+function runCompare(){
+  const mine = parseRoster($('#roster').value);
+  const pool = visible();
+  if (!mine.length) { $('#cmpOut').innerHTML = '<p class="sub" style="margin:0">Paste a roster above.</p>'; return; }
+  const out = mine.map((m) => {
+    const group = pool.filter((p) => (m.pos === 'G' ? p.position === 'G' : m.pos === 'D' ? p.position === 'D' : !['D','G'].includes(p.position)));
+    const dist = group.map(ppg).filter((v) => v != null).sort((a,b)=>a-b);
+    const pc = percentile(dist, m.ppg);
+    const cls = pc == null ? '' : pc >= 60 ? 'hi' : pc <= 30 ? 'lo' : '';
+    return `<div class="cmprow">
+      <span class="nm">${esc(m.name)} <span class="sub">${esc(m.pos||'')}${m.ppg!=null?' · '+m.ppg.toFixed(2)+' P/GP':''}</span></span>
+      <span class="bar"><i style="width:${pc??0}%"></i></span>
+      <span class="pct ${cls}">${pc==null?'—':pc+'%'}</span></div>`;
+  }).join('');
+  const n = pool.length;
+  $('#cmpOut').innerHTML = out + `<p class="sub" style="margin:8px 0 0">Percentile of points-per-game vs ${n} tendered player(s) in view, matched by position group. Blank = not enough data on that line.</p>`;
+}
+$('#runCmp').onclick = runCompare;
+$('#clearCmp').onclick = () => { $('#roster').value=''; $('#cmpOut').innerHTML='<p class="sub" style="margin:0">Cleared.</p>'; };
+
+/* ----------------------------------------------------------- export */
+function download(name, text, type){
+  const b = new Blob([text], { type });
+  const u = URL.createObjectURL(b);
+  const a = Object.assign(document.createElement('a'), { href:u, download:name });
+  a.click(); setTimeout(() => URL.revokeObjectURL(u), 1000);
+}
+$('#exportJson').onclick = () => {
+  const merged = { ...DATA, players: DATA.players.map((p) => { const { _home, ...rest } = p; return { ...rest, ...ov(p) }; }) };
+  download('tenders.json', JSON.stringify(merged, null, 2) + '\n', 'application/json');
+};
+$('#exportCsv').onclick = () => {
+  const cols = ['announced','name','position','age','ageGroup','club','nahlTeam','tenderSeason','seasonInferred','heightIn','weightLb','gp','g','a','pts','hometown','homeState','jersey','notes','epSearchUrl','storyUrl'];
+  const q = (v) => `"${String(v ?? '').replace(/"/g,'""')}"`;
+  const rows = visible().map((p) => cols.map((c) => q(['jersey','notes'].includes(c) ? field(p,c) : p[c])).join(','));
+  download('tenders.csv', [cols.join(','), ...rows].join('\n'), 'text/csv');
+};
+
+boot();
+</script>
+</body>
+</html>

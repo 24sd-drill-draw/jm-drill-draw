@@ -14,3 +14,7 @@ __testclip.mp4
 # Claude Code local state — machine-specific, and the pre-change app.js backup
 .claude/settings.local.json
 *.bak
+
+# tender board: exported file carries hand-written scouting notes/grades on minors.
+# This repo is public — keep the annotated copy local.
+data/tenders.private.json
